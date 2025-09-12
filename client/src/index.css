@@ -1,0 +1,12 @@
+/* Make the app fill the screen and remove default margins */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Nice neutral background */
+body {
+  background: #f6f7fb;
+  color: #111;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
