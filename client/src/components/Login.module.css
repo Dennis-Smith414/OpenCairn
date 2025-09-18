@@ -1,0 +1,79 @@
+.page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  background: #f6f7fb;
+  padding: 24px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+}
+
+.title {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cfd3df;
+  outline: none;
+  font-size: 14px;
+}
+
+.inputWithToggle {
+  padding-right: 72px; /* space for Show/Hide button */
+}
+
+.toggle {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #cfd3df;
+  background: #f2f3f7;
+  cursor: pointer;
+}
+
+.error {
+  color: #b00020;
+  background: #fdecee;
+  border: 1px solid #f6c6cc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.button {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #1f6feb;
+  background: #1f6feb;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
