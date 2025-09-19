@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#008b8b", // dark cyan
   },
   map_test_button: { // for Map test button
-    backgroundColor: "#ff0000",
+    backgroundColor: "#5f9ea0",
     color: "#ffffff",
   },
   buttonText: {
