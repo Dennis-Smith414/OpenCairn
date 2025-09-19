@@ -1,0 +1,2 @@
+# React Native debugger frontend contains legitimate Chrome DevTools secrets
+node_modules/@react-native/debugger-frontend/dist/third-party/front_end/models/crux-manager/crux-manager.js:*
