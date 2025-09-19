@@ -2,6 +2,8 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import MapTest from '../screens/MapTest'; //Map Test.tsx file
+
 import LandingScreen from "../screens/LandingScreen";
 // import HomeScreen from "../screens/HomeScreen"; // add later when ready
 
@@ -16,6 +18,7 @@ export default function AppNavigator() {
           component={LandingScreen}
           options={{ title: "Welcome" }}
         />
+        <Stack.Screen name="Map_test" component={MapTest} />
         {/* <Stack.Screen name="Home" component={HomeScreen} /> */}
       </Stack.Navigator>
     </NavigationContainer>
