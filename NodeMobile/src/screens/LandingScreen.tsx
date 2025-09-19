@@ -25,6 +25,13 @@ export default function LandingScreen({ navigation }: any) {
       >
         <Text style={styles.buttonText}>Create Account</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.map_test_button]}
+        onPress={() => navigation.navigate("Map_test")}
+        >
+          <Text style={styles.buttonText}>Demo Map</Text>
+        </TouchableOpacity>
     </View>
   );
 }
@@ -52,6 +59,10 @@ const styles = StyleSheet.create({
   },
   createButton: {
     backgroundColor: "#008b8b", // dark cyan
+  },
+  map_test_button: { // for Map test button
+    backgroundColor: "#ff0000",
+    color: "#ffffff",
   },
   buttonText: {
     color: "#fff",

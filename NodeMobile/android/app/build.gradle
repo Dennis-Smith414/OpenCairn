@@ -75,7 +75,9 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion buildToolsVersion
-    compileSdkVersion 34
+    //compileSdkVersion 34
+    //Something depends on 35 now 
+    compileSdkVersion 35
 
     namespace "com.nodemobile"
     defaultConfig {
