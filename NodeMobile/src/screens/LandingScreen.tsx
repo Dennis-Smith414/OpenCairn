@@ -1,7 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react"; 
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
+import { Platform } from "react-native"; 
+
 
 export default function LandingScreen({ navigation }: any) {
+
+
+ 
+
+
   return (
     <View style={styles.container}>
       {/* Fullscreen-fitting Image */}
@@ -32,6 +39,9 @@ export default function LandingScreen({ navigation }: any) {
         >
           <Text style={styles.buttonText}>Demo Map</Text>
         </TouchableOpacity>
+          
+
+        
     </View>
   );
 }
@@ -68,5 +78,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+    debugText: {
+    marginTop: 10,
+    color: "#666",
+    fontSize: 12,
   },
 });
