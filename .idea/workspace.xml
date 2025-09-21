@@ -5,7 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/NodeMobile/nodejs-assets/nodejs-project/sqlite-server.js" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/nodejs-assets/nodejs-project/sqlite-server.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/react-native.config.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Bold.ttf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Light.ttf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Medium.ttf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Regular.ttf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-SemiBold.ttf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/styles/theme.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile.xcodeproj/project.pbxproj" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile.xcodeproj/project.pbxproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile/Info.plist" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile/Info.plist" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/LandingScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/LandingScreen.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,11 +63,12 @@
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "#6 on TylersBranch"
+    "git-widget-placeholder": "Felix"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/NodeMobile/src/assets/fonts" />
       <recent name="$PROJECT_DIR$/NodeMobile/src/assets/images" />
     </key>
   </component>
@@ -69,5 +81,8 @@
       <updated>1758250019144</updated>
     </task>
     <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.ts" />
   </component>
 </project>
