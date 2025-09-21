@@ -4,7 +4,7 @@
  *   GET  /api/kv/:key             → read KV from SQLite
  *   POST /api/kv/:key {value}     → upsert KV into SQLite
  *   GET  /api/routes              → list routes
- *   POST /api/routes {slug,name,region} → insert trail
+ *   POST /api/routes {slug,name,region} → insert route
  *   POST /api/_migrate_kv         → one-shot: import old kv.json into SQLite (if present)
  */
 
@@ -178,9 +178,9 @@ function routesList() {
 
 
 /**
- * Insert a new trail into the database.
+ * Insert a new route into the database.
  * - slug: URL-safe string (unique)
- * - name: human-readable trail name
+ * - name: human-readable route name
  * - region: optional text (e.g., "WI")
  * - created_at: auto-filled with current timestamp
  *
@@ -265,7 +265,7 @@ function readJson(req) {
 //   GET  /api/kv/:key         → read a KV entry
 //   POST /api/kv/:key         → upsert a KV entry  { value: "..." }
 //   GET  /api/routes          → list routes (from SQLite)
-//   POST /api/routes          → insert a trail     { slug, name, region? }
+//   POST /api/routes          → insert a route     { slug, name, region? }
 //   POST /api/_migrate_kv     → one-shot: import old kv.json → SQLite
 // -----------------------------------------------------------------------------
 http.createServer(async (req, res) => {
