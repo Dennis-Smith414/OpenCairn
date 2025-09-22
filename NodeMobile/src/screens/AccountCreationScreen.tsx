@@ -22,21 +22,33 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 
   async function handleCreate() {
     setError(null);
+
+    // Check for empty fields
     if (!username || !email || !password || !confirm) {
       setError("Please fill out all fields.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+
+    // Password strength regex:
+    // ^(?=.*[A-Z])  → must have at least one uppercase
+    // (?=.*[^A-Za-z0-9]) → must have at least one special character
+    // .{8,}$ → minimum length 8
+    const strongPassword = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
+
+    if (!strongPassword.test(password)) {
+      setError("Password must be at least 8 characters, include 1 capital letter, and 1 symbol.");
       return;
     }
+
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
     }
+
     // TODO: hook up to your real register API
     navigation.goBack();
   }
+
 
   return (
     <KeyboardAvoidingView
@@ -101,7 +113,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 }
 
 const styles = StyleSheet.create({
-  // Match LandingScreen: centered, white background
+ 
   container: {
     flex: 1,
     backgroundColor: "#fff",
@@ -114,7 +126,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
 
-  // Same logo treatment
+
   logo: {
     flex: 0,
     width: "80%",
@@ -129,7 +141,7 @@ const styles = StyleSheet.create({
     color: "#222",
   },
 
-  // Inputs styled to feel like your buttons
+  
   input: {
     width: "80%",
     backgroundColor: "#fff",
@@ -141,7 +153,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
-  // Button base copied from LandingScreen proportions/colors
+
   button: {
     width: "60%",
     paddingVertical: 12,
@@ -150,7 +162,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   createButton: {
-    backgroundColor: "#008b8b", // dark cyan, matches Landing create
+    backgroundColor: "#008b8b", 
   },
   buttonText: {
     color: "#fff",
@@ -158,11 +170,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Secondary action styled to complement primary buttons
   cancelButton: {
     backgroundColor: "transparent",
     borderWidth: 2,
-    borderColor: "#40e0d0", // turquoise (Landing login)
+    borderColor: "#40e0d0", 
   },
   cancelText: {
     color: "#40e0d0",

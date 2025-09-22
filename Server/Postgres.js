@@ -26,7 +26,7 @@ async function get(sql, params = []) {
 
 /** Ensure schema exists. Call this once from index.js before listening. */
 async function init() {
-  // Create table if missing
+  // --- base tables ---
   await run(`
     CREATE TABLE IF NOT EXISTS trails (
       id BIGSERIAL PRIMARY KEY,
@@ -36,9 +36,22 @@ async function init() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
-
-  // Helpful index (unique already created by UNIQUE constraint on slug)
+  // helpful index (UNIQUE already on slug; this is idempotent)
   await run(`CREATE UNIQUE INDEX IF NOT EXISTS trails_slug_key ON trails(slug)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // case-insensitive lookups (match your LOWER(...) checks)
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users ((LOWER(username)))`);
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users ((LOWER(email)))`);
 }
 
-module.exports = { init, run, all, get };
+module.exports = { init, run, all, get, pool };

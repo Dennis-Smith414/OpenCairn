@@ -15,7 +15,7 @@ export default function LandingScreen({ navigation }: any) {
       <Image
         source={require("../assets/images/OCLogoLight.png")}
         style={styles.logo}
-        resizeMode="contain" // 👈 scale to fit, no cropping
+        resizeMode="contain" // 
       />
 
       {/* Buttons */}
@@ -39,9 +39,7 @@ export default function LandingScreen({ navigation }: any) {
         >
           <Text style={styles.buttonText}>Demo Map</Text>
         </TouchableOpacity>
-          
-
-        
+ 
     </View>
   );
 }
