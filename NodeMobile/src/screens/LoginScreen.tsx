@@ -1,7 +1,5 @@
-// client/src/screens/AccountCreationScreen.jsx
 import React, { useState } from "react";
-import { baseStyles} from "../styles/theme";
-
+import { baseStyles } from "../styles/theme";
 import {
   View,
   Text,
@@ -19,15 +17,23 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-
   async function handleLogin() {
     setError(null);
-    if (!username || !password ) {
+
+    if (!username || !password) {
       setError("Please fill out all fields.");
       return;
     }
-    // TODO: hook up to your real login API
-    navigation.goBack();
+
+    // TODO: replace with your real auth logic
+    const loginSuccessful = true;
+
+    if (loginSuccessful) {
+      // swap stack to the tab navigator
+      navigation.replace("Main");
+    } else {
+      setError("Invalid credentials.");
+    }
   }
 
   return (
@@ -35,7 +41,10 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+      >
         <Image
           source={require("../assets/images/OCLogoLight.png")}
           style={styles.logo}
@@ -64,11 +73,17 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
         {error ? <Text style={baseStyles.error}>{error}</Text> : null}
 
-        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonPrimary]} onPress={handleLogin}>
+        <TouchableOpacity
+          style={[baseStyles.button, baseStyles.buttonPrimary]}
+          onPress={handleLogin}
+        >
           <Text style={baseStyles.buttonText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonSecondary]} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={[baseStyles.button, baseStyles.buttonSecondary]}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={baseStyles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -77,7 +92,6 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-  // Match LandingScreen: centered, white background
   container: {
     flex: 1,
     backgroundColor: "#fff",
@@ -89,8 +103,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
-
-  // Same logo treatment
   logo: {
     flex: 0,
     width: "80%",
