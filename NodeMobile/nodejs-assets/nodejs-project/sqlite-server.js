@@ -3,8 +3,8 @@
  *   GET  /api/health              → { ok, db:true, startedAt }
  *   GET  /api/kv/:key             → read KV from SQLite
  *   POST /api/kv/:key {value}     → upsert KV into SQLite
- *   GET  /api/trails              → list trails
- *   POST /api/trails {slug,name,region} → insert trail
+ *   GET  /api/routes              → list routes
+ *   POST /api/routes {slug,name,region} → insert route
  *   POST /api/_migrate_kv         → one-shot: import old kv.json into SQLite (if present)
  */
 
@@ -35,7 +35,7 @@ const rn_bridge = require('rn-bridge'); // Node message channel for debug logs
 
 // In our app, it runs a tiny REST API that listens on port 8080.
 // Instead of serving HTML webpages, it serves JSON data
-// so the React Native app (or curl) can hit endpoints like /api/health or /api/trails.
+// so the React Native app (or curl) can hit endpoints like /api/health or /api/routes.
 const http = require('http');
 
 const fs = require('fs'); // Allows Node.js to read and write files on the devices system, without fs, data would vanish when the app closes
@@ -95,7 +95,7 @@ async function openDatabase() {
           v TEXT
         );
 
-        CREATE TABLE IF NOT EXISTS trails (
+        CREATE TABLE IF NOT EXISTS routes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           slug TEXT UNIQUE NOT NULL,
           name TEXT NOT NULL,
@@ -153,19 +153,19 @@ function kvSet(key, value) {
 }
 
 
-// --- Trails helpers ---
+// --- Routes helpers ---
 
 /**
- * Fetch all trails from the database.
+ * Fetch all routes from the database.
  * - Returns rows ordered newest → oldest (by ID).
  * - Each row looks like: { id, slug, name, region, created_at }.
- * Used by GET /api/trails.
+ * Used by GET /api/routes.
  */
-function trailsList() {
+function routesList() {
   const rows = [];
   const stmt = db.prepare(`
     SELECT id, slug, name, region, created_at 
-    FROM trails 
+    FROM routes
     ORDER BY id DESC
   `);
 
@@ -178,18 +178,18 @@ function trailsList() {
 
 
 /**
- * Insert a new trail into the database.
+ * Insert a new route into the database.
  * - slug: URL-safe string (unique)
- * - name: human-readable trail name
+ * - name: human-readable route name
  * - region: optional text (e.g., "WI")
  * - created_at: auto-filled with current timestamp
  *
- * Example: trailsInsert({ slug: "pine-loop", name: "Pine Loop Trail", region: "WI" })
- * Used by POST /api/trails.
+ * Example: routesInsert({ slug: "pine-loop", name: "Pine Loop Trail", region: "WI" })
+ * Used by POST /api/routes.
  */
-function trailsInsert({ slug, name, region }) {
+function routesInsert({ slug, name, region }) {
   const stmt = db.prepare(`
-    INSERT INTO trails(slug, name, region, created_at)
+    INSERT INTO routes(slug, name, region, created_at)
     VALUES (?, ?, ?, datetime('now'))
   `);
 
@@ -248,7 +248,7 @@ function readJson(req) {
  * Embedded HTTP server (runs inside the mobile app).
  *
  * Purpose:
- * - Exposes simple REST API endpoints (like /api/health, /api/trails).
+ * - Exposes simple REST API endpoints (like /api/health, /api/routes).
  * - Returns JSON, not HTML → lets the React Native frontend fetch data directly.
  * - All requests stay on the device (offline-first).
  *
@@ -264,8 +264,8 @@ function readJson(req) {
 //   GET  /api/health          → liveness + DB status
 //   GET  /api/kv/:key         → read a KV entry
 //   POST /api/kv/:key         → upsert a KV entry  { value: "..." }
-//   GET  /api/trails          → list trails (from SQLite)
-//   POST /api/trails          → insert a trail     { slug, name, region? }
+//   GET  /api/routes          → list routes (from SQLite)
+//   POST /api/routes          → insert a route     { slug, name, region? }
 //   POST /api/_migrate_kv     → one-shot: import old kv.json → SQLite
 // -----------------------------------------------------------------------------
 http.createServer(async (req, res) => {
@@ -300,20 +300,20 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
-    // ---- Trails list: GET /api/trails --------------------------------------
-    if (req.method === 'GET' && req.url === '/api/trails') {
-      return json(res, 200, { ok: true, trails: trailsList() });
+    // ---- Routes list: GET /api/routes --------------------------------------
+    if (req.method === 'GET' && req.url === '/api/routes') {
+      return json(res, 200, { ok: true, routes: routesList() });
     }
 
-    // ---- Trails insert: POST /api/trails -----------------------------------
+    // ---- Routes insert: POST /api/routes -----------------------------------
     // Body: { slug, name, region? }
-    if (req.method === 'POST' && req.url === '/api/trails') {
+    if (req.method === 'POST' && req.url === '/api/routes') {
       const { slug, name, region } = await readJson(req);
       if (!slug || !name) {
         return json(res, 400, { ok: false, error: 'slug and name required' });
       }
       try {
-        trailsInsert({ slug, name, region });
+        routes({ slug, name, region });
         return json(res, 200, { ok: true });
       } catch (e) {
         // Likely UNIQUE(slug) violation or similar
