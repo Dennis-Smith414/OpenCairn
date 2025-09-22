@@ -1,5 +1,7 @@
 // client/src/screens/AccountCreationScreen.jsx
 import React, { useState } from "react";
+import { baseStyles} from "../styles/theme";
+
 import {
   View,
   Text,
@@ -50,10 +52,10 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
           resizeMode="contain"
         />
 
-        <Text style={styles.title}>Create Account</Text>
+        <Text style={baseStyles.headerText}>Create Account</Text>
 
         <TextInput
-          style={styles.input}
+          style={baseStyles.input}
           placeholder="Username"
           autoCapitalize="none"
           value={username}
@@ -61,7 +63,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
           returnKeyType="next"
         />
         <TextInput
-          style={styles.input}
+          style={baseStyles.input}
           placeholder="Email"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -70,7 +72,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
           returnKeyType="next"
         />
         <TextInput
-          style={styles.input}
+          style={baseStyles.input}
           placeholder="Password"
           secureTextEntry
           value={password}
@@ -78,7 +80,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
           returnKeyType="next"
         />
         <TextInput
-          style={styles.input}
+          style={baseStyles.input}
           placeholder="Confirm Password"
           secureTextEntry
           value={confirm}
@@ -86,14 +88,14 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
           returnKeyType="done"
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={baseStyles.error}>{error}</Text> : null}
 
-        <TouchableOpacity style={[styles.button, styles.createButton]} onPress={handleCreate}>
-          <Text style={styles.buttonText}>Create Account</Text>
+        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonPrimary]} onPress={handleCreate}>
+          <Text style={baseStyles.buttonText}>Create Account</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonSecondary]} onPress={() => navigation.goBack()}>
+          <Text style={baseStyles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -120,59 +122,5 @@ const styles = StyleSheet.create({
     width: "80%",
     height: 140,
     marginBottom: 8,
-  },
-
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginVertical: 8,
-    color: "#222",
-  },
-
-  // Inputs styled to feel like your buttons
-  input: {
-    width: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 10,
-  },
-
-  // Button base copied from LandingScreen proportions/colors
-  button: {
-    width: "60%",
-    paddingVertical: 12,
-    borderRadius: 30,
-    alignItems: "center",
-    marginVertical: 6,
-  },
-  createButton: {
-    backgroundColor: "#008b8b", // dark cyan, matches Landing create
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  // Secondary action styled to complement primary buttons
-  cancelButton: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: "#40e0d0", // turquoise (Landing login)
-  },
-  cancelText: {
-    color: "#40e0d0",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  error: {
-    color: "#b00020",
-    textAlign: "center",
-    marginTop: 8,
   },
 });
