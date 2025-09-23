@@ -7,6 +7,7 @@ const cors = require("cors");
 
 // Full GPX/Trails router (list, meta, geojson, bbox, upload)
 const gpxRoutes = require("./routes/gpx");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 app.use(cors());
@@ -14,6 +15,7 @@ app.use(express.json());
 
 // mount the routes under /api
 app.use("/api", gpxRoutes);
+app.use("/api/auth", authRoutes);
 
 // health
 app.get("/api/health", (_req, res) => {
