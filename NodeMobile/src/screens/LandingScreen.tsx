@@ -31,7 +31,12 @@ export default function LandingScreen({ navigation }: any) {
         onPress={() => navigation.navigate("CreateAccount")}>
         <Text style={[baseStyles.buttonText]}>Create Account</Text>
       </TouchableOpacity>
-
+      <TouchableOpacity
+        style={[baseStyles.button, baseStyles.buttonSecondary]}
+        onPress={() => navigation.navigate("TrailsList")}
+      >
+        <Text style={[baseStyles.buttonText]}>Browse Trails</Text>
+      </TouchableOpacity>
       <TouchableOpacity
         style={[baseStyles.button, baseStyles.buttonAccent]}
         onPress={() => navigation.navigate("Map_test")}>
@@ -40,3 +45,10 @@ export default function LandingScreen({ navigation }: any) {
     </View>
   );
 }
+const LS = StyleSheet.create({
+  container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  title: { fontSize: 24, fontWeight: "700", marginBottom: 24 },
+  button: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginTop: 12 },
+  primary: { backgroundColor: "#0a84ff" },
+  buttonText: { color: "white", fontWeight: "600" },
+});

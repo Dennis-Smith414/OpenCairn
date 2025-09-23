@@ -1,25 +1,18 @@
 // NodeMobile/src/lib/api.ts
-const USE_EMBEDDED = false; // true if using the device-embedded server on :8080
 
-export const API_BASE = USE_EMBEDDED
-  ? "http://127.0.0.1:8080/api"
-  : "http://10.0.2.2:5000/api";
+// Point API_BASE at your backend.
+// On Android emulator, "localhost" is NOT valid → use 10.0.2.2
+export const API_BASE =
+  __DEV__ ? "http://10.0.2.2:5000" : "https://your-prod-backend.com";
 
-function p(path: string) {
-  if (!path) throw new Error("apiJson called without a path");
-  return path.startsWith("/") ? path : `/${path}`;
+export async function fetchTrailList() {
+  const r = await fetch(`${API_BASE}/api/routes/list?limit=100`);
+  const j = await r.json();
+  return j.items ?? [];
 }
 
-export async function apiJson<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${p(path)}`);
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} ${res.statusText} at ${path}\n${body}`);
-  }
-  return res.json() as Promise<T>;
+export async function fetchTrailGeo(id: number) {
+  const r = await fetch(`${API_BASE}/api/routes/${id}.geojson`);
+  if (!r.ok) throw new Error(`geo failed ${r.status}`);
+  return r.json();
 }
-
-export type TrailRow = { id: number; slug: string; name: string; region?: string };
-
-export const fetchTrailList = () => apiJson<TrailRow[]>("/trails");
-export const fetchTrailGeo  = (id: number) => apiJson<any>(`/trails/${id}.geojson`);

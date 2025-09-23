@@ -2,10 +2,10 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AccountCreationScreen from "../screens/AccountCreationScreen";
-import MapTest from '../screens/MapTest'; //Map Test.tsx file
-
+import MapTest from "../screens/MapTest";
+import TrailsListScreen from "../screens/TrailsListScreen";
+import TrailMapScreen from "../screens/TrailMapScreen";
 import LandingScreen from "../screens/LandingScreen";
-// import HomeScreen from "../screens/HomeScreen"; // add later when ready
 
 const Stack = createNativeStackNavigator();
 
@@ -16,15 +16,30 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Landing"
           component={LandingScreen}
-          options={{ title: "Welcome" }}
+          options={{ headerShown: false }} // hide header for landing
         />
-        <Stack.Screen name="Map_test" component={MapTest} />
-         <Stack.Screen
+        <Stack.Screen
+          name="TrailsList"
+          component={TrailsListScreen}
+          options={{ title: "Trails" }}
+        />
+        <Stack.Screen
+          name="TrailMap"
+          component={TrailMapScreen}
+          options={({ route }: any) => ({
+            title: route.params?.name ?? "Trail Map",
+          })}
+        />
+        <Stack.Screen
+          name="MapTest"
+          component={MapTest}
+          options={{ title: "Map Test" }}
+        />
+        <Stack.Screen
           name="CreateAccount"
           component={AccountCreationScreen}
-         options={{ title: "Create Account" }}
+          options={{ title: "Create Account" }}
         />
-        {/* <Stack.Screen name="Home" component={HomeScreen} /> */}
       </Stack.Navigator>
     </NavigationContainer>
   );
