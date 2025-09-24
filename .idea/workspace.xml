@@ -5,18 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/NodeMobile/react-native.config.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Bold.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Light.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Medium.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-Regular.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/fonts/Comfortaa-SemiBold.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/styles/theme.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile.xcodeproj/project.pbxproj" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile.xcodeproj/project.pbxproj" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile/Info.plist" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/ios/NodeMobile/Info.plist" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/LandingScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/LandingScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/LoginScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/LoginScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/RouteSelectScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/RouteSelectScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/yarn.lock" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/yarn.lock" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,20 +49,20 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "Felix"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Felix&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/NodeMobile/src/assets/fonts" />
