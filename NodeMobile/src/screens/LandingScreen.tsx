@@ -31,12 +31,6 @@ export default function LandingScreen({ navigation }: any) {
         onPress={() => navigation.navigate("CreateAccount")}>
         <Text style={[baseStyles.buttonText]}>Create Account</Text>
       </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonAccent]}
-        onPress={() => navigation.navigate("Map_test")}>
-          <Text style={[baseStyles.buttonText]}>Demo Map</Text>
-        </TouchableOpacity>
     </View>
   );
 }
