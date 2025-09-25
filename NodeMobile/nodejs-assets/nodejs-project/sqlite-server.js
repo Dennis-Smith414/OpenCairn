@@ -90,17 +90,77 @@ async function openDatabase() {
       db.run(`
         PRAGMA foreign_keys = ON;
 
-        CREATE TABLE IF NOT EXISTS kv (
-          k TEXT PRIMARY KEY,
-          v TEXT
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL,
+          email TEXT,
+          password TEXT NOT NULL,
+          create_time TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS routes (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          slug TEXT UNIQUE NOT NULL,
+          user_id INTEGER,
+          create_time TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cairns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          route_id INTEGER NOT NULL,
+          user_id INTEGER,
+          lat REAL NOT NULL,
+          lon REAL NOT NULL,
+          ele REAL,
           name TEXT NOT NULL,
-          region TEXT DEFAULT '',
-          created_at TEXT NOT NULL
+          description TEXT,
+          create_time TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY(route_id) REFERENCES routes(id) ON DELETE CASCADE,
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS comments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          cairn_id INTEGER NOT NULL,
+          content TEXT,
+          create_time TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY(cairn_id) REFERENCES cairns(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS cairn_rating (
+          user_id INTEGER NOT NULL,
+          cairn_id INTEGER NOT NULL,
+          val INTEGER NOT NULL,
+          PRIMARY KEY(user_id, cairn_id),
+          FOREIGN KEY(user_id) REFERENCES users(id),
+          FOREIGN KEY(cairn_id) REFERENCES cairns(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS route_rating (
+          user_id INTEGER NOT NULL,
+          route_id INTEGER NOT NULL,
+          val INTEGER,
+          PRIMARY KEY(user_id, route_id),
+          FOREIGN KEY(user_id) REFERENCES users(id),
+          FOREIGN KEY(route_id) REFERENCES routes(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS comment_rating (
+          user_id INTEGER NOT NULL,
+          comment_id INTEGER NOT NULL,
+          val INTEGER NOT NULL,
+          PRIMARY KEY(user_id, comment_id),
+          FOREIGN KEY(user_id) REFERENCES users(id),
+          FOREIGN KEY(comment_id) REFERENCES comments(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS gpx (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          route_id INTEGER,
+          file BLOB,
+          FOREIGN KEY(route_id) REFERENCES routes(id)
         );
       `);
 

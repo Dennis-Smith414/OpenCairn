@@ -26,19 +26,89 @@ async function get(sql, params = []) {
 
 /** Ensure schema exists. Call this once from index.js before listening. */
 async function init() {
-  // Create table if missing
+  // Users
   await run(`
-    CREATE TABLE IF NOT EXISTS trails (
-      id BIGSERIAL PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      region TEXT DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(32) NOT NULL,
+      email VARCHAR(255),
+      password VARCHAR(255) NOT NULL,
+      create_time TIMESTAMPTZ DEFAULT now()
     )
   `);
 
-  // Helpful index (unique already created by UNIQUE constraint on slug)
-  await run(`CREATE UNIQUE INDEX IF NOT EXISTS trails_slug_key ON trails(slug)`);
+  // Routes
+  await run(`
+    CREATE TABLE IF NOT EXISTS routes (
+      id SERIAL PRIMARY KEY,
+      user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+      create_time TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+
+  // Cairns
+  await run(`
+    CREATE TABLE IF NOT EXISTS cairns (
+      id SERIAL PRIMARY KEY,
+      route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+      lat DOUBLE PRECISION NOT NULL,
+      lon DOUBLE PRECISION NOT NULL,
+      ele DOUBLE PRECISION,
+      name VARCHAR(63) NOT NULL,
+      description TEXT,
+      create_time TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+
+  // Comments
+  await run(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      cairn_id INT NOT NULL REFERENCES cairns(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      content TEXT,
+      create_time TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+
+  // Ratings
+  await run(`
+    CREATE TABLE IF NOT EXISTS cairn_rating (
+      user_id INT NOT NULL REFERENCES users(id),
+      cairn_id INT NOT NULL REFERENCES cairns(id),
+      val SMALLINT NOT NULL,
+      PRIMARY KEY(user_id, cairn_id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS route_rating (
+      user_id INT NOT NULL REFERENCES users(id),
+      route_id INT NOT NULL REFERENCES routes(id),
+      val SMALLINT,
+      PRIMARY KEY(user_id, route_id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS comment_rating (
+      user_id INT NOT NULL REFERENCES users(id),
+      comment_id INT NOT NULL REFERENCES comments(id),
+      val SMALLINT NOT NULL,
+      PRIMARY KEY(user_id, comment_id)
+    )
+  `);
+
+  // GPX
+  await run(`
+    CREATE TABLE IF NOT EXISTS gpx (
+      id SERIAL PRIMARY KEY,
+      route_id INT REFERENCES routes(id),
+      file BYTEA
+    )
+  `);
 }
+
 
 module.exports = { init, run, all, get };
