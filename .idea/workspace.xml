@@ -5,22 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/AccountDark.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/AccountLight.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/FilesDark.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/FilesLight.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/MapDark.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/MapLight.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/RouteSelectDark.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/assets/icons/RouteSelectLight.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/screens/FileManagerScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/yarn.lock" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/yarn.lock" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -51,7 +51,7 @@ const MapScreen = () => {
           borderRadius: 12,
           borderWidth: 1,
           borderColor: colors.accent,
-          width: 180,
+          width: 175,
         }}
       >
         <Picker
