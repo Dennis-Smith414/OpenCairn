@@ -24,21 +24,33 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 
   async function handleCreate() {
     setError(null);
+
+    // Check for empty fields
     if (!username || !email || !password || !confirm) {
       setError("Please fill out all fields.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+
+    // Password strength regex:
+    // ^(?=.*[A-Z])  → must have at least one uppercase
+    // (?=.*[^A-Za-z0-9]) → must have at least one special character
+    // .{8,}$ → minimum length 8
+    const strongPassword = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
+
+    if (!strongPassword.test(password)) {
+      setError("Password must be at least 8 characters, include 1 capital letter, and 1 symbol.");
       return;
     }
+
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
     }
+
     // TODO: hook up to your real register API
     navigation.goBack();
   }
+
 
   return (
     <KeyboardAvoidingView
@@ -103,7 +115,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 }
 
 const styles = StyleSheet.create({
-  // Match LandingScreen: centered, white background
+ 
   container: {
     flex: 1,
     backgroundColor: "#fff",
@@ -116,11 +128,64 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
 
-  // Same logo treatment
+
   logo: {
     flex: 0,
     width: "80%",
     height: 140,
     marginBottom: 8,
+  },
+
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginVertical: 8,
+    color: "#222",
+  },
+
+  
+  input: {
+    width: "80%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 10,
+  },
+
+
+  button: {
+    width: "60%",
+    paddingVertical: 12,
+    borderRadius: 30,
+    alignItems: "center",
+    marginVertical: 6,
+  },
+  createButton: {
+    backgroundColor: "#008b8b", 
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  cancelButton: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: "#40e0d0", 
+  },
+  cancelText: {
+    color: "#40e0d0",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  error: {
+    color: "#b00020",
+    textAlign: "center",
+    marginTop: 8,
   },
 });
