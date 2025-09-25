@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text } from "react-native";
+import { Image } from "react-native";
 
 // Screens
 import AccountCreationScreen from "../screens/AccountCreationScreen";
@@ -12,15 +13,8 @@ import AccountScreen from "../screens/AccountScreen";
 import LandingScreen from "../screens/LandingScreen";
 import MapScreen from "../screens/MapScreen";
 import RouteSelectScreen from "../screens/RouteSelectScreen";
-
+import FileManagerScreen from "../screens/FileManagerScreen";
 // Placeholder for File Manager
-function FileManagerScreen() {
-  return (
-    <Text style={{ flex: 1, textAlign: "center", marginTop: 50 }}>
-      File Manager Placeholder
-    </Text>
-  );
-}
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -32,31 +26,84 @@ function MainTabs() {
       initialRouteName="Account"
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: "#fff" },
-        tabBarLabelStyle: { fontSize: 12 },
-        tabBarActiveTintColor: "#40E0D0",
+        tabBarStyle: {
+            backgroundColor: "#fff",
+            height: 80,
+            paddingTop : 10,
+            },
+        tabBarShowLabel: false,
+        tabBarActiveTintColor: "#008b8b",
+        tabBarInactiveTintColor: "#000",
       }}
     >
       <Tab.Screen
-        name="Routes"
-        component={RouteSelectScreen}
-        options={{ tabBarIcon: () => <Text>🗺️</Text> }}
-      />
+              name="Routes"
+              component={RouteSelectScreen}
+              options={{
+                tabBarIcon: ({ color }) => (
+                  <Image
+                    source={require("../assets/icons/RouteSelectLight.png")}
+                    style={{
+                                    width: 44,
+                                    height: 44,
+                                    resizeMode: "contain",
+                                    tintColor : color,
+                                  }}
+                  />
+                ),
+              }}
+            />
       <Tab.Screen
-        name="Map"
-        component={MapScreen}
-        options={{ tabBarIcon: () => <Text>📍</Text> }}
-      />
+              name="Map"
+              component={MapScreen}
+              options={{
+                tabBarIcon: ({ color }) => (
+                  <Image
+                    source={require("../assets/icons/MapLight.png")}
+                    style={{
+                                    width: 44,
+                                    height: 44,
+                                    resizeMode: "contain",
+                                    tintColor : color,
+                                  }}
+                  />
+                ),
+              }}
+            />
       <Tab.Screen
-        name="Account"
-        component={AccountScreen}
-        options={{ tabBarIcon: () => <Text>👤</Text> }}
-      />
+              name="Account"
+              component={AccountScreen}
+              options={{
+                tabBarIcon: ({ color }) => (
+                  <Image
+                    source={require("../assets/icons/AccountLight.png")}
+                    style={{
+                                    width: 44,
+                                    height: 44,
+                                    resizeMode: "contain",
+                                    tintColor : color,
+                                  }}
+                  />
+                ),
+              }}
+            />
       <Tab.Screen
-        name="Files"
-        component={FileManagerScreen}
-        options={{ tabBarIcon: () => <Text>📂</Text> }}
-      />
+              name="Files"
+              component={FileManagerScreen}
+              options={{
+                tabBarIcon: ({ color }) => (
+                  <Image
+                    source={require("../assets/icons/FilesLight.png")}
+                    style={{
+                                    width: 40,
+                                    height: 40,
+                                    resizeMode: "contain",
+                                    tintColor : color,
+                                  }}
+                  />
+                ),
+              }}
+            />
     </Tab.Navigator>
   );
 }
