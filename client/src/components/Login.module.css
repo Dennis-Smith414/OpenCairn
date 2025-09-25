@@ -23,7 +23,7 @@
 
   --teal: #40e0d0;      /* login */
   --teal-dark: #008b8b; /* create */
-  --teal-deep: #0b4444; /* trails */
+  --teal-deep: #0b4444; /* routes */
   --blue-gray: #5f9ea0; /* map */
   --gray: #888;         /* back */
   --gray-hover: #666;
@@ -132,7 +132,7 @@
 /* Shared button look */
 .button,
 .Create_button,
-.Trails_button,
+.Routes_button,
 .Map_button,
 .Back_button {
   width: 100%;
@@ -155,7 +155,7 @@
 
 .button:hover,
 .Create_button:hover,
-.Trails_button:hover,
+.Routes_button:hover,
 .Map_button:hover,
 .Back_button:hover {
   filter: brightness(0.95);
@@ -163,7 +163,7 @@
 
 .button:active,
 .Create_button:active,
-.Trails_button:active,
+.Routes_button:active,
 .Map_button:active,
 .Back_button:active {
   transform: translateY(1px);
@@ -171,7 +171,7 @@
 
 .button:disabled,
 .Create_button:disabled,
-.Trails_button:disabled,
+.Routes_button:disabled,
 .Map_button:disabled,
 .Back_button:disabled {
   opacity: 0.6;
@@ -194,7 +194,7 @@
   border-color: #ffffff;
 }
 
-.Trails_button {             /* Trails */
+.Routes_button {             /* Routes */
   background: var(--teal-deep);
   border-color: #ffffff;
 }

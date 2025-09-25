@@ -1,4 +1,4 @@
-// src/components/TrailView.tsx
+// src/components/RouteView.tsx
 import { useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import L, { Map as LeafletMap } from "leaflet";
@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
-export default function TrailView() {
+export default function RouteView() {
   const { id } = useParams<{ id: string }>();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);

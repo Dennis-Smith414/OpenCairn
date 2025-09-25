@@ -88,8 +88,8 @@ export default function Login() {
           <button type="submit" className={styles.Map_button}>
             Demo Map
           </button>
-            <Link to="/trails">
-                  <button type="button"className={styles.Trails_button}  style={{ width: "100%", padding: 12 }}>Trails</button>
+            <Link to="/routes">
+                  <button type="button"className={styles.Routes_button}  style={{ width: "100%", padding: 12 }}>Routes</button>
             </Link>
         </form>
       </div>
