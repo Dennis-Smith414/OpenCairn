@@ -69,6 +69,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
         <TextInput
           style={baseStyles.input}
           placeholder="Username"
+          placeholderTextColor="lightgray"
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
@@ -77,6 +78,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
         <TextInput
           style={baseStyles.input}
           placeholder="Email"
+          placeholderTextColor="lightgray"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -86,6 +88,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
         <TextInput
           style={baseStyles.input}
           placeholder="Password"
+          placeholderTextColor="lightgray"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -94,6 +97,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
         <TextInput
           style={baseStyles.input}
           placeholder="Confirm Password"
+          placeholderTextColor="lightgray"
           secureTextEntry
           value={confirm}
           onChangeText={setConfirm}
