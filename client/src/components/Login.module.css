@@ -1,79 +1,216 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #f6f7fb;
+  --card-bg: #fff;
+  --card-border: #e6e8ee;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+
+  --text: #0b1324;
+  --muted: #616978;
+
+  --input-border: #cfd3df;
+  --input-border-focus: #6cb8ff33;
+  --input-ring: #0ea5e9;
+
+  --danger: #b00020;
+  --danger-bg: #fdecee;
+  --danger-border: #f6c6cc;
+
+  --teal: #40e0d0;      /* login */
+  --teal-dark: #008b8b; /* create */
+  --teal-deep: #0b4444; /* routes */
+  --blue-gray: #5f9ea0; /* map */
+  --gray: #888;         /* back */
+  --gray-hover: #666;
+
+  --radius-card: 12px;
+  --radius-ctl: 12px;
+  --radius-btn: 13px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ---------- Layout ---------- */
 .page {
   min-height: 100svh;
   display: grid;
   place-items: center;
-  background: #f6f7fb;
-  padding: 24px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  padding: var(--space-5);
+  font-family: var(--font);
+  color: var(--text);
 }
 
 .card {
   width: 100%;
   max-width: 420px;
-  background: #fff;
-  border: 1px solid #e6e8ee;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
-  padding: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-5);
 }
 
 .title {
-  margin: 0 0 16px 0;
+  margin: 0 0 var(--space-4) 0;
   font-size: 24px;
+  font-weight: 700;
 }
 
+/* ---------- Form ---------- */
 .form {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .label {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   font-size: 14px;
+  color: var(--muted);
 }
 
+/* Inputs */
 .input {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #cfd3df;
+  padding: 12px;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--input-border);
   outline: none;
   font-size: 14px;
+  background: #fff;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+.input:focus {
+  border-color: var(--input-ring);
+  box-shadow: 0 0 0 4px var(--input-border-focus);
+}
+
+/* Input with toggle button (password) */
 .inputWithToggle {
-  padding-right: 72px; /* space for Show/Hide button */
+  padding-right: 80px; /* room for the Show/Hide button */
+  position: relative;
 }
 
+/* Toggle button positioned inside the input row */
 .toggle {
   position: absolute;
   right: 8px;
-  top: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   padding: 6px 10px;
   font-size: 12px;
-  border-radius: 6px;
-  border: 1px solid #cfd3df;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
   background: #f2f3f7;
   cursor: pointer;
 }
 
+/* Errors */
 .error {
-  color: #b00020;
-  background: #fdecee;
-  border: 1px solid #f6c6cc;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;
 }
 
-.button {
-  margin-top: 4px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #1f6feb;
-  background: #1f6feb;
+/* ---------- Buttons ---------- */
+/* Shared button look */
+.button,
+.Create_button,
+.Routes_button,
+.Map_button,
+.Back_button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-top: var(--space-1);
+  padding: 12px;
+  border-radius: var(--radius-btn);
   color: #fff;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  text-align: center;
+
+  border: 1px solid transparent;
+  transition: transform 80ms ease, filter 120ms ease, opacity 120ms ease;
+}
+
+.button:hover,
+.Create_button:hover,
+.Routes_button:hover,
+.Map_button:hover,
+.Back_button:hover {
+  filter: brightness(0.95);
+}
+
+.button:active,
+.Create_button:active,
+.Routes_button:active,
+.Map_button:active,
+.Back_button:active {
+  transform: translateY(1px);
+}
+
+.button:disabled,
+.Create_button:disabled,
+.Routes_button:disabled,
+.Map_button:disabled,
+.Back_button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Individual colors */
+.button {                    /* Log In */
+  background: var(--teal);
+  border-color: #e9e4e4;
+}
+
+.Create_button {             /* Create Account */
+  background: var(--teal-dark);
+  border-color: #ffffff;
+}
+
+.Map_button {                /* Demo Map */
+  background: var(--blue-gray);
+  border-color: #ffffff;
+}
+
+.Routes_button {             /* Routes */
+  background: var(--teal-deep);
+  border-color: #ffffff;
+}
+
+.Back_button {               /* Back / Secondary */
+  background: var(--gray);
+  border-color: var(--gray);
+}
+.Back_button:hover {
+  background: var(--gray-hover);
+}
+
+/* ---------- Logo ---------- */
+.logo {
+  display: block;
+  margin: 0 auto var(--space-4) auto;
+  width: 80px;
+  height: auto;
 }

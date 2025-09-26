@@ -44,11 +44,11 @@ function MainTabs() {
                   <Image
                     source={require("../assets/icons/RouteSelectLight.png")}
                     style={{
-                                    width: 44,
-                                    height: 44,
-                                    resizeMode: "contain",
-                                    tintColor : color,
-                                  }}
+                        width: 44,
+                        height: 44,
+                        resizeMode: "contain",
+                        tintColor : color,
+                    }}
                   />
                 ),
               }}
@@ -61,11 +61,11 @@ function MainTabs() {
                   <Image
                     source={require("../assets/icons/MapLight.png")}
                     style={{
-                                    width: 44,
-                                    height: 44,
-                                    resizeMode: "contain",
-                                    tintColor : color,
-                                  }}
+                        width: 44,
+                        height: 44,
+                        resizeMode: "contain",
+                        tintColor : color,
+                    }}
                   />
                 ),
               }}
@@ -78,11 +78,11 @@ function MainTabs() {
                   <Image
                     source={require("../assets/icons/AccountLight.png")}
                     style={{
-                                    width: 44,
-                                    height: 44,
-                                    resizeMode: "contain",
-                                    tintColor : color,
-                                  }}
+                        width: 44,
+                        height: 44,
+                        resizeMode: "contain",
+                        tintColor : color,
+                    }}
                   />
                 ),
               }}
@@ -95,11 +95,11 @@ function MainTabs() {
                   <Image
                     source={require("../assets/icons/FilesLight.png")}
                     style={{
-                                    width: 40,
-                                    height: 40,
-                                    resizeMode: "contain",
-                                    tintColor : color,
-                                  }}
+                        width: 40,
+                        height: 40,
+                        resizeMode: "contain",
+                        tintColor : color,
+                    }}
                   />
                 ),
               }}
