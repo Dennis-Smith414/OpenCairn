@@ -7,7 +7,7 @@ export default function App() {
 
   useEffect(() => {
     if (!startedRef.current) {
-      nodejs.start('sqlite-server.js'); // must match file in nodejs-project/
+      //nodejs.start('sqlite-server.js'); // must match file in nodejs-project/
       startedRef.current = true;
     }
 

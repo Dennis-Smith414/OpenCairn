@@ -1,9 +1,10 @@
 // Server/index.js
 require("dotenv").config({ path: __dirname + "/.env", override: true });
-console.log("[boot] POSTGRES_URL =", (process.env.POSTGRES_URL || "").slice(0, 80) + "...");
+console.log('[boot] DATABASE_URL =', process.env.DATABASE_URL);
 
 const express = require("express");
 const cors = require("cors");
+const PORT = process.env.PORT || 5050;
 
 // Full GPX/Trails router (list, meta, geojson, bbox, upload)
 const gpxRoutes = require("./routes/gpx");
@@ -18,19 +19,15 @@ app.use("/api", gpxRoutes);
 app.use("/api/auth", authRoutes);
 
 // health
-app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "hiking-backend",
-    time: new Date().toISOString(),
-  });
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, db: true, startedAt: new Date().toISOString() });
 });
 
 // (optional) DB info ping via pg directly to confirm Neon
 // Uncomment if you want a runtime DB check:
 //
 // const { Pool } = require("pg");
-// const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
+// const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // app.get("/api/dbinfo", async (_req, res) => {
 //   try {
 //     const r = await pool.query("SELECT current_database() AS db, current_user AS usr, version()");
@@ -40,5 +37,5 @@ app.get("/api/health", (_req, res) => {
 //   }
 // });
 
-const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));

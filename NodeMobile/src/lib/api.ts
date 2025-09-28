@@ -1,18 +1,19 @@
-// NodeMobile/src/lib/api.ts
+// src/lib/api.ts
+const USE_ONLINE = true; // 👈 later replace with real connectivity check
 
-// Point API_BASE at your backend.
-// On Android emulator, "localhost" is NOT valid → use 10.0.2.2
-export const API_BASE =
-  __DEV__ ? "http://10.0.2.2:5000" : "https://your-prod-backend.com";
+export const API_BASE = USE_ONLINE
+  ? "http://10.0.2.2:5000"  // Express + Neon backend
+  : "http://localhost:5050"; // Embedded SQLite server
 
 export async function fetchRouteList() {
-  const r = await fetch(`${API_BASE}/api/routes/list?limit=100`);
+  const r = await fetch(`${API_BASE}/api/routes`);
   const j = await r.json();
-  return j.items ?? [];
+  // Adjust depending on backend shape (Neon uses {routes: []}, SQLite too)
+  return j.items ?? j.routes ?? [];
 }
 
 export async function fetchRouteGeo(id: number) {
   const r = await fetch(`${API_BASE}/api/routes/${id}.geojson`);
-  if (!r.ok) throw new Error(`geo failed ${r.status}`);
+  if (!r.ok) throw new Error(`geo error ${r.status}`);
   return r.json();
 }

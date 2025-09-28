@@ -2,7 +2,7 @@ const { Pool } = require("pg");
 
 // Use the env var POSTGRES_URL you set earlier
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
+  connectionString: process.env.DATABASE_URL,
 });
 
 (async () => {

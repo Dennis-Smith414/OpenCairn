@@ -18,6 +18,7 @@
     "@react-navigation/native-stack": "^7.3.26",
     "@react-navigation/stack": "^7.4.8",
     "nodejs-mobile-react-native": "^18.20.4",
+    "psql": "^0.0.1",
     "react": "19.1.0",
     "react-native": "0.81.1",
     "react-native-device-info": "^14.1.1",

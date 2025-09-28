@@ -32,9 +32,9 @@ const { Pool } = require("pg");                   // Manages Postgres connection
 const router = express.Router();
 
 // --- PostgreSQL connection manager ------------------------------------------
-// Use the connection string from process.env.POSTGRES_URL (loaded in index.js via dotenv).
+// Use the connection string from process.env.DATABASE_URL (loaded in index.js via dotenv).
 // NOTE: We keep a SINGLE Pool instance for this module. Avoid redeclaring Pool.
-const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // --- Multer config -----------------------------------------------------------
 // Use memory storage so req.file.buffer exists (we parse GPX directly from memory).

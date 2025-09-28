@@ -1,5 +1,5 @@
 // screens/MapScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Alert } from 'react-native';
 import GeolocationMap from '../components/geolocation/GeoLocationMap';
 import { createMarker, MapMarker } from '../components/geolocation/MapMarker';

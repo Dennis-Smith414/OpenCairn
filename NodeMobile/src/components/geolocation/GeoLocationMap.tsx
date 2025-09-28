@@ -19,7 +19,7 @@ export interface GeolocationMapProps {
     url: string;
     attribution: string;
   }>;
-  tracks?: Array<[number, number][]>; // array of routes (each a list of [lat,lng])
+  tracks?: [number, number][][];
   style?: object;
 }
 
@@ -40,6 +40,7 @@ export const GeolocationMap: React.FC<GeolocationMapProps> = ({
     },
   ],
   style,
+  tracks = [],
 }) => {
   const [mapCenter, setMapCenter] = useState<LocationCoords>(initialCenter);
   const [allMarkers, setAllMarkers] = useState<MapMarker[]>(staticMarkers);
