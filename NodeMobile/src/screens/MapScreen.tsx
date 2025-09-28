@@ -6,9 +6,16 @@ import { createMarker, MapMarker } from '../components/geolocation/MapMarker';
 import { LocationCoords } from '../hooks/useGeolocation';
 import { Picker } from '@react-native-picker/picker'; // npm install @react-native-picker/picker
 import { colors, fonts } from '../styles/theme';
+import { fetchRouteGeo } from '../lib/api';
+
+
+type LatLng = [number, number];
+
 
 const MapScreen: React.FC = () => {
   const [layer, setLayer] = useState('osm');
+  const [tracks, setTracks] = useState<LatLng[][]>([]); // 👈 holds multiple routes
+  const [loadingTracks, setLoadingTracks] = useState(false);
 
   // Define available layers (free + open)
   const mapLayers: Record<string, any> = {
@@ -55,6 +62,34 @@ const MapScreen: React.FC = () => {
     );
   };
 
+// Fetch one or more routes and store their coords
+  useEffect(() => {
+    const routeIds = [1]; // replace with all route IDs to be rendered
+    let alive = true;
+    (async () => {
+      try {
+        setLoadingTracks(true);
+        const fetchedTracks: LatLng[][] = [];
+        for (const id of routeIds) {
+          const geo = await fetchRouteGeo(id);
+          const coords = flattenToLatLng(geo.geometry);
+          fetchedTracks.push(coords);
+        }
+        if (alive) setTracks(fetchedTracks);
+      } catch (err) {
+        console.error('Failed to load tracks:', err);
+      } finally {
+        if (alive) setLoadingTracks(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+
+
+
   return (
     <View style={styles.container}>
       <GeolocationMap
@@ -73,7 +108,8 @@ const MapScreen: React.FC = () => {
           showPermissionAlert: true,
           showErrorAlert: false,
         }}
-        mapLayers={[mapLayers[layer]]} // 👈 inject active map layer
+        mapLayers={[mapLayers[layer]]} // inject active map layer
+        tracks={tracks} // prop to draw GPX/GeoJSON poly lines
       />
 
       {/* Dropdown menu (top-right corner) */}
@@ -92,6 +128,20 @@ const MapScreen: React.FC = () => {
     </View>
   );
 };
+
+//parses GPX into a leaflet - compatible format
+function flattenToLatLng(geom: any): LatLng[] {
+  if (geom.type === 'LineString') {
+    return geom.coordinates.map((xy: number[]) => [xy[1], xy[0]]);
+  }
+  if (geom.type === 'MultiLineString') {
+    return geom.coordinates.flatMap((seg: number[][]) =>
+      seg.map((xy) => [xy[1], xy[0]])
+    );
+  }
+  return [];
+}
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
