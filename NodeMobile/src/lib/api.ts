@@ -1,5 +1,5 @@
 // src/lib/api.ts
-const USE_ONLINE = true; // 👈 later replace with real connectivity check
+const USE_ONLINE = true; //  later replace with real connectivity check
 
 export const API_BASE = USE_ONLINE
   ? "http://10.0.2.2:5000"  // Express + Neon backend
