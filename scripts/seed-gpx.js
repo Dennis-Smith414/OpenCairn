@@ -38,7 +38,7 @@ async function main() {
     // 3️⃣ Insert a route (or reuse existing one)
     const routeName = '714 Pre-Lunch Trail';
     const routeSlug = '714-pre-lunch';
-    const routeRegion = 'WI';
+    const routeRegion = 'MT';
 
     const routeRes = await pool.query(
       `INSERT INTO routes (slug, name, region)

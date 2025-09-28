@@ -46,6 +46,7 @@ async function init() {
       user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
       slug TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
+      description TEXT,
       region TEXT,
       created_at TIMESTAMPTZ DEFAULT now(),
       updated_at TIMESTAMPTZ DEFAULT now()
@@ -82,22 +83,23 @@ SELECT id, name, ST_AsGeoJSON(geom) AS geojson FROM waypoints;
     CREATE TABLE IF NOT EXISTS comments (
       id SERIAL PRIMARY KEY,
       user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      cairn_id INT NOT NULL REFERENCES cairns(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      waypoint_id INT NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
       content TEXT,
       create_time TIMESTAMPTZ DEFAULT now()
     )
   `);
 
-  // Ratings
+  // waypoint ratings
   await run(`
-    CREATE TABLE IF NOT EXISTS cairn_rating (
+    CREATE TABLE IF NOT EXISTS waypoint_rating (
       user_id INT NOT NULL REFERENCES users(id),
-      cairn_id INT NOT NULL REFERENCES cairns(id),
+      waypoint_id INT NOT NULL REFERENCES waypoints(id),
       val SMALLINT NOT NULL,
-      PRIMARY KEY(user_id, cairn_id)
+      PRIMARY KEY(user_id, waypoint_id)
     )
   `);
 
+    //route ratings
   await run(`
     CREATE TABLE IF NOT EXISTS route_rating (
       user_id INT NOT NULL REFERENCES users(id),
@@ -107,6 +109,7 @@ SELECT id, name, ST_AsGeoJSON(geom) AS geojson FROM waypoints;
     )
   `);
 
+    //comment ratings
   await run(`
     CREATE TABLE IF NOT EXISTS comment_rating (
       user_id INT NOT NULL REFERENCES users(id),

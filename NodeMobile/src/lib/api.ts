@@ -1,15 +1,15 @@
 // src/lib/api.ts
-const USE_ONLINE = true; //  later replace with real connectivity check
-
-export const API_BASE = USE_ONLINE
-  ? "http://10.0.2.2:5000"  // Express + Neon backend
-  : "http://localhost:5050"; // Embedded SQLite server
+const API_BASE = 'http://10.0.2.2:5100';
 
 export async function fetchRouteList() {
-  const r = await fetch(`${API_BASE}/api/routes`);
-  const j = await r.json();
-  // Adjust depending on backend shape (Neon uses {routes: []}, SQLite too)
-  return j.items ?? j.routes ?? [];
+  const res = await fetch(`${API_BASE}/api/routes/list`);
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    return json.items ?? [];
+  } catch {
+    throw new Error(`Bad JSON from /routes/list: ${text.slice(0,200)}`);
+  }
 }
 
 export async function fetchRouteGeo(id: number) {

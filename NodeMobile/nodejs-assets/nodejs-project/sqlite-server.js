@@ -2,7 +2,7 @@
  * sqlite-server.js
  *
  * Embedded offline backend for React Native using NodeMobile + sql.js.
- * - Mirrors Neon/Postgres schema for easier sync.
+ * - Mirrors Neon/Postgres schema (2025-09 version) for easier sync.
  * - Exposes local HTTP endpoints for the RN frontend.
  * - Persists SQLite database to device storage.
  */
@@ -12,7 +12,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// SQLite (sql.js)
 let SQL = null;
 let db = null;
 
@@ -37,7 +36,9 @@ async function openDatabase() {
 
   db.run(`PRAGMA foreign_keys = ON;`);
 
-  // Mirror Neon/Postgres schema
+  // ---------------------------------------------------------------------------
+  // Mirror Neon/Postgres schema (simplified for offline use)
+  // ---------------------------------------------------------------------------
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +53,7 @@ async function openDatabase() {
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
       slug TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
+      description TEXT,
       region TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -62,38 +64,26 @@ async function openDatabase() {
       route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
       lat REAL NOT NULL,
-      lon REAL NOT NULL,
+      lng REAL NOT NULL,
       ele REAL,
       name TEXT NOT NULL,
       description TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS cairns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-      lat REAL NOT NULL,
-      lon REAL NOT NULL,
-      ele REAL,
-      name TEXT NOT NULL,
-      description TEXT,
-      create_time TEXT DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS comments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      cairn_id INTEGER NOT NULL REFERENCES cairns(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      waypoint_id INTEGER NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
       content TEXT,
       create_time TEXT DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS cairn_rating (
+    CREATE TABLE IF NOT EXISTS waypoint_rating (
       user_id INTEGER NOT NULL REFERENCES users(id),
-      cairn_id INTEGER NOT NULL REFERENCES cairns(id),
+      waypoint_id INTEGER NOT NULL REFERENCES waypoints(id),
       val INTEGER NOT NULL,
-      PRIMARY KEY (user_id, cairn_id)
+      PRIMARY KEY (user_id, waypoint_id)
     );
 
     CREATE TABLE IF NOT EXISTS route_rating (
@@ -114,7 +104,7 @@ async function openDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       route_id INTEGER REFERENCES routes(id) ON DELETE CASCADE,
       name TEXT,
-      geometry TEXT NOT NULL, -- store GeoJSON string for Leaflet
+      geometry TEXT NOT NULL, -- store GeoJSON string for Leaflet offline
       file BLOB NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -124,13 +114,16 @@ async function openDatabase() {
   rn_bridge.channel.send('[sqlite] DB ready');
 }
 
+// -----------------------------------------------------------------------------
+//  Save DB to disk
+// -----------------------------------------------------------------------------
 function saveDatabase() {
   const data = db.export();
   fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
 // -----------------------------------------------------------------------------
-//  Utility helpers
+//  HTTP helpers
 // -----------------------------------------------------------------------------
 function json(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json' });
@@ -142,7 +135,7 @@ function readJson(req) {
     let buf = '';
     req.on('data', (chunk) => {
       buf += chunk;
-      if (buf.length > 1e6) req.destroy();
+      if (buf.length > 1e6) req.destroy(); // prevent abuse
     });
     req.on('end', () => {
       try {
@@ -155,7 +148,7 @@ function readJson(req) {
 }
 
 // -----------------------------------------------------------------------------
-// Routes helpers
+//  Routes helpers (for offline browsing)
 // -----------------------------------------------------------------------------
 function routesList() {
   const stmt = db.prepare(`SELECT * FROM routes ORDER BY id DESC`);
@@ -176,7 +169,34 @@ function routesInsert({ slug, name, region }) {
 }
 
 // -----------------------------------------------------------------------------
-// Embedded HTTP Server
+//  Waypoints helpers (offline creation & retrieval)
+// -----------------------------------------------------------------------------
+function waypointsList(routeId = null) {
+  let stmt;
+  if (routeId) {
+    stmt = db.prepare(`SELECT * FROM waypoints WHERE route_id = ? ORDER BY id DESC`);
+    stmt.bind([routeId]);
+  } else {
+    stmt = db.prepare(`SELECT * FROM waypoints ORDER BY id DESC`);
+  }
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+function waypointsInsert({ route_id, lat, lng, name, description, ele }) {
+  const stmt = db.prepare(`
+    INSERT INTO waypoints(route_id, lat, lng, name, description, ele, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+  stmt.run([route_id, lat, lng, name, description || '', ele || null]);
+  stmt.free();
+  saveDatabase();
+}
+
+// -----------------------------------------------------------------------------
+//  Embedded HTTP Server (offline API)
 // -----------------------------------------------------------------------------
 http.createServer(async (req, res) => {
   try {
@@ -204,9 +224,31 @@ http.createServer(async (req, res) => {
       }
     }
 
-    // Future: Sync handler (fetch Neon data and merge locally)
+    // Waypoints list (optionally filtered by ?route_id)
+    if (req.method === 'GET' && req.url.startsWith('/api/waypoints')) {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const routeId = urlObj.searchParams.get('route_id');
+      const waypoints = waypointsList(routeId ? parseInt(routeId, 10) : null);
+      return json(res, 200, { ok: true, waypoints });
+    }
+
+    // Insert waypoint
+    if (req.method === 'POST' && req.url === '/api/waypoints') {
+      const { route_id, lat, lng, name, description, ele } = await readJson(req);
+      if (!route_id || !lat || !lng || !name) {
+        return json(res, 400, { ok: false, error: 'route_id, lat, lng, and name required' });
+      }
+      try {
+        waypointsInsert({ route_id, lat, lng, name, description, ele });
+        return json(res, 200, { ok: true });
+      } catch (e) {
+        return json(res, 400, { ok: false, error: String(e) });
+      }
+    }
+
+    // Future: Sync handler
     if (req.method === 'POST' && req.url === '/api/sync') {
-      // TODO: implement sync with Neon here later
+      // TODO: implement Neon ↔ SQLite sync here
       return json(res, 200, { ok: true, synced: 0 });
     }
 

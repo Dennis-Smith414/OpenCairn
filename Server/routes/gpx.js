@@ -1,5 +1,5 @@
 /**
- * Server/routes/gpx.js  — MODIFIED
+ * Server/routes/gpx.js  — FIXED
  *
  * Endpoints:
  *  GET  /api/routes/ping
@@ -10,6 +10,8 @@
  *  POST /api/routes/upload
  */
 
+// Server/routes/gpx.js
+require('dotenv').config();
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
@@ -18,8 +20,15 @@ const { featureCollection, lineString } = require("@turf/helpers");
 const gpxParse = require("gpx-parse");
 const { Pool } = require("pg");
 
+console.log('[gpx] Loaded DATABASE_URL =', JSON.stringify(process.env.DATABASE_URL));
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Multer → in-memory GPX upload
 const upload = multer({
@@ -32,21 +41,26 @@ router.get("/routes/ping", (_req, res) => res.json({ ok: true, where: "gpx-route
 
 // 📜 List routes (metadata only)
 router.get("/routes/list", async (req, res) => {
-  const { offset = 0, limit = 20, q = "" } = req.query;
-  const lim = Math.min(parseInt(limit, 10) || 20, 100);
-  const off = parseInt(offset, 10) || 0;
-  const where = q ? `WHERE name ILIKE $1` : ``;
-  const params = q ? [`%${q}%`, lim, off] : [lim, off];
+  try {
+    const { offset = 0, limit = 20, q = "" } = req.query;
+    const lim = Math.min(parseInt(limit, 10) || 20, 100);
+    const off = parseInt(offset, 10) || 0;
+    const where = q ? `WHERE name ILIKE $1` : ``;
+    const params = q ? [`%${q}%`, lim, off] : [lim, off];
 
-  const sql = `
-    SELECT id, slug, name, region, created_at, updated_at
-    FROM routes
-    ${where}
-    ORDER BY updated_at DESC
-    LIMIT $${q ? 2 : 1} OFFSET $${q ? 3 : 2}
-  `;
-  const { rows } = await pool.query(sql, params);
-  res.json({ items: rows, nextOffset: off + rows.length });
+    const sql = `
+      SELECT id, slug, name, region, created_at, updated_at
+      FROM routes
+      ${where}
+      ORDER BY updated_at DESC
+      LIMIT $${q ? 2 : 1} OFFSET $${q ? 3 : 2}
+    `;
+    const { rows } = await pool.query(sql, params);
+    res.json({ items: rows, nextOffset: off + rows.length });
+  } catch (e) {
+    console.error("list failed:", e);
+    res.status(500).json({ error: "list-failed" });
+  }
 });
 
 // 📌 Route metadata only (no geometry)
@@ -60,7 +74,7 @@ router.get("/routes/:id.meta", async (req, res) => {
   res.json(q.rows[0]);
 });
 
-// 🧭 Geometry as GeoJSON (for MapScreen.tsx)
+// 🧭 Geometry as GeoJSON
 router.get("/routes/:id.geojson", async (req, res) => {
   try {
     const { id } = req.params;
@@ -87,7 +101,7 @@ router.get("/routes/:id.geojson", async (req, res) => {
   }
 });
 
-// 🌐 BBOX browse — intersect gpx geometries
+// 🌐 BBOX browse
 router.get("/routes", async (req, res) => {
   try {
     const { minX, minY, maxX, maxY, limit = 200 } = req.query;
@@ -120,7 +134,7 @@ router.get("/routes", async (req, res) => {
   }
 });
 
-// ⬆️ GPX Upload — store raw file + geometry in gpx table, create route metadata
+// ⬆️ GPX Upload
 router.post("/routes/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "no-file" });
@@ -144,12 +158,8 @@ router.post("/routes/upload", upload.single("file"), async (req, res) => {
     }
     if (coords.length < 2) return res.status(400).json({ error: "no-track-points" });
 
-    // Insert route metadata
     const slug = "route-" + checksum.slice(0, 8);
-    const name =
-      gpx?.metadata?.name ||
-      gpx?.tracks?.[0]?.name ||
-      "Uploaded Route";
+    const name = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded Route";
 
     const routeRes = await pool.query(
       `INSERT INTO routes (slug, name)
@@ -160,7 +170,6 @@ router.post("/routes/upload", upload.single("file"), async (req, res) => {
     );
     const routeId = routeRes.rows[0].id;
 
-    // Insert or update GPX geometry + file
     const lineWkt = `LINESTRING(${coords.map(([x, y]) => `${x} ${y}`).join(",")})`;
     await pool.query(
       `INSERT INTO gpx (route_id, name, geometry, file)
