@@ -8,11 +8,8 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { pick } from "@react-native-documents/picker";
-import RNFS from "react-native-fs";
 import { baseStyles, colors } from "../styles/theme";
 import { fetchRouteList } from "../lib/api";
-import { uploadGpxFile } from "../utils/uploadGpx";
 
 type RouteItem = {
   id: number;
@@ -28,7 +25,7 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
 
   // -------------------------------
-  // 📡 Fetch route list (with safer error handling)
+  // 📡 Fetch route list
   // -------------------------------
   const loadRoutes = useCallback(async () => {
     try {
@@ -49,55 +46,6 @@ export default function RouteSelectScreen({ navigation }: any) {
   }, [loadRoutes]);
 
   // -------------------------------
-  // 🧭 Helper: Copy to local file
-  // -------------------------------
-  async function copyToLocalFile(file: any): Promise<string> {
-    if (!file?.uri) throw new Error("File has no URI");
-
-    if (file.uri.startsWith("file://")) {
-      return file.uri; // already local
-    }
-
-    const destPath = `${RNFS.CachesDirectoryPath}/${file.name || "upload.gpx"}`;
-    console.log("Copying GPX to local path:", destPath);
-
-    try {
-      await RNFS.copyFile(file.uri, destPath);
-      return `file://${destPath}`;
-    } catch (err) {
-      console.error("Manual file copy failed:", err);
-      throw new Error("Could not copy file locally");
-    }
-  }
-
-  // -------------------------------
-  // 📤 Upload GPX route
-  // -------------------------------
-  const selectAndUploadGpx = async () => {
-    try {
-      const [file] = await pick();
-      if (!file) {
-        Alert.alert("No file selected");
-        return;
-      }
-      console.log("Picked file:", file);
-
-      const localUri = await copyToLocalFile(file);
-      console.log("Uploading from URI:", localUri);
-
-      const result = await uploadGpxFile(localUri);
-      console.log("Upload success:", result);
-
-      Alert.alert("Upload complete", `Uploaded: ${result.name}`);
-      await loadRoutes();
-    } catch (err: any) {
-      if (err?.message?.includes("User canceled")) return;
-      console.error("Upload failed:", err);
-      Alert.alert("Upload failed", err.message || "An error occurred.");
-    }
-  };
-
-  // -------------------------------
   // 🧭 Route selection
   // -------------------------------
   const toggle = (id: number) => {
@@ -106,7 +54,10 @@ export default function RouteSelectScreen({ navigation }: any) {
     );
   };
 
+
+
   const confirmSelection = () => {
+    console.log("[RouteSelect] Navigating with routeIds =", selected);
     navigation.navigate("Map", { routeIds: selected });
   };
 
@@ -129,7 +80,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     <View style={[baseStyles.container, { padding: 16 }]}>
       <Text style={baseStyles.headerText}>Select Routes</Text>
 
-      {/* 📁 Upload button */}
+      {/* 🆕 Create New Route button */}
       <TouchableOpacity
         style={[
           baseStyles.button,
@@ -139,9 +90,9 @@ export default function RouteSelectScreen({ navigation }: any) {
             paddingVertical: 10,
           },
         ]}
-        onPress={selectAndUploadGpx}
+        onPress={() => navigation.navigate("RouteCreate")}
       >
-        <Text style={baseStyles.buttonText}>＋ Upload GPX Route</Text>
+        <Text style={baseStyles.buttonText}>＋ Create / Upload Route</Text>
       </TouchableOpacity>
 
       <FlatList

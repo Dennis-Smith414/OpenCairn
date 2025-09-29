@@ -1,24 +1,11 @@
-/**
- * Server/routes/gpx.js  — FIXED
- *
- * Endpoints:
- *  GET  /api/routes/ping
- *  GET  /api/routes/list
- *  GET  /api/routes/:id.meta
- *  GET  /api/routes/:id.geojson
- *  GET  /api/routes?minX&minY&maxX&maxY[&limit]
- *  POST /api/routes/upload
- */
-
 // Server/routes/gpx.js
 require('dotenv').config();
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
-const bbox = require("@turf/bbox").default;
-const { featureCollection, lineString } = require("@turf/helpers");
-const gpxParse = require("gpx-parse");
 const { Pool } = require("pg");
+const gpxParse = require("gpx-parse");
+const { featureCollection, lineString } = require("@turf/helpers");
 
 console.log('[gpx] Loaded DATABASE_URL =', JSON.stringify(process.env.DATABASE_URL));
 
@@ -26,7 +13,6 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
-
 
 const router = express.Router();
 
@@ -36,10 +22,10 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-// 🛰️ Simple health check
+// 🛰️ Health check
 router.get("/routes/ping", (_req, res) => res.json({ ok: true, where: "gpx-router" }));
 
-// 📜 List routes (metadata only)
+// 📜 Route list
 router.get("/routes/list", async (req, res) => {
   try {
     const { offset = 0, limit = 20, q = "" } = req.query;
@@ -63,7 +49,7 @@ router.get("/routes/list", async (req, res) => {
   }
 });
 
-// 📌 Route metadata only (no geometry)
+// 📌 Route metadata (no geometry)
 router.get("/routes/:id.meta", async (req, res) => {
   const { id } = req.params;
   const q = await pool.query(
@@ -74,63 +60,34 @@ router.get("/routes/:id.meta", async (req, res) => {
   res.json(q.rows[0]);
 });
 
-// 🧭 Geometry as GeoJSON
+// 🧭 GeoJSON for *all GPX entries* of a route
 router.get("/routes/:id.geojson", async (req, res) => {
   try {
     const { id } = req.params;
+
     const result = await pool.query(
       `SELECT ST_AsGeoJSON(geometry)::json AS geometry
          FROM gpx
-        WHERE route_id = $1
-        LIMIT 1`,
+        WHERE route_id = $1`,
       [id]
     );
 
     if (!result.rowCount) return res.sendStatus(404);
 
-    const geo = result.rows[0].geometry;
-    const feature = {
+    // Build a FeatureCollection of all geometries for this route
+    const features = result.rows.map((row, idx) => ({
       type: "Feature",
-      properties: { route_id: id },
-      geometry: geo,
-    };
-    res.json(feature);
-  } catch (e) {
-    console.error("geojson failed:", e);
-    res.status(500).json({ error: "geojson-failed" });
-  }
-});
-
-// 🌐 BBOX browse
-router.get("/routes", async (req, res) => {
-  try {
-    const { minX, minY, maxX, maxY, limit = 200 } = req.query;
-    if ([minX, minY, maxX, maxY].some((v) => v === undefined)) {
-      return res.status(400).json({ error: "bbox required: minX,minY,maxX,maxY" });
-    }
-
-    const boundsWkt = `POLYGON((${minX} ${minY}, ${maxX} ${minY}, ${maxX} ${maxY}, ${minX} ${maxY}, ${minX} ${minY}))`;
-
-    const q = await pool.query(
-      `SELECT r.id, r.name, ST_AsGeoJSON(g.geometry)::json AS geometry
-         FROM gpx g
-         JOIN routes r ON g.route_id = r.id
-        WHERE ST_Intersects(g.geometry, ST_GeomFromText($1, 4326))
-        LIMIT LEAST($2::int, 1000)`,
-      [boundsWkt, limit]
-    );
+      properties: { route_id: id, segment: idx },
+      geometry: row.geometry,
+    }));
 
     res.json({
       type: "FeatureCollection",
-      features: q.rows.map((r) => ({
-        type: "Feature",
-        properties: { id: r.id, name: r.name },
-        geometry: r.geometry,
-      })),
+      features,
     });
   } catch (e) {
-    console.error("bbox browse failed:", e);
-    res.status(500).json({ error: "bbox-failed" });
+    console.error("geojson failed:", e);
+    res.status(500).json({ error: "geojson-failed" });
   }
 });
 
@@ -141,7 +98,7 @@ router.post("/routes/upload", upload.single("file"), async (req, res) => {
     const xml = req.file.buffer.toString("utf8");
     const checksum = crypto.createHash("sha256").update(xml).digest("hex");
 
-    // Parse GPX → track coords
+    // Parse GPX → coords
     const gpx = await new Promise((resolve, reject) =>
       gpxParse.parseGpx(xml, (err, data) => (err ? reject(err) : resolve(data)))
     );
@@ -185,6 +142,33 @@ router.post("/routes/upload", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error("upload failed:", err);
     res.status(500).json({ error: "upload-failed" });
+  }
+});
+
+// ✏️ Update route metadata
+router.patch("/routes/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, region } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE routes
+       SET name = COALESCE($1, name),
+           region = COALESCE($2, region),
+           updated_at = NOW()
+       WHERE id = $3
+       RETURNING id, slug, name, region, updated_at`,
+      [name, region, id]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: "not-found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("update route failed:", err);
+    res.status(500).json({ error: "update-failed" });
   }
 });
 
