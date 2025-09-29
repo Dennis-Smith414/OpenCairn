@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 import { fetchRouteList } from "../lib/api";
+import { useRouteSelection } from "../context/RouteSelectionContext";
 
 type RouteItem = {
   id: number;
@@ -20,12 +21,13 @@ type RouteItem = {
 
 export default function RouteSelectScreen({ navigation }: any) {
   const [routes, setRoutes] = useState<RouteItem[]>([]);
-  const [selected, setSelected] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { selectedRouteIds, toggleRouteId, clearSelection } = useRouteSelection();
+
   // -------------------------------
-  // 📡 Fetch route list
+  //  Fetch route list
   // -------------------------------
   const loadRoutes = useCallback(async () => {
     try {
@@ -46,19 +48,11 @@ export default function RouteSelectScreen({ navigation }: any) {
   }, [loadRoutes]);
 
   // -------------------------------
-  // 🧭 Route selection
+  //  Confirm selection → go to Map
   // -------------------------------
-  const toggle = (id: number) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-
-
   const confirmSelection = () => {
-    console.log("[RouteSelect] Navigating with routeIds =", selected);
-    navigation.navigate("Map", { routeIds: selected });
+    console.log("[RouteSelect] Navigating with global routeIds =", selectedRouteIds);
+    navigation.navigate("Map");
   };
 
   // -------------------------------
@@ -101,38 +95,44 @@ export default function RouteSelectScreen({ navigation }: any) {
         style={{ width: "100%", marginTop: 8 }}
         refreshing={refreshing}
         onRefresh={loadRoutes}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={{
-              padding: 12,
-              marginVertical: 6,
-              marginHorizontal: 16,
-              borderRadius: 12,
-              backgroundColor: selected.includes(item.id)
-                ? colors.primary
-                : colors.backgroundAlt,
-              borderWidth: 1,
-              borderColor: colors.accent,
-            }}
-            onPress={() => toggle(item.id)}
-          >
-            <Text style={baseStyles.bodyText}>{item.name}</Text>
-            {item.region && (
-              <Text style={baseStyles.subText}>{item.region}</Text>
-            )}
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const isSelected = selectedRouteIds.includes(item.id);
+          return (
+            <TouchableOpacity
+              style={{
+                padding: 12,
+                marginVertical: 6,
+                marginHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: isSelected
+                  ? colors.primary
+                  : colors.backgroundAlt,
+                borderWidth: 1,
+                borderColor: colors.accent,
+              }}
+              onPress={() => toggleRouteId(item.id)}  // ✅ fixed here
+            >
+              <Text style={baseStyles.bodyText}>{item.name}</Text>
+              {item.region && (
+                <Text style={baseStyles.subText}>{item.region}</Text>
+              )}
+            </TouchableOpacity>
+          );
+        }}
         ListEmptyComponent={
           <Text style={baseStyles.subText}>No routes found.</Text>
         }
       />
 
-      <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonPrimary]}
-        onPress={confirmSelection}
-      >
-        <Text style={baseStyles.buttonText}>Show on Map</Text>
-      </TouchableOpacity>
+      {/* Confirm button */}
+      {selectedRouteIds.length > 0 && (
+        <TouchableOpacity
+          style={[baseStyles.button, { marginTop: 16 }]}
+          onPress={confirmSelection}
+        >
+          <Text style={baseStyles.buttonText}>Show on Map</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

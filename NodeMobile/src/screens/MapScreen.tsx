@@ -3,15 +3,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
-import { useRoute } from '@react-navigation/native';
+import { useRouteSelection } from '../context/RouteSelectionContext';
 import { fetchRouteGeo } from '../lib/api';
 import { Feature, FeatureCollection, Geometry } from 'geojson';
 import { colors } from '../styles/theme';
 
 type LatLng = [number, number];
-
-// ❗ stable empty array to avoid new [] identity each render
-const EMPTY_IDS: number[] = [];
 
 // --- HTML template for Leaflet map ---
 const HTML = `<!doctype html><html><head>
@@ -72,14 +69,8 @@ function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] 
 }
 
 const MapScreen: React.FC = () => {
-  const route = useRoute<any>();
-
-  // Use raw routeIds from navigation (may be undefined)
-  const routeIdsRaw: number[] | undefined = route.params?.routeIds;
-  // Fall back to a STABLE constant (not a new [] each render)
-  const routeIds: number[] = routeIdsRaw ?? EMPTY_IDS;
-  // Stable dependency key for effects
-  const routeIdsKey = routeIdsRaw ? routeIdsRaw.join(',') : '';
+  const { selectedRouteIds } = useRouteSelection();
+  const routeIdsKey = selectedRouteIds.join(','); // stable dependency key
 
   const [coords, setCoords]   = useState<LatLng[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,7 +78,7 @@ const MapScreen: React.FC = () => {
   const [ready, setReady]     = useState(false);
   const webref = useRef<WebViewType>(null);
 
-  // --- Fetch GeoJSON when routeIds change (by value) ---
+  // --- Fetch GeoJSON whenever route selection changes ---
   useEffect(() => {
     let alive = true;
 
@@ -96,18 +87,19 @@ const MapScreen: React.FC = () => {
         setLoading(true);
         setErr(null);
 
-        if (!routeIdsRaw || routeIdsRaw.length === 0) {
-          if (alive) setCoords([]); // single reset point
+        if (selectedRouteIds.length === 0) {
+          if (alive) setCoords([]); // clear if no routes selected
           return;
         }
 
         const collected: LatLng[] = [];
-        for (const id of routeIdsRaw) {
+        for (const id of selectedRouteIds) {
           console.log(`[MapScreen] Fetching GeoJSON for route ${id}`);
           const geo = await fetchRouteGeo(id);
           if (!geo) continue;
           collected.push(...flattenToLatLng(geo));
         }
+
         if (alive) setCoords(collected);
       } catch (e: any) {
         if (alive) setErr(String(e?.message || e));
@@ -117,10 +109,9 @@ const MapScreen: React.FC = () => {
     })();
 
     return () => { alive = false; };
-    // ❗ depend on the stable key, not the array reference
   }, [routeIdsKey]);
 
-  // --- Inject coords into WebView when ready or coords change length ---
+  // --- Inject coords into WebView when ready or coords change ---
   useEffect(() => {
     if (!ready) return;
 
@@ -137,7 +128,7 @@ const MapScreen: React.FC = () => {
     } catch (e) {
       console.error('[MapScreen] JS injection failed:', e);
     }
-  }, [ready, coords.length]); // use length so we don't chase identity changes
+  }, [ready, coords.length]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -146,7 +137,7 @@ const MapScreen: React.FC = () => {
         originWhitelist={['*']}
         source={{ html: HTML }}
         onLoadEnd={() => {
-          if (!ready) setReady(true); // set once
+          if (!ready) setReady(true);
         }}
         onMessage={() => {}}
         style={{ flex: 1 }}
@@ -169,8 +160,10 @@ const MapScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute', inset: 0 as any,
-    alignItems: 'center', justifyContent: 'center',
+    position: 'absolute',
+    inset: 0 as any,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
   msg: { marginTop: 8 },
