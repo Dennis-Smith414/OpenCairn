@@ -1,10 +1,13 @@
 // Server/routes/auth.js
+require('dotenv').config({ path: '../.env' });
+console.log('[boot] DATABASE_URL =', process.env.DATABASE_URL);
+
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const { Pool } = require("pg");
 
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const isNonEmpty = (s) => typeof s === "string" && s.trim().length > 0;
 const strongPwd = (s) =>

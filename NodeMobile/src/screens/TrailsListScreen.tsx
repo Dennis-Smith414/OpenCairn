@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import { API_BASE, fetchTrailList } from "../lib/api";
+import { API_BASE, fetchRouteList } from "../lib/api";
 
 type TrailRow = {
   id: number | string;
@@ -29,7 +29,7 @@ export default function TrailsListScreen({ navigation }: { navigation: any }) {
       try {
         setLoading(true);
         setErr(null);
-        const list = await fetchTrailList();
+        const list = await fetchRouteList();
         if (alive) setItems(Array.isArray(list) ? list : []);
       } catch (e: any) {
         if (alive) setErr(e?.message ?? String(e));

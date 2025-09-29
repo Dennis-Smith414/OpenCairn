@@ -1,18 +1,19 @@
-// NodeMobile/src/lib/api.ts
+// src/lib/api.ts
+const API_BASE = 'http://10.0.2.2:5100';
 
-// Point API_BASE at your backend.
-// On Android emulator, "localhost" is NOT valid → use 10.0.2.2
-export const API_BASE =
-  __DEV__ ? "http://10.0.2.2:5000" : "https://your-prod-backend.com";
-
-export async function fetchTrailList() {
-  const r = await fetch(`${API_BASE}/api/routes/list?limit=100`);
-  const j = await r.json();
-  return j.items ?? [];
+export async function fetchRouteList() {
+  const res = await fetch(`${API_BASE}/api/routes/list`);
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    return json.items ?? [];
+  } catch {
+    throw new Error(`Bad JSON from /routes/list: ${text.slice(0,200)}`);
+  }
 }
 
-export async function fetchTrailGeo(id: number) {
+export async function fetchRouteGeo(id: number) {
   const r = await fetch(`${API_BASE}/api/routes/${id}.geojson`);
-  if (!r.ok) throw new Error(`geo failed ${r.status}`);
+  if (!r.ok) throw new Error(`geo error ${r.status}`);
   return r.json();
 }

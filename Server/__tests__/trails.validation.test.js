@@ -3,7 +3,7 @@ const { app } = require('../index');
 const { init, run } = require('../Postgres');
 
 beforeAll(async () => {
-  process.env.POSTGRES_URL = process.env.POSTGRES_URL || 'postgres://app:pass@localhost:5432/trails';
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://app:pass@localhost:5432/trails';
   await init();
 });
 

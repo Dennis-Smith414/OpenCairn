@@ -14,7 +14,7 @@ import LandingScreen from "../screens/LandingScreen";
 import MapScreen from "../screens/MapScreen";
 import RouteSelectScreen from "../screens/RouteSelectScreen";
 import FileManagerScreen from "../screens/FileManagerScreen";
-// Placeholder for File Manager
+import RouteCreateScreen from "../screens/RouteCreateScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -127,6 +127,11 @@ export default function AppNavigator() {
           name="Login"
           component={LoginScreen}
           options={{ title: "Login" }}
+        />
+
+        <Stack.Screen
+            name="RouteCreate"
+            component={RouteCreateScreen}
         />
 
         {/* Main app (bottom tabs) */}

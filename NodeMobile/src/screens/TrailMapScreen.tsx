@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import type { WebView as WebViewType } from "react-native-webview";
-import { fetchTrailGeo } from "../lib/api";
+import { fetchRouteGeo } from "../lib/api";
 
 type GeoFeature = {
   type: "Feature";
@@ -49,7 +49,7 @@ export default function TrailMapScreen({ route }: any) {
     (async () => {
       try {
         setLoading(true); setErr(null);
-        const feature = await fetchTrailGeo(id);
+        const feature = await fetchRouteGeo(id);
         const latlng = flattenToLatLng((feature as GeoFeature).geometry);
         if (alive) setCoords(latlng);
       } catch (e: any) {

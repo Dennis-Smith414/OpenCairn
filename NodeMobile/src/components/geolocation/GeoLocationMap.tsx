@@ -19,6 +19,7 @@ export interface GeolocationMapProps {
     url: string;
     attribution: string;
   }>;
+  tracks?: [number, number][][];
   style?: object;
 }
 
@@ -39,6 +40,7 @@ export const GeolocationMap: React.FC<GeolocationMapProps> = ({
     },
   ],
   style,
+  tracks = [],
 }) => {
   const [mapCenter, setMapCenter] = useState<LocationCoords>(initialCenter);
   const [allMarkers, setAllMarkers] = useState<MapMarker[]>(staticMarkers);
@@ -124,6 +126,16 @@ export const GeolocationMap: React.FC<GeolocationMapProps> = ({
     icon: marker.icon,
   }));
 
+  // Convert tracks into LeafletView shapes
+  const leafletShapes = (tracks ?? []).map((track, idx) => ({
+    shapeType: 'polyline',
+    shapeId: `track-${idx}`,
+    positions: track,
+    color: '#FF0000',      // red line  - change color options later
+    weight: 4,
+  }));
+
+
   return (
     <View style={[styles.container, style]}>
       <LeafletView
@@ -131,6 +143,7 @@ export const GeolocationMap: React.FC<GeolocationMapProps> = ({
         zoom={initialZoom}
         mapLayers={mapLayers}
         mapMarkers={leafletMarkers}
+        mapShapes={leafletShapes}
       />
     </View>
   );
