@@ -1,5 +1,5 @@
 // screens/MapScreen.tsx
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
@@ -9,6 +9,9 @@ import { Feature, FeatureCollection, Geometry } from 'geojson';
 import { colors } from '../styles/theme';
 
 type LatLng = [number, number];
+
+// ❗ stable empty array to avoid new [] identity each render
+const EMPTY_IDS: number[] = [];
 
 // --- HTML template for Leaflet map ---
 const HTML = `<!doctype html><html><head>
@@ -34,7 +37,6 @@ const HTML = `<!doctype html><html><head>
   const base = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
   map.setView([37.7749,-122.4194], 12);
 
-  // Remove all polylines (keep base layer)
   window.__clearMap = function(){
     try {
       map.eachLayer(l => {
@@ -43,23 +45,23 @@ const HTML = `<!doctype html><html><head>
     } catch(e) { console.error('clearMap error', e); }
   };
 
-  // Draw coords and fit bounds
   window.__setCoords = function(payload){
     try {
       const coords = (payload && payload.coords) || [];
-      if (!coords.length) return; // allow empty -> leave map as-is
+      if (!coords.length) {
+        console.warn('[WebView] No coords received');
+        return;
+      }
       const line = L.polyline(coords, {weight:4}).addTo(map);
-      map.fitBounds(line.getBounds(), {padding:[20,20]});
+      try { map.fitBounds(line.getBounds(), {padding:[20,20]}); }
+      catch(e) { console.error('Leaflet fitBounds error', e); }
     } catch(e) { console.error('setCoords error', e); }
   };
 </script>
 </body>
 </html>`;
 
-/**
- * flattenToLatLng
- * Converts GeoJSON to array of [lat, lng] coords
- */
+/** flattenToLatLng: Converts GeoJSON to array of [lat,lng] */
 function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] {
   if (!geo) return [];
   if (geo.type === 'FeatureCollection') return geo.features.flatMap(f => flattenToLatLng(f));
@@ -71,7 +73,13 @@ function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] 
 
 const MapScreen: React.FC = () => {
   const route = useRoute<any>();
-  const routeIds: number[] = route.params?.routeIds ?? [];
+
+  // Use raw routeIds from navigation (may be undefined)
+  const routeIdsRaw: number[] | undefined = route.params?.routeIds;
+  // Fall back to a STABLE constant (not a new [] each render)
+  const routeIds: number[] = routeIdsRaw ?? EMPTY_IDS;
+  // Stable dependency key for effects
+  const routeIdsKey = routeIdsRaw ? routeIdsRaw.join(',') : '';
 
   const [coords, setCoords]   = useState<LatLng[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,12 +87,7 @@ const MapScreen: React.FC = () => {
   const [ready, setReady]     = useState(false);
   const webref = useRef<WebViewType>(null);
 
-  // Reset coords if routes deselected (fixes stale geometry lingering)
-  useEffect(() => {
-    if (routeIds.length === 0) setCoords([]);
-  }, [routeIds]);
-
-  // --- Fetch GeoJSON for all routeIds ---
+  // --- Fetch GeoJSON when routeIds change (by value) ---
   useEffect(() => {
     let alive = true;
 
@@ -93,19 +96,17 @@ const MapScreen: React.FC = () => {
         setLoading(true);
         setErr(null);
 
-        if (routeIds.length === 0) {
-          // nothing selected; show empty map
-          if (alive) setCoords([]);
+        if (!routeIdsRaw || routeIdsRaw.length === 0) {
+          if (alive) setCoords([]); // single reset point
           return;
         }
 
         const collected: LatLng[] = [];
-        for (const id of routeIds) {
+        for (const id of routeIdsRaw) {
           console.log(`[MapScreen] Fetching GeoJSON for route ${id}`);
           const geo = await fetchRouteGeo(id);
           if (!geo) continue;
-          const flat = flattenToLatLng(geo);
-          collected.push(...flat);
+          collected.push(...flattenToLatLng(geo));
         }
         if (alive) setCoords(collected);
       } catch (e: any) {
@@ -116,26 +117,27 @@ const MapScreen: React.FC = () => {
     })();
 
     return () => { alive = false; };
-  }, [routeIds]);
+    // ❗ depend on the stable key, not the array reference
+  }, [routeIdsKey]);
 
-  // Inject coords into WebView (clear first; then draw if any)
-  const pushCoords = useCallback(() => {
+  // --- Inject coords into WebView when ready or coords change length ---
+  useEffect(() => {
     if (!ready) return;
 
-    // Always clear old lines so toggling routes updates the view
-    webref.current?.injectJavaScript(`window.__clearMap(); true;`);
+    try {
+      webref.current?.injectJavaScript(`window.__clearMap(); true;`);
 
-    if (coords.length) {
-      const js = `window.__setCoords(${JSON.stringify({ coords })}); true;`;
-      console.log('[MapScreen] Injecting coords into WebView');
-      webref.current?.injectJavaScript(js);
-    } else {
-      console.log('[MapScreen] No coords — showing empty map');
+      if (coords.length) {
+        const js = `window.__setCoords(${JSON.stringify({ coords })}); true;`;
+        webref.current?.injectJavaScript(js);
+        console.log('[MapScreen] injected', coords.length, 'coords');
+      } else {
+        console.log('[MapScreen] no coords to inject');
+      }
+    } catch (e) {
+      console.error('[MapScreen] JS injection failed:', e);
     }
-  }, [ready, coords]);
-
-  // Re-run injection when either ready or coords change
-  useEffect(() => { pushCoords(); }, [pushCoords]);
+  }, [ready, coords.length]); // use length so we don't chase identity changes
 
   return (
     <View style={{ flex: 1 }}>
@@ -144,16 +146,12 @@ const MapScreen: React.FC = () => {
         originWhitelist={['*']}
         source={{ html: HTML }}
         onLoadEnd={() => {
-          setReady(true);
-          // Immediately try to push whatever coords we have after reload
-          // (this fixes "reload then nothing shows" issue)
-          setTimeout(() => pushCoords(), 0);
+          if (!ready) setReady(true); // set once
         }}
         onMessage={() => {}}
         style={{ flex: 1 }}
       />
 
-      {/* Overlay loaders / errors so the map still renders underneath */}
       {loading && (
         <View style={styles.overlay}>
           <ActivityIndicator size="large" color={colors.accent} />
@@ -171,10 +169,10 @@ const MapScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute', inset: 0,
+    position: 'absolute', inset: 0 as any,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.6)',
-  } as any,
+  },
   msg: { marginTop: 8 },
   err: { color: '#b00020', textAlign: 'center' },
 });
