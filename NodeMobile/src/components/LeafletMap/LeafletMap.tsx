@@ -3,8 +3,7 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
-import type { WebView as WebViewType } from 'react-native-webview';
-import * as Location from 'expo-location';
+import { WebView as WebViewType } from 'react-native-webview';
 
 //***************************
 //TYPES
@@ -54,8 +53,8 @@ function generateLeafletHTML(
     lineColor: string,
     lineWeight: number
 ): string {
-    return '<!doctype html>
-    <html>
+return `<!doctype html>
+<html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="initial-scale=1, maximum-scale=1, width=device-width"/>
@@ -116,3 +115,56 @@ function generateLeafletHTML(
 </body>
 </html>`;
 }
+
+const LeafletMap: React.FC<LeafletMapProps> = ({
+  coordinates,
+  center = FALLBACK_CENTER,
+  zoom = DEFAULT_ZOOM,
+  lineColor = DEFAULT_LINE_COLOR,
+  lineWeight = DEFAULT_LINE_WEIGHT,
+  onMapReady,
+  onLocationError,
+}) => {
+  const webRef = useRef<WebViewType>(null);
+  const [isReady, setIsReady] = useState(false);
+  
+  const html = useMemo(() => generateLeafletHTML(center, zoom, lineColor,lineWeight), [center, zoom, lineColor, lineWeight]);
+
+  const handleMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'MAP_READY') {
+        setIsReady(true);
+        onMapReady?.();
+      }
+    } catch (e) {
+      console.error(`ERROR
+        LeafletMap: Message parse error:`, e);
+    }
+  }, [onMapReady]);
+  useEffect(() => {
+    if (!isReady) return;
+
+    webRef.current?.injectJavaScript(`window.__clearMap(); true;`);
+
+    if (coordinates.length) {
+      const payload: MapPayload = { coords: coordinates };
+      webRef.current?.injectJavaScript(`window.__setCoords(${JSON.stringify(payload)}); true;`);
+      console.log('[LeafletMap] Injected', coordinates.length, 'coords');
+    }
+
+  }, [isReady, coordinates]);
+
+  //Geoloaction handler should be called here
+
+  return (
+    <WebView
+      ref={webRef}
+      originWhitelist={['*']}
+      source={{ html }}
+      onMessage={handleMessage}
+      style={{ flex: 1 }}
+      />
+  );
+};
+export default LeafletMap;
