@@ -13,7 +13,10 @@
       function handleLogout() {
         // TODO: hook into your auth logic
         // e.g. clear tokens, reset context, etc.
-        navigation.navigate("Landing");
+        navigation.reset({
+            index: 0,
+            routes: [{name: "Landing"}],
+        });
       }
 
       return (
