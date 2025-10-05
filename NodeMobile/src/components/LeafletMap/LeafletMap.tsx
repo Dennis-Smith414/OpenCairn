@@ -1,13 +1,7 @@
-//Implemented with container/ presenter pattern with composition in mind
-
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { WebView as WebViewType } from 'react-native-webview';
-
-//***************************
-//TYPES
-//***************************
 
 export type LatLng = [number, number];
 
@@ -21,31 +15,15 @@ export interface LeafletMapProps {
     zoom?: number;
     lineColor?: string;
     lineWeight?: number;
+    userLocation?: LatLng | null;
     onMapReady?: () => void;
     onLocationError?: (error: string) => void;
 }
 
-interface MapState {
-    isReady: boolean;
-    userLocation: LatLng | null;
-    locationLoading: boolean;
-    locationError: string | null;
-}
-
-//***************************
-//CONSTANTS
-//***************************
 const FALLBACK_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 13;
 const DEFAULT_LINE_COLOR = '#2196F3';
 const DEFAULT_LINE_WEIGHT = 4;
-
-//***************************
-//UTILLITY LAYER
-//***************************
-
-//Generates LeafLet HTML 
-//pure with no side effects 
 
 function generateLeafletHTML(
     center: LatLng,
@@ -53,7 +31,7 @@ function generateLeafletHTML(
     lineColor: string,
     lineWeight: number
 ): string {
-return `<!doctype html>
+    return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8"/>
@@ -82,7 +60,19 @@ return `<!doctype html>
     }).addTo(map);
     
     map.setView([${center[0]}, ${center[1]}], ${zoom});
+    
+    window.__lineColor = '${lineColor}';
+    window.__lineWeight = ${lineWeight};
+    
     let currentPolyline = null;
+    let userMarker = null;
+    
+    const userIcon = L.divIcon({
+      className: 'user-location-marker',
+      html: '<div style="background: #4285F4; width: 10px; height: 10px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
     
     window.__clearMap = function() {
       try {
@@ -93,6 +83,31 @@ return `<!doctype html>
       } catch (e) { console.error('[Leaflet] Clear error:', e); }
     };
     
+    window.__setUserLocation = function(lat, lng) {
+      try {
+        if (userMarker) {
+          userMarker.setLatLng([lat, lng]);
+        } else {
+          userMarker = L.marker([lat, lng], { 
+            icon: userIcon,
+            zIndexOffset: 1000
+          }).addTo(map);
+          userMarker.bindPopup('Your Location');
+        }
+      } catch (e) { 
+        console.error('[Leaflet] Set user location error:', e);
+      }
+    };
+    
+    window.__removeUserLocation = function() {
+      try {
+        if (userMarker) {
+          map.removeLayer(userMarker);
+          userMarker = null;
+        }
+      } catch (e) { console.error('[Leaflet] Remove user location error:', e); }
+    };
+    
     window.__setCoords = function(payload) {
       try {
         const coords = (payload?.coords) || [];
@@ -101,8 +116,8 @@ return `<!doctype html>
         if (currentPolyline) map.removeLayer(currentPolyline);
         
         currentPolyline = L.polyline(coords, {
-          color: '${lineColor}',
-          weight: ${lineWeight},
+          color: window.__lineColor || '${lineColor}',
+          weight: window.__lineWeight || ${lineWeight},
           opacity: 0.8
         }).addTo(map);
         
@@ -110,61 +125,97 @@ return `<!doctype html>
       } catch (e) { console.error('[Leaflet] Set coords error:', e); }
     };
     
-    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+    setTimeout(() => {
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+    }, 100);
   </script>
 </body>
 </html>`;
 }
 
 const LeafletMap: React.FC<LeafletMapProps> = ({
-  coordinates,
-  center = FALLBACK_CENTER,
-  zoom = DEFAULT_ZOOM,
-  lineColor = DEFAULT_LINE_COLOR,
-  lineWeight = DEFAULT_LINE_WEIGHT,
-  onMapReady,
-  onLocationError,
-}) => {
-  const webRef = useRef<WebViewType>(null);
-  const [isReady, setIsReady] = useState(false);
-  
-  const html = useMemo(() => generateLeafletHTML(center, zoom, lineColor,lineWeight), [center, zoom, lineColor, lineWeight]);
+                                                   coordinates,
+                                                   center = FALLBACK_CENTER,
+                                                   zoom = DEFAULT_ZOOM,
+                                                   lineColor = DEFAULT_LINE_COLOR,
+                                                   lineWeight = DEFAULT_LINE_WEIGHT,
+                                                   userLocation = null,
+                                                   onMapReady,
+                                                   onLocationError,
+                                               }) => {
+    const webRef = useRef<WebViewType>(null);
+    const [isReady, setIsReady] = useState(false);
 
-  const handleMessage = useCallback((event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'MAP_READY') {
-        setIsReady(true);
-        onMapReady?.();
-      }
-    } catch (e) {
-      console.error(`ERROR
-        LeafletMap: Message parse error:`, e);
-    }
-  }, [onMapReady]);
-  useEffect(() => {
-    if (!isReady) return;
+    const html = useMemo(() => {
+        return generateLeafletHTML(FALLBACK_CENTER, DEFAULT_ZOOM, lineColor, lineWeight);
+    }, [lineColor, lineWeight]);
 
-    webRef.current?.injectJavaScript(`window.__clearMap(); true;`);
+    const handleMessage = useCallback((event: any) => {
+        try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === 'MAP_READY') {
+                setIsReady(true);
+                onMapReady?.();
+            }
+        } catch (e) {
+            console.error('LeafletMap: Message parse error:', e);
+        }
+    }, [onMapReady]);
 
-    if (coordinates.length) {
-      const payload: MapPayload = { coords: coordinates };
-      webRef.current?.injectJavaScript(`window.__setCoords(${JSON.stringify(payload)}); true;`);
-      console.log('[LeafletMap] Injected', coordinates.length, 'coords');
-    }
+    useEffect(() => {
+        if (!isReady) return;
 
-  }, [isReady, coordinates]);
+        if (coordinates.length) {
+            const payload: MapPayload = { coords: coordinates };
+            webRef.current?.injectJavaScript(`
+                window.__clearMap();
+                window.__setCoords(${JSON.stringify(payload)});
+                true;
+            `);
+        } else {
+            webRef.current?.injectJavaScript(`
+                window.__clearMap();
+                true;
+            `);
+        }
+    }, [isReady, coordinates]);
 
-  //Geoloaction handler should be called here
+    useEffect(() => {
+        if (!isReady) return;
 
-  return (
-    <WebView
-      ref={webRef}
-      originWhitelist={['*']}
-      source={{ html }}
-      onMessage={handleMessage}
-      style={{ flex: 1 }}
-      />
-  );
+        if (userLocation) {
+            const [lat, lng] = userLocation;
+            webRef.current?.injectJavaScript(`
+                window.__setUserLocation(${lat}, ${lng});
+                true;
+            `);
+        } else {
+            webRef.current?.injectJavaScript(`
+                window.__removeUserLocation();
+                true;
+            `);
+        }
+    }, [isReady, userLocation]);
+
+    useEffect(() => {
+        if (isReady && center) {
+            const [lat, lng] = center;
+            webRef.current?.injectJavaScript(`
+                map.setView([${lat}, ${lng}], ${zoom});
+                true;
+            `);
+        }
+    }, [isReady, center, zoom]);
+
+    return (
+        <WebView
+            ref={webRef}
+            originWhitelist={['*']}
+            source={{ html }}
+            onMessage={handleMessage}
+            style={{ flex: 1 }}
+        />
+    );
 };
+
 export default LeafletMap;
