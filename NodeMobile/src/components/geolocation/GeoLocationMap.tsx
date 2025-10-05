@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LeafletView } from 'react-native-leaflet-view';
+import { LeafletView, LatLng, MapShape, MapShapeType } from 'react-native-leaflet-view';
 import { StyleSheet, View } from 'react-native';
 import { useGeolocation, LocationCoords, GeolocationOptions } from '../../hooks/useGeolocation';
 import { MapMarker, addOrUpdateUserLocationMarker } from './MapMarker';
@@ -127,10 +127,10 @@ export const GeolocationMap: React.FC<GeolocationMapProps> = ({
   }));
 
   // Convert tracks into LeafletView shapes
-  const leafletShapes = (tracks ?? []).map((track, idx) => ({
-    shapeType: 'polyline',
+  const leafletShapes: MapShape[] = (tracks ?? []).map((track, idx) => ({
+    shapeType: MapShapeType.POLYLINE,
     shapeId: `track-${idx}`,
-    positions: track,
+    positions: track.map(([lat, lng]) => ({ lat, lng })) as LatLng[],
     color: '#FF0000',      // red line  - change color options later
     weight: 4,
   }));
@@ -156,3 +156,4 @@ const styles = StyleSheet.create({
 });
 
 export default GeolocationMap;
+
