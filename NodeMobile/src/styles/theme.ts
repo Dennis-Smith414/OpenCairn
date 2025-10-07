@@ -9,6 +9,8 @@ export const colors = {
   backgroundAlt: "#F8F9FA",
   textPrimary: "#222222",
   textSecondary: "#666666",
+    border: undefined,
+    text: undefined
 };
 
 export const fonts = {

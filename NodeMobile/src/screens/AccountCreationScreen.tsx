@@ -1,195 +1,186 @@
-// client/src/screens/AccountCreationScreen.jsx
 import React, { useState } from "react";
-import { baseStyles} from "../styles/theme";
-
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Image,
 } from "react-native";
+import { baseStyles, colors } from "../styles/theme";
+
+const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AccountCreationScreen({ navigation }: { navigation: any }) {
-  const [username, setUsername] = useState("");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm]   = useState("");
-  const [error, setError] = useState<string | null>(null);
+    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
 
+    const validateInputs = (): string | null => {
+        if (!username.trim() || !email.trim() || !password || !confirmPassword) {
+            return "Please fill out all fields.";
+        }
 
-  async function handleCreate() {
-    setError(null);
+        if (!PASSWORD_REGEX.test(password)) {
+            return "Password must be at least 8 characters, include 1 uppercase letter and 1 special character.";
+        }
 
-    // Check for empty fields
-    if (!username || !email || !password || !confirm) {
-      setError("Please fill out all fields.");
-      return;
-    }
+        if (password !== confirmPassword) {
+            return "Passwords do not match.";
+        }
 
-    // Password strength regex:
-    // ^(?=.*[A-Z])  → must have at least one uppercase
-    // (?=.*[^A-Za-z0-9]) → must have at least one special character
-    // .{8,}$ → minimum length 8
-    const strongPassword = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
+        return null;
+    };
 
-    if (!strongPassword.test(password)) {
-      setError("Password must be at least 8 characters, include 1 capital letter, and 1 symbol.");
-      return;
-    }
+    const handleCreateAccount = async () => {
+        setError(null);
 
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
+        const validationError = validateInputs();
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
 
-    // TODO: hook up to your real register API
-    navigation.goBack();
-  }
+        // TODO: API goes here
+        navigation.goBack();
+    };
 
+    return (
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Image
+                    source={require("../assets/images/OCLogoLight.png")}
+                    style={styles.logo}
+                    resizeMode="contain"
+                />
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <Image
-          source={require("../assets/images/OCLogoLight.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+                <Text style={styles.title}>Create Account</Text>
+                <Text style={styles.subtitle}>Join us today</Text>
 
-        <Text style={baseStyles.headerText}>Create Account</Text>
+                <View style={styles.form}>
+                    <TextInput
+                        style={baseStyles.input}
+                        placeholder="Username"
+                        placeholderTextColor={colors.textSecondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={username}
+                        onChangeText={setUsername}
+                        returnKeyType="next"
+                    />
 
-        <TextInput
-          style={baseStyles.input}
-          placeholder="Username"
-          placeholderTextColor="lightgray"
-          autoCapitalize="none"
-          value={username}
-          onChangeText={setUsername}
-          returnKeyType="next"
-        />
-        <TextInput
-          style={baseStyles.input}
-          placeholder="Email"
-          placeholderTextColor="lightgray"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          returnKeyType="next"
-        />
-        <TextInput
-          style={baseStyles.input}
-          placeholder="Password"
-          placeholderTextColor="lightgray"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          returnKeyType="next"
-        />
-        <TextInput
-          style={baseStyles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="lightgray"
-          secureTextEntry
-          value={confirm}
-          onChangeText={setConfirm}
-          returnKeyType="done"
-        />
+                    <TextInput
+                        style={baseStyles.input}
+                        placeholder="Email"
+                        placeholderTextColor={colors.textSecondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="email-address"
+                        value={email}
+                        onChangeText={setEmail}
+                        returnKeyType="next"
+                    />
 
-        {error ? <Text style={baseStyles.error}>{error}</Text> : null}
+                    <TextInput
+                        style={baseStyles.input}
+                        placeholder="Password"
+                        placeholderTextColor={colors.textSecondary}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        value={password}
+                        onChangeText={setPassword}
+                        returnKeyType="next"
+                    />
 
-        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonPrimary]} onPress={handleCreate}>
-          <Text style={baseStyles.buttonText}>Create Account</Text>
-        </TouchableOpacity>
+                    <TextInput
+                        style={baseStyles.input}
+                        placeholder="Confirm Password"
+                        placeholderTextColor={colors.textSecondary}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        returnKeyType="done"
+                        onSubmitEditing={handleCreateAccount}
+                    />
 
-        <TouchableOpacity style={[baseStyles.button, baseStyles.buttonSecondary]} onPress={() => navigation.goBack()}>
-          <Text style={baseStyles.buttonText}>Cancel</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+                    <Text style={styles.helperText}>
+                        Password must be 8+ characters with 1 uppercase and 1 special character
+                    </Text>
+
+                    {error && <Text style={baseStyles.error}>{error}</Text>}
+
+                    <TouchableOpacity
+                        style={[baseStyles.button, baseStyles.buttonPrimary, styles.createButton]}
+                        onPress={handleCreateAccount}
+                    >
+                        <Text style={baseStyles.buttonText}>Create Account</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[baseStyles.button, baseStyles.buttonSecondary]}
+                        onPress={() => navigation.goBack()}
+                    >
+                        <Text style={baseStyles.buttonText}>Cancel</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
 }
 
 const styles = StyleSheet.create({
- 
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  inner: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-
-
-  logo: {
-    flex: 0,
-    width: "80%",
-    height: 140,
-    marginBottom: 8,
-  },
-
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginVertical: 8,
-    color: "#222",
-  },
-
-  
-  input: {
-    width: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 10,
-  },
-
-
-  button: {
-    width: "60%",
-    paddingVertical: 12,
-    borderRadius: 30,
-    alignItems: "center",
-    marginVertical: 6,
-  },
-  createButton: {
-    backgroundColor: "#008b8b", 
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  cancelButton: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: "#40e0d0", 
-  },
-  cancelText: {
-    color: "#40e0d0",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  error: {
-    color: "#b00020",
-    textAlign: "center",
-    marginTop: 8,
-  },
+    container: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 24,
+        paddingVertical: 32,
+    },
+    logo: {
+        width: "80%",
+        height: 140,
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: "700",
+        color: colors.text,
+        marginBottom: 8,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        marginBottom: 32,
+    },
+    form: {
+        width: "100%",
+        alignItems: "center",
+    },
+    helperText: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        textAlign: "center",
+        marginTop: 8,
+        marginBottom: 16,
+        paddingHorizontal: 16,
+    },
+    createButton: {
+        marginTop: 8,
+    },
 });

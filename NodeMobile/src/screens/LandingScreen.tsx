@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"; 
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Platform } from "react-native";
 import { baseStyles} from "../styles/theme";
@@ -6,31 +6,27 @@ import { baseStyles} from "../styles/theme";
 
 export default function LandingScreen({ navigation }: any) {
 
+    return (
+        <View style={baseStyles.container}>
 
- 
+            <Image
+                source={require("../assets/images/OCLogoLight.png")}
+                style={baseStyles.logo}
+                resizeMode="contain" // scaled to fit
+            />
 
+            {/* Buttons */}
+            <TouchableOpacity
+                style={[baseStyles.button, baseStyles.buttonPrimary]}
+                onPress={() => navigation.navigate("Login")}>
+                <Text style={[baseStyles.buttonText]}>Login</Text>
+            </TouchableOpacity>
 
-  return (
-    <View style={baseStyles.container}>
-
-      <Image
-        source={require("../assets/images/OCLogoLight.png")}
-        style={baseStyles.logo}
-        resizeMode="contain" // 👈 scale to fit, no cropping
-      />
-
-      {/* Buttons */}
-      <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonPrimary]}
-        onPress={() => navigation.navigate("Login")}>
-        <Text style={[baseStyles.buttonText]}>Login</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonSecondary]}
-        onPress={() => navigation.navigate("CreateAccount")}>
-        <Text style={[baseStyles.buttonText]}>Create Account</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            <TouchableOpacity
+                style={[baseStyles.button, baseStyles.buttonSecondary]}
+                onPress={() => navigation.navigate("CreateAccount")}>
+                <Text style={[baseStyles.buttonText]}>Create Account</Text>
+            </TouchableOpacity>
+        </View>
+    );
 }

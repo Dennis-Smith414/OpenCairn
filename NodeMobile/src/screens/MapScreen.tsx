@@ -7,13 +7,15 @@ import { flattenToLatLng } from '../utils/geoUtils';
 import LeafletMap, { LatLng } from '../components/LeafletMap/LeafletMap';
 import { colors } from '../styles/theme';
 
+const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
+const DEFAULT_ZOOM = 15;
+
 const MapScreen: React.FC = () => {
     const { selectedRouteIds } = useRouteSelection();
-    const routeIdsKey = selectedRouteIds.join(',');
 
     const [coords, setCoords] = useState<LatLng[]>([]);
     const [loading, setLoading] = useState(false);
-    const [err, setErr] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [initialLocationLoaded, setInitialLocationLoaded] = useState(false);
 
     const watchIdRef = useRef<number | null>(null);
@@ -34,136 +36,116 @@ const MapScreen: React.FC = () => {
         showErrorAlert: false,
     });
 
+    // Initialize location tracking
     useEffect(() => {
+        let mounted = true;
+
         const initLocationTracking = async () => {
-            console.log('[MapScreen] Initializing location tracking...');
-
             const hasPermission = await requestPermission();
-            if (hasPermission) {
-                console.log('[MapScreen] Permission granted, starting continuous tracking...');
+            if (!hasPermission || !mounted) return;
 
-                const watchId = startWatching();
-                if (watchId !== null) {
-                    watchIdRef.current = watchId;
-                    console.log('[MapScreen] Continuous location tracking started, watchId:', watchId);
-                } else {
-                    console.warn('[MapScreen] Failed to start continuous tracking, falling back to periodic updates');
-                    const intervalId = setInterval(() => {
-                        console.log('[MapScreen] Periodic location update');
-                        getCurrentLocation();
-                    }, 10000);
-
-                    watchIdRef.current = intervalId as any;
-                }
+            const watchId = startWatching();
+            if (watchId !== null) {
+                watchIdRef.current = watchId;
             } else {
-                console.log('[MapScreen] Location permission denied');
+                // Fallback to periodic updates
+                const intervalId = setInterval(() => {
+                    getCurrentLocation();
+                }, 10000);
+                watchIdRef.current = intervalId as any;
             }
         };
 
         initLocationTracking();
 
         return () => {
+            mounted = false;
             if (watchIdRef.current !== null) {
-                if (typeof watchIdRef.current === 'number') {
-                    stopWatching(watchIdRef.current);
-                    console.log('[MapScreen] Stopped location watching');
-                } else {
-                    clearInterval(watchIdRef.current);
-                    console.log('[MapScreen] Stopped periodic location updates');
-                }
+                stopWatching(watchIdRef.current);
             }
         };
     }, []);
 
+    // Track initial location load
     useEffect(() => {
         if (location && !initialLocationLoaded) {
             setInitialLocationLoaded(true);
         }
     }, [location, initialLocationLoaded]);
 
+    // Fetch route coordinates
     useEffect(() => {
-        if (location) {
-            console.log('[MapScreen] Location updated:', location);
-        }
-    }, [location]);
+        let mounted = true;
 
-    useEffect(() => {
-        if (locationError) {
-            console.error('[MapScreen] Location error:', locationError);
-        }
-    }, [locationError]);
-
-    useEffect(() => {
-        let alive = true;
-
-        (async () => {
+        const fetchRoutes = async () => {
             try {
                 setLoading(true);
-                setErr(null);
+                setError(null);
 
                 if (selectedRouteIds.length === 0) {
-                    if (alive) setCoords([]);
+                    if (mounted) setCoords([]);
                     return;
                 }
 
-                const collected: LatLng[] = [];
+                const allCoords: LatLng[] = [];
                 for (const id of selectedRouteIds) {
-                    console.log(`[MapScreen] Fetching GeoJSON for route ${id}`);
                     const geo = await fetchRouteGeo(id);
-                    if (!geo) continue;
-                    collected.push(...flattenToLatLng(geo));
+                    if (geo) {
+                        allCoords.push(...flattenToLatLng(geo));
+                    }
                 }
-                if (alive) setCoords(collected);
+
+                if (mounted) setCoords(allCoords);
             } catch (e: any) {
-                if (alive) setErr(String(e?.message || e));
+                if (mounted) setError(e?.message || 'Failed to load routes');
             } finally {
-                if (alive) setLoading(false);
+                if (mounted) setLoading(false);
             }
-        })();
+        };
 
-        return () => { alive = false; };
-    }, [routeIdsKey]);
+        fetchRoutes();
 
-    const userLocation = location ? [location.lat, location.lng] : null;
-    const mapCenter = location ? [location.lat, location.lng] : [37.7749, -122.4194];
+        return () => { mounted = false; };
+    }, [selectedRouteIds.join(',')]);
 
+    // Compute derived values
+    const userLocation = location ? [location.lat, location.lng] as LatLng : null;
+    const mapCenter = userLocation || DEFAULT_CENTER;
     const showLocationLoading = locationLoading && !initialLocationLoaded;
+    const showError = error || (locationError && !initialLocationLoaded);
 
     return (
-        <View style={{ flex: 1 }}>
+        <View style={styles.container}>
             <LeafletMap
                 coordinates={coords}
                 userLocation={userLocation}
                 center={mapCenter}
-                zoom={15}
+                zoom={DEFAULT_ZOOM}
             />
 
+            {/* Loading Overlay */}
             {(loading || showLocationLoading) && (
                 <View style={styles.overlay}>
                     <ActivityIndicator size="large" color={colors.accent} />
-                    <Text style={styles.msg}>
-                        {loading ? 'Loading route tracks…' : 'Getting location...'}
+                    <Text style={styles.overlayText}>
+                        {loading ? 'Loading routes…' : 'Getting location...'}
                     </Text>
                 </View>
             )}
 
-            {!!err && (
+            {/* Error Overlay */}
+            {showError && (
                 <View style={styles.overlay}>
-                    <Text style={[styles.msg, styles.err]}>Error: {err}</Text>
+                    <Text style={styles.errorText}>
+                        {error || locationError}
+                    </Text>
                 </View>
             )}
 
-            {!!locationError && !initialLocationLoaded && (
-                <View style={styles.overlay}>
-                    <Text style={[styles.msg, styles.err]}>Location: {locationError}</Text>
-                </View>
-            )}
-
+            {/* Tracking Indicator */}
             {location && (
                 <View style={styles.trackingIndicator}>
-                    <Text style={styles.trackingText}>
-                        • Tracking your location
-                    </Text>
+                    <Text style={styles.trackingText}>• Tracking</Text>
                 </View>
             )}
         </View>
@@ -171,32 +153,45 @@ const MapScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
     overlay: {
         position: 'absolute',
-        inset: 0 as any,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
     },
-    msg: {
-        marginTop: 8,
+    overlayText: {
+        marginTop: 12,
         fontSize: 16,
+        color: colors.text,
     },
-    err: {
+    errorText: {
         color: '#b00020',
-        textAlign: 'center',
         fontSize: 16,
+        textAlign: 'center',
+        paddingHorizontal: 24,
     },
     trackingIndicator: {
         position: 'absolute',
         top: 16,
         right: 16,
-        backgroundColor: 'rgba(255,255,255,0.9)',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
         borderWidth: 1,
         borderColor: colors.accent,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
     trackingText: {
         color: colors.accent,
