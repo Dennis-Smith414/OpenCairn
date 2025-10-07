@@ -32,6 +32,26 @@ export default function AccountScreen({ navigation }: { navigation: any }) {
         // TODO: Clear auth tokens, reset context
         navigation.navigate("Landing");
     };
+      function handleLogout() {
+        // TODO: hook into your auth logic
+        // e.g. clear tokens, reset context, etc.
+        navigation.reset({
+            index: 0,
+            routes: [{name: "Landing"}],
+        });
+      }
+
+      return (
+
+        <View style={styles.container}>
+              {/* Account info */}
+              <View style={styles.statsCard}>
+                <Text style={styles.statsHeader}>My Account</Text>
+
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Username</Text>
+                  <Text style={styles.statValue}>DemoUser</Text>
+                </View>
 
     const renderStatRow = (label: string, value: string | number) => (
         <View style={styles.statRow}>
