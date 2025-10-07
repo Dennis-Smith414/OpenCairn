@@ -1,173 +1,203 @@
-// screens/MapScreen.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
-import type { WebView as WebViewType } from 'react-native-webview';
 import { useRouteSelection } from '../context/RouteSelectionContext';
+import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchRouteGeo } from '../lib/api';
-import { Feature, FeatureCollection, Geometry } from 'geojson';
+import { flattenToLatLng } from '../utils/geoUtils';
+import LeafletMap, { LatLng } from '../components/LeafletMap/LeafletMap';
 import { colors } from '../styles/theme';
 
-type LatLng = [number, number];
-
-// --- HTML template for Leaflet map ---
-const HTML = `<!doctype html><html><head>
-<meta charset="utf-8"/><meta name="viewport" content="initial-scale=1, maximum-scale=1, width=device-width"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-  html,body,#map{height:100%;margin:0}
-  .leaflet-container{background:#e6edf2}
-  .attribution{
-    position:absolute;right:8px;bottom:8px;
-    background:rgba(255,255,255,.85);
-    padding:4px 6px;border-radius:6px;
-    font:12px/1.2 system-ui,-apple-system,Roboto,Arial
-  }
-</style>
-</head>
-<body>
-<div id="map"></div>
-<div class="attribution">© OpenStreetMap contributors</div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-  const map = L.map('map',{zoomControl:true});
-  const base = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-  map.setView([37.7749,-122.4194], 12);
-
-  window.__clearMap = function(){
-    try {
-      map.eachLayer(l => {
-        if (l !== base && (l instanceof L.Polyline)) map.removeLayer(l);
-      });
-    } catch(e) { console.error('clearMap error', e); }
-  };
-
-  window.__setCoords = function(payload){
-    try {
-      const coords = (payload && payload.coords) || [];
-      if (!coords.length) {
-        console.warn('[WebView] No coords received');
-        return;
-      }
-      const line = L.polyline(coords, {weight:4}).addTo(map);
-      try { map.fitBounds(line.getBounds(), {padding:[20,20]}); }
-      catch(e) { console.error('Leaflet fitBounds error', e); }
-    } catch(e) { console.error('setCoords error', e); }
-  };
-</script>
-</body>
-</html>`;
-
-/** flattenToLatLng: Converts GeoJSON to array of [lat,lng] */
-function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] {
-  if (!geo) return [];
-  if (geo.type === 'FeatureCollection') return geo.features.flatMap(f => flattenToLatLng(f));
-  if (geo.type === 'Feature')          return flattenToLatLng(geo.geometry);
-  if (geo.type === 'LineString')       return geo.coordinates.map(([lng, lat]) => [lat, lng]);
-  if (geo.type === 'MultiLineString')  return geo.coordinates.flatMap(seg => seg.map(([lng, lat]) => [lat, lng]));
-  return [];
-}
+const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
+const DEFAULT_ZOOM = 15;
 
 const MapScreen: React.FC = () => {
-  const { selectedRouteIds } = useRouteSelection();
-  const routeIdsKey = selectedRouteIds.join(','); // stable dependency key
+    const { selectedRouteIds } = useRouteSelection();
 
-  const [coords, setCoords]   = useState<LatLng[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr]         = useState<string | null>(null);
-  const [ready, setReady]     = useState(false);
-  const webref = useRef<WebViewType>(null);
+    const [coords, setCoords] = useState<LatLng[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [initialLocationLoaded, setInitialLocationLoaded] = useState(false);
 
-  // --- Fetch GeoJSON whenever route selection changes ---
-  useEffect(() => {
-    let alive = true;
+    const watchIdRef = useRef<number | null>(null);
 
-    (async () => {
-      try {
-        setLoading(true);
-        setErr(null);
+    const {
+        location,
+        loading: locationLoading,
+        error: locationError,
+        getCurrentLocation,
+        requestPermission,
+        startWatching,
+        stopWatching,
+    } = useGeolocation({
+        enableHighAccuracy: true,
+        distanceFilter: 5,
+        interval: 3000,
+        showPermissionAlert: true,
+        showErrorAlert: false,
+    });
 
-        if (selectedRouteIds.length === 0) {
-          if (alive) setCoords([]); // clear if no routes selected
-          return;
+    // Initialize location tracking
+    useEffect(() => {
+        let mounted = true;
+
+        const initLocationTracking = async () => {
+            const hasPermission = await requestPermission();
+            if (!hasPermission || !mounted) return;
+
+            const watchId = startWatching();
+            if (watchId !== null) {
+                watchIdRef.current = watchId;
+            } else {
+                // Fallback to periodic updates
+                const intervalId = setInterval(() => {
+                    getCurrentLocation();
+                }, 10000);
+                watchIdRef.current = intervalId as any;
+            }
+        };
+
+        initLocationTracking();
+
+        return () => {
+            mounted = false;
+            if (watchIdRef.current !== null) {
+                stopWatching(watchIdRef.current);
+            }
+        };
+    }, []);
+
+    // Track initial location load
+    useEffect(() => {
+        if (location && !initialLocationLoaded) {
+            setInitialLocationLoaded(true);
         }
+    }, [location, initialLocationLoaded]);
 
-        const collected: LatLng[] = [];
-        for (const id of selectedRouteIds) {
-          console.log(`[MapScreen] Fetching GeoJSON for route ${id}`);
-          const geo = await fetchRouteGeo(id);
-          if (!geo) continue;
-          collected.push(...flattenToLatLng(geo));
-        }
+    // Fetch route coordinates
+    useEffect(() => {
+        let mounted = true;
 
-        if (alive) setCoords(collected);
-      } catch (e: any) {
-        if (alive) setErr(String(e?.message || e));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
+        const fetchRoutes = async () => {
+            try {
+                setLoading(true);
+                setError(null);
 
-    return () => { alive = false; };
-  }, [routeIdsKey]);
+                if (selectedRouteIds.length === 0) {
+                    if (mounted) setCoords([]);
+                    return;
+                }
 
-  // --- Inject coords into WebView when ready or coords change ---
-  useEffect(() => {
-    if (!ready) return;
+                const allCoords: LatLng[] = [];
+                for (const id of selectedRouteIds) {
+                    const geo = await fetchRouteGeo(id);
+                    if (geo) {
+                        allCoords.push(...flattenToLatLng(geo));
+                    }
+                }
 
-    try {
-      webref.current?.injectJavaScript(`window.__clearMap(); true;`);
+                if (mounted) setCoords(allCoords);
+            } catch (e: any) {
+                if (mounted) setError(e?.message || 'Failed to load routes');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
 
-      if (coords.length) {
-        const js = `window.__setCoords(${JSON.stringify({ coords })}); true;`;
-        webref.current?.injectJavaScript(js);
-        console.log('[MapScreen] injected', coords.length, 'coords');
-      } else {
-        console.log('[MapScreen] no coords to inject');
-      }
-    } catch (e) {
-      console.error('[MapScreen] JS injection failed:', e);
-    }
-  }, [ready, coords.length]);
+        fetchRoutes();
 
-  return (
-    <View style={{ flex: 1 }}>
-      <WebView
-        ref={webref}
-        originWhitelist={['*']}
-        source={{ html: HTML }}
-        onLoadEnd={() => {
-          if (!ready) setReady(true);
-        }}
-        onMessage={() => {}}
-        style={{ flex: 1 }}
-      />
+        return () => { mounted = false; };
+    }, [selectedRouteIds.join(',')]);
 
-      {loading && (
-        <View style={styles.overlay}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.msg}>Loading route tracks…</Text>
+    // Compute derived values
+    const userLocation = location ? [location.lat, location.lng] as LatLng : null;
+    const mapCenter = userLocation || DEFAULT_CENTER;
+    const showLocationLoading = locationLoading && !initialLocationLoaded;
+    const showError = error || (locationError && !initialLocationLoaded);
+
+    return (
+        <View style={styles.container}>
+            <LeafletMap
+                coordinates={coords}
+                userLocation={userLocation}
+                center={mapCenter}
+                zoom={DEFAULT_ZOOM}
+            />
+
+            {/* Loading Overlay */}
+            {(loading || showLocationLoading) && (
+                <View style={styles.overlay}>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                    <Text style={styles.overlayText}>
+                        {loading ? 'Loading routes…' : 'Getting location...'}
+                    </Text>
+                </View>
+            )}
+
+            {/* Error Overlay */}
+            {showError && (
+                <View style={styles.overlay}>
+                    <Text style={styles.errorText}>
+                        {error || locationError}
+                    </Text>
+                </View>
+            )}
+
+            {/* Tracking Indicator */}
+            {location && (
+                <View style={styles.trackingIndicator}>
+                    <Text style={styles.trackingText}>• Tracking</Text>
+                </View>
+            )}
         </View>
-      )}
-      {!!err && (
-        <View style={styles.overlay}>
-          <Text style={[styles.msg, styles.err]}>Error: {err}</Text>
-        </View>
-      )}
-    </View>
-  );
+    );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    inset: 0 as any,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-  },
-  msg: { marginTop: 8 },
-  err: { color: '#b00020', textAlign: 'center' },
+    container: {
+        flex: 1,
+    },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    },
+    overlayText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: colors.text,
+    },
+    errorText: {
+        color: '#b00020',
+        fontSize: 16,
+        textAlign: 'center',
+        paddingHorizontal: 24,
+    },
+    trackingIndicator: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: colors.accent,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    trackingText: {
+        color: colors.accent,
+        fontSize: 12,
+        fontWeight: '600',
+    },
 });
 
 export default MapScreen;

@@ -7,7 +7,7 @@ const MapScreen = () => {
   return (
     <View style={styles.container}>
       <LeafletView
-        mapCenterPosition={{ lat: 43.07598420667566, lng: -87.88549477499282 }}
+        mapCenterPosition={{ lat: 42.86964532958665, lng: -88.33713311427904 }}
         zoom={17}
         mapLayers={[
           {

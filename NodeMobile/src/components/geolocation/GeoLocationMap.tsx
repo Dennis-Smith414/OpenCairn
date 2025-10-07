@@ -1,158 +1,110 @@
+// src/components/GeolocationMap/GeolocationMap.tsx
 import React, { useState, useEffect } from 'react';
 import { LeafletView } from 'react-native-leaflet-view';
-import { StyleSheet, View } from 'react-native';
-import { useGeolocation, LocationCoords, GeolocationOptions } from '../../hooks/useGeolocation';
-import { MapMarker, addOrUpdateUserLocationMarker } from './MapMarker';
+import { View } from 'react-native';
+import { useGeolocation } from '../../hooks/useGeolocation'; // Adjust path
+import { LocationCoords, GeolocationMapProps, MapMarker } from './GeoLocationMap.types.ts';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, DEFAULT_MAP_LAYERS } from './GeolocationMap.constants';
+import { addOrUpdateUserLocationMarker, generateShapes } from './utils/mapUtils';
+import { styles } from './GeolocationMap.styles';
 
+const GeolocationMap: React.FC<GeolocationMapProps> = ({
+                                                           initialCenter = DEFAULT_CENTER,
+                                                           initialZoom = DEFAULT_ZOOM,
+                                                           staticMarkers = [],
+                                                           showUserLocation = true,
+                                                           centerOnUserLocation = false,
+                                                           trackUserLocation = false,
+                                                           geolocationOptions = {},
+                                                           onLocationChange,
+                                                           onLocationError,
+                                                           mapLayers = DEFAULT_MAP_LAYERS,
+                                                           tracks = [],
+                                                           style,
+                                                       }) => {
+    const [mapCenter, setMapCenter] = useState<LocationCoords>(initialCenter);
+    const [allMarkers, setAllMarkers] = useState<MapMarker[]>(staticMarkers);
+    const [watchId, setWatchId] = useState<number | null>(null);
+    const [hasInitialCenter, setHasInitialCenter] = useState(false);
 
-export interface GeolocationMapProps {
-  initialCenter?: LocationCoords;
-  initialZoom?: number;
-  staticMarkers?: MapMarker[];
-  showUserLocation?: boolean;
-  trackUserLocation?: boolean;
-  geolocationOptions?: GeolocationOptions;
-  onLocationChange?: (location: LocationCoords) => void;
-  onLocationError?: (error: string) => void;
-  mapLayers?: Array<{
-    baseLayerName: string;
-    url: string;
-    attribution: string;
-  }>;
-  tracks?: [number, number][][];
-  style?: object;
-}
-
-export const GeolocationMap: React.FC<GeolocationMapProps> = ({
-  initialCenter = { lat: 43.07598420667566, lng: -87.88549477499282 },
-  initialZoom = 17,
-  staticMarkers = [],
-  showUserLocation = true,
-  trackUserLocation = false,
-  geolocationOptions = {},
-  onLocationChange,
-  onLocationError,
-  mapLayers = [
-    {
-      baseLayerName: 'OpenStreetMap',
-      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      attribution: '© OpenStreetMap contributors',
-    },
-  ],
-  style,
-  tracks = [],
-}) => {
-  const [mapCenter, setMapCenter] = useState<LocationCoords>(initialCenter);
-  const [allMarkers, setAllMarkers] = useState<MapMarker[]>(staticMarkers);
-  const [watchId, setWatchId] = useState<number | null>(null);
-
-  // Use geolocation hook
-  const {
-    location,
-    loading,
-    error,
-    permissionGranted,
-    getCurrentLocation,
-    startWatching,
-    stopWatching,
-    requestPermission,
-  } = useGeolocation({
-    watchPosition: false, // We mannually do this
-    ...geolocationOptions,
-  });
-
-  // Handle location updates
-  useEffect(() => {
-    if (location) {
-      // Update map center to user location
-      setMapCenter(location);
-      
-      // Add or update user location marker
-      if (showUserLocation) {
-        setAllMarkers(prevMarkers => 
-          addOrUpdateUserLocationMarker(prevMarkers, location)
-        );
-      }
-      
-      // Call callback if provided
-      onLocationChange?.(location);
-    }
-  }, [location, showUserLocation, onLocationChange]);
-
-  // Handle errors
-  useEffect(() => {
-    if (error) {
-      onLocationError?.(error);
-    }
-  }, [error, onLocationError]);
-
-  // Initialize geolocation
-  useEffect(() => {
-    if (showUserLocation) {
-      requestPermission().then((hasPermission) => {
-        if (hasPermission) {
-          getCurrentLocation();
-          
-          // Start tracking if enabled
-          if (trackUserLocation) {
-            const id = startWatching();
-            setWatchId(id);
-          }
-        }
-      });
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (watchId) {
-        stopWatching(watchId);
-      }
-    };
-  }, [showUserLocation, trackUserLocation]);
-
-  // Update static markers when props change
-  useEffect(() => {
-    setAllMarkers(prevMarkers => {
-      // Keep user location marker, replace static ones
-      const userMarker = prevMarkers.find(marker => marker.id === 'user-location');
-      return userMarker ? [userMarker, ...staticMarkers] : staticMarkers;
+    const {
+        location,
+        error,
+        getCurrentLocation,
+        startWatching,
+        stopWatching,
+        requestPermission,
+    } = useGeolocation({
+        watchPosition: false,
+        ...geolocationOptions,
     });
-  }, [staticMarkers]);
 
-  // Convert MapMarker to LeafletView format
-  const leafletMarkers = allMarkers.map(marker => ({
-    position: marker.position,
-    title: marker.title,
-    icon: marker.icon,
-  }));
+    useEffect(() => {
+        if (location) {
+            console.log('[GeolocationMap] GOT LOCATION:', location);
+            if (showUserLocation) {
+                setAllMarkers(prev => addOrUpdateUserLocationMarker(prev, location));
+            }
+            onLocationChange?.(location);
 
-  // Convert tracks into LeafletView shapes
-  const leafletShapes = (tracks ?? []).map((track, idx) => ({
-    shapeType: 'polyline',
-    shapeId: `track-${idx}`,
-    positions: track,
-    color: '#FF0000',      // red line  - change color options later
-    weight: 4,
-  }));
+            if (trackUserLocation || (centerOnUserLocation && !hasInitialCenter)) {
+                setMapCenter(location);
+            }
+            if (centerOnUserLocation && !hasInitialCenter) {
+                setHasInitialCenter(true);
+            }
+        }
+    }, [location, showUserLocation, centerOnUserLocation, trackUserLocation, hasInitialCenter, onLocationChange]);
 
+    useEffect(() => {
+        if (error) {
+            onLocationError?.(error);
+        }
+    }, [error, onLocationError]);
 
-  return (
-    <View style={[styles.container, style]}>
-      <LeafletView
-        mapCenterPosition={mapCenter}
-        zoom={initialZoom}
-        mapLayers={mapLayers}
-        mapMarkers={leafletMarkers}
-        mapShapes={leafletShapes}
-      />
-    </View>
-  );
+    useEffect(() => {
+        if (showUserLocation) {
+            requestPermission().then((hasPermission: any) => {
+                if (hasPermission) {
+                    getCurrentLocation();
+                    if (trackUserLocation) {
+                        const id = startWatching();
+                        setWatchId(id);
+                    }
+                }
+            });
+        }
+        return () => {
+            if (watchId) stopWatching(watchId);
+        };
+    }, [showUserLocation, trackUserLocation, requestPermission, getCurrentLocation, startWatching, stopWatching]);
+
+    useEffect(() => {
+        setAllMarkers(prev => {
+            const userMarker = prev.find(m => m.id === 'user-location');
+            return userMarker ? [userMarker, ...staticMarkers] : staticMarkers;
+        });
+    }, [staticMarkers]);
+
+    const leafletMarkers = allMarkers.map(marker => ({
+        position: marker.position,
+        title: marker.title,
+        icon: marker.icon,
+    }));
+
+    const leafletShapes = generateShapes(tracks);
+
+    return (
+        <View style={[styles.container, style]}>
+            <LeafletView
+                mapCenterPosition={mapCenter}
+                zoom={initialZoom}
+                mapLayers={mapLayers}
+                mapMarkers={leafletMarkers}
+                mapShapes={leafletShapes}
+            />
+        </View>
+    );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
 
 export default GeolocationMap;
