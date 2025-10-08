@@ -1,3 +1,4 @@
+// src/screens/MapScreen.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { useRouteSelection } from '../context/RouteSelectionContext';

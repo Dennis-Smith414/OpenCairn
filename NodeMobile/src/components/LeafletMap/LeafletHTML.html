@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, width=device-width"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        html, body, #map { height: 100%; margin: 0; }
+        .leaflet-container { background: #e6edf2; }
+        .attribution {
+          position: absolute; right: 8px; bottom: 8px;
+          background: rgba(255, 255, 255, 0.85);
+          padding: 4px 6px; border-radius: 6px;
+          font: 12px/1.2 system-ui, -apple-system, Roboto, Arial;
+          z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="attribution">© OpenStreetMap</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map', { zoomControl: true });
+    const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    // just pick a default center/zoom initially
+    map.setView([37.7749, -122.4194], 13);
+
+    window.__lineColor = '#2196F3';
+    window.__lineWeight = 4;
+
+    let currentPolyline = null;
+    let userMarker = null;
+
+    const userIcon = L.divIcon({
+      className: 'user-location-marker',
+      html: '<div style="background: #4285F4; width: 10px; height: 10px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    window.__clearMap = function() {
+      if (currentPolyline) {
+        map.removeLayer(currentPolyline);
+        currentPolyline = null;
+      }
+    };
+
+    window.__setUserLocation = function(lat, lng) {
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+      } else {
+        userMarker = L.marker([lat, lng], {
+          icon: userIcon,
+          zIndexOffset: 1000
+        }).addTo(map);
+        userMarker.bindPopup('Your Location');
+      }
+    };
+
+    window.__removeUserLocation = function() {
+      if (userMarker) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+      }
+    };
+
+    window.__setCoords = function(payload) {
+      const coords = (payload?.coords) || [];
+      if (!coords.length) return;
+      if (currentPolyline) map.removeLayer(currentPolyline);
+      currentPolyline = L.polyline(coords, {
+        color: window.__lineColor,
+        weight: window.__lineWeight,
+        opacity: 0.8
+      }).addTo(map);
+      map.fitBounds(currentPolyline.getBounds(), { padding: [20, 20] });
+    };
+
+    window.__setView = function(lat, lng, zoom) {
+      map.setView([lat, lng], zoom);
+    };
+
+    setTimeout(() => {
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+    }, 100);
+</script>
+</body>
+</html>
