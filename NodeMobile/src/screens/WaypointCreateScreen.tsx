@@ -15,15 +15,16 @@ import { useRouteSelection } from "../context/RouteSelectionContext";
 
 export default function WaypointCreateScreen({ navigation }: any) {
     const route = useRoute<any>();
-    const { selectedRouteIds } = useRouteSelection();
+    const { selectedRoutes } = useRouteSelection();
 
     const [name, setName] = useState("");
     const [desc, setDesc] = useState("");
     const [lat, setLat] = useState("");
     const [lon, setLon] = useState("");
     const [routeId, setRouteId] = useState<number | undefined>(
-    selectedRouteIds[0]
-  );
+      selectedRoutes[0]?.id
+    );
+
   const [type, setType] = useState("generic");
 
   useEffect(() => {
@@ -148,14 +149,15 @@ export default function WaypointCreateScreen({ navigation }: any) {
           onValueChange={(value) => setRouteId(value)}
           style={{ color: colors.textPrimary }}
         >
-          {selectedRouteIds.length > 0 ? (
-            selectedRouteIds.map((id) => (
-              <Picker.Item key={id} label={`Route ${id}`} value={id} />
+          {selectedRoutes.length > 0 ? (
+            selectedRoutes.map((r) => (
+              <Picker.Item key={r.id} label={r.name} value={r.id} />
             ))
           ) : (
             <Picker.Item label="No routes selected" value={undefined} />
           )}
         </Picker>
+
       </View>
 
       {/* Type Picker */}
