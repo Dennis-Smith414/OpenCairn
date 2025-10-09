@@ -8,7 +8,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletHTML.html" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletHTML.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletMap.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletMap.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

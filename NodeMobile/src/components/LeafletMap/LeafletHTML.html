@@ -147,39 +147,39 @@
       }));
     });
 
-    window.__setWaypoints = function(waypoints) {
-      // remove existing markers
-      waypointMarkers.forEach(m => map.removeLayer(m));
-      waypointMarkers = [];
+    window.__setWaypointsBundle = function(payload) {
+  const { waypoints, iconUrls } = payload || {};
+  waypointMarkers.forEach(m => map.removeLayer(m));
+  waypointMarkers = [];
 
-      if (!Array.isArray(waypoints)) return;
-      console.log(`Rendering ${waypoints.length} waypoints`);
+  if (!Array.isArray(waypoints) || !iconUrls) return;
+  console.log(`Rendering ${waypoints.length} waypoints`);
 
-      waypoints.forEach(wp => {
-        // simple placeholder icons — replace later with your own PNGs
-        const iconUrl =
-          wp.type === 'water'
-            ? 'https://cdn-icons-png.flaticon.com/512/481/481453.png'
-            : wp.type === 'campsite'
-            ? 'https://cdn-icons-png.flaticon.com/512/190/190077.png'
-            : wp.type === 'hazard'
-            ? 'https://cdn-icons-png.flaticon.com/512/564/564619.png'
-            : 'https://cdn-icons-png.flaticon.com/512/252/252025.png'; // generic marker
+  waypoints.forEach(wp => {
+    let iconUrl =
+        wp.type === "water" ? iconUrls.water :
+        wp.type === "campsite" ? iconUrls.campsite :
+        wp.type === "road-access-point" ? iconUrls.roadAccess :
+        wp.type === "intersection" ? iconUrls.intersection :
+        wp.type === "hazard" ? iconUrls.hazard :
+        wp.type === "landmark" ? iconUrls.landmark :
+        wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
+        iconUrls.generic; // fallback
 
-        const icon = L.icon({
-          iconUrl,
-          iconSize: [26, 26],
-          iconAnchor: [13, 26],
-          popupAnchor: [0, -20],
-        });
+    const icon = L.icon({
+      iconUrl,
+      iconSize: [26, 26],
+      iconAnchor: [13, 26],
+      popupAnchor: [0, -20],
+    });
 
-        const marker = L.marker([wp.lat, wp.lon], { icon })
-          .bindPopup(`<b>${wp.name}</b><br>${wp.description || ""}`)
-          .addTo(map);
+    const marker = L.marker([wp.lat, wp.lon], { icon })
+      .bindPopup(`<b>${wp.name}</b><br>${wp.description || ""}`)
+      .addTo(map);
 
-        waypointMarkers.push(marker);
-      });
-    };
+    waypointMarkers.push(marker);
+  });
+};
 
     // Notify React Native that map loaded
     setTimeout(() => {

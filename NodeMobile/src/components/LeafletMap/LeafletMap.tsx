@@ -113,15 +113,31 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   }, [isReady, userLocation]);
 
+
+
+
+
+  const iconUrls = {
+    generic: Image.resolveAssetSource(require("../../assets/icons/waypoints/generic.png")).uri,
+    water: Image.resolveAssetSource(require("../../assets/icons/waypoints/water.png")).uri,
+    campsite: Image.resolveAssetSource(require("../../assets/icons/waypoints/campsite.png")).uri,
+    roadAccess: Image.resolveAssetSource(require("../../assets/icons/waypoints/road-access-point.png")).uri,
+    intersection: Image.resolveAssetSource(require("../../assets/icons/waypoints/intersection.png")).uri,
+    hazard: Image.resolveAssetSource(require("../../assets/icons/waypoints/hazard.png")).uri,
+    landmark: Image.resolveAssetSource(require("../../assets/icons/waypoints/landmark.png")).uri,
+    parkingTrailhead: Image.resolveAssetSource(require("../../assets/icons/waypoints/parking-trailhead.png")).uri,
+  };
+
+
   useEffect(() => {
       if (!isReady || !waypoints) return;
 
-      // Serialize waypoints safely to JSON for injection
-      const wpJson = JSON.stringify(waypoints);
+      const payload = { waypoints, iconUrls }; // ✅ pass icons along
+      const json = JSON.stringify(payload);
 
       webRef.current?.injectJavaScript(`
         try {
-          window.__setWaypoints(${wpJson});
+          window.__setWaypoints(${json});
           true;
         } catch (err) {
           console.log('Error injecting waypoints', err);
