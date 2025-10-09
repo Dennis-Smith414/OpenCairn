@@ -147,16 +147,27 @@
       }));
     });
 
-    window.__setWaypointsBundle = function(payload) {
-  const { waypoints, iconUrls } = payload || {};
-  waypointMarkers.forEach(m => map.removeLayer(m));
-  waypointMarkers = [];
+    // Render waypoints from React Native
+window.__setWaypoints = function (payload) {
+  try {
+    const { waypoints, iconUrls } = payload || {};
 
-  if (!Array.isArray(waypoints) || !iconUrls) return;
-  console.log(`Rendering ${waypoints.length} waypoints`);
+    // Clear existing waypoint markers
+    if (Array.isArray(window.__waypointMarkers)) {
+      window.__waypointMarkers.forEach(m => map.removeLayer(m));
+    }
+    window.__waypointMarkers = [];
 
-  waypoints.forEach(wp => {
-    let iconUrl =
+    if (!Array.isArray(waypoints) || !iconUrls) {
+      console.log("Invalid waypoint payload:", payload);
+      return;
+    }
+
+    console.log(`Rendering ${waypoints.length} waypoints`);
+
+    // Create a Leaflet marker for each waypoint
+    waypoints.forEach(wp => {
+      let iconUrl =
         wp.type === "water" ? iconUrls.water :
         wp.type === "campsite" ? iconUrls.campsite :
         wp.type === "road-access-point" ? iconUrls.roadAccess :
@@ -164,22 +175,28 @@
         wp.type === "hazard" ? iconUrls.hazard :
         wp.type === "landmark" ? iconUrls.landmark :
         wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
-        iconUrls.generic; // fallback
+        iconUrls.generic; // fallback icon
 
-    const icon = L.icon({
-      iconUrl,
-      iconSize: [26, 26],
-      iconAnchor: [13, 26],
-      popupAnchor: [0, -20],
+      const icon = L.icon({
+        iconUrl,
+        iconSize: [26, 26],
+        iconAnchor: [13, 26],
+        popupAnchor: [0, -20],
+      });
+
+      const marker = L.marker([wp.lat, wp.lon], { icon })
+        .bindPopup(`<b>${wp.name}</b><br>${wp.description || ""}`)
+        .addTo(map);
+
+      window.__waypointMarkers.push(marker);
     });
 
-    const marker = L.marker([wp.lat, wp.lon], { icon })
-      .bindPopup(`<b>${wp.name}</b><br>${wp.description || ""}`)
-      .addTo(map);
-
-    waypointMarkers.push(marker);
-  });
+    console.log(`Rendered ${waypoints.length} waypoint markers`);
+  } catch (err) {
+    console.log("Error in __setWaypoints:", err);
+  }
 };
+
 
     // Notify React Native that map loaded
     setTimeout(() => {

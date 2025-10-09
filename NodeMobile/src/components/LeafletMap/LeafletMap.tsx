@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { WebView } from 'react-native-webview';
 import { WebView as WebViewType } from 'react-native-webview';
+import { Image } from "react-native";
 
 export type LatLng = [number, number];
 
@@ -132,7 +133,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   useEffect(() => {
       if (!isReady || !waypoints) return;
 
-      const payload = { waypoints, iconUrls }; // ✅ pass icons along
+      const payload = { waypoints, iconUrls }; // pass icons along
       const json = JSON.stringify(payload);
 
       webRef.current?.injectJavaScript(`
