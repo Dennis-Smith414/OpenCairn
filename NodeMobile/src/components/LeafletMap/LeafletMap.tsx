@@ -8,6 +8,15 @@ interface MapPayload {
   coords: LatLng[];
 }
 
+interface Waypoint {
+  id: number;
+  name: string;
+  description?: string;
+  lat: number;
+  lon: number;
+  type?: string;
+}
+
 interface LeafletMapProps {
   coordinates: LatLng[];
   center?: LatLng;
@@ -15,6 +24,7 @@ interface LeafletMapProps {
   userLocation?: LatLng | null;
   onMapReady?: () => void;
   onMapLongPress?: (lat: number, lon: number) => void;
+  waypoints?: Waypoint[];
 }
 
 const FALLBACK_CENTER: LatLng = [37.7749, -122.4194];
@@ -27,6 +37,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   userLocation = null,
   onMapReady,
   onMapLongPress,
+  waypoints = [],
 }) => {
   const webRef = useRef<WebViewType>(null);
   const [isReady, setIsReady] = useState(false);
@@ -101,6 +112,23 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       webRef.current?.injectJavaScript(`window.__removeUserLocation(); true;`);
     }
   }, [isReady, userLocation]);
+
+  useEffect(() => {
+      if (!isReady || !waypoints) return;
+
+      // Serialize waypoints safely to JSON for injection
+      const wpJson = JSON.stringify(waypoints);
+
+      webRef.current?.injectJavaScript(`
+        try {
+          window.__setWaypoints(${wpJson});
+          true;
+        } catch (err) {
+          console.log('Error injecting waypoints', err);
+          false;
+        }
+      `);
+    }, [isReady, waypoints]);
 
   return (
     <WebView
