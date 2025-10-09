@@ -1,6 +1,7 @@
 // src/screens/MapScreen.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { useNavigation } from "@react-navigation/native";
 import { useRouteSelection } from '../context/RouteSelectionContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchRouteGeo } from '../lib/api';
@@ -13,6 +14,7 @@ const DEFAULT_ZOOM = 15;
 
 const MapScreen: React.FC = () => {
     const { selectedRouteIds } = useRouteSelection();
+    const navigation = useNavigation<any>();
 
     const [coords, setCoords] = useState<LatLng[]>([]);
     const [loading, setLoading] = useState(false);
@@ -115,6 +117,12 @@ const MapScreen: React.FC = () => {
     const showLocationLoading = locationLoading && !initialLocationLoaded;
     const showError = error || (locationError && !initialLocationLoaded);
 
+
+    const handleMapLongPress = (lat: number, lon: number) => {
+      console.log("Long press received:", lat, lon);
+      navigation.navigate("WaypointCreate", { lat, lon });
+    };
+
     return (
         <View style={styles.container}>
             <LeafletMap
@@ -122,6 +130,7 @@ const MapScreen: React.FC = () => {
                 userLocation={userLocation}
                 center={mapCenter}
                 zoom={DEFAULT_ZOOM}
+                onMapLongPress={handleMapLongPress}
             />
 
             {/* Loading Overlay */}

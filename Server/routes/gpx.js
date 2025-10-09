@@ -22,10 +22,10 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-// 🛰️ Health check
+// Health check
 router.get("/routes/ping", (_req, res) => res.json({ ok: true, where: "gpx-router" }));
 
-// 📜 Route list
+//Route list
 router.get("/routes/list", async (req, res) => {
   try {
     const { offset = 0, limit = 20, q = "" } = req.query;
@@ -91,7 +91,7 @@ router.get("/routes/:id.geojson", async (req, res) => {
   }
 });
 
-// ⬆️ GPX Upload
+// GPX Upload
 router.post("/routes/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "no-file" });

@@ -14,6 +14,7 @@ interface LeafletMapProps {
   zoom?: number;
   userLocation?: LatLng | null;
   onMapReady?: () => void;
+  onMapLongPress?: (lat: number, lon: number) => void;
 }
 
 const FALLBACK_CENTER: LatLng = [37.7749, -122.4194];
@@ -25,21 +26,47 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   zoom = DEFAULT_ZOOM,
   userLocation = null,
   onMapReady,
+  onMapLongPress,
 }) => {
   const webRef = useRef<WebViewType>(null);
   const [isReady, setIsReady] = useState(false);
 
-  const handleMessage = useCallback((event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'MAP_READY') {
-        setIsReady(true);
-        onMapReady?.();
-      }
-    } catch (e) {
-      console.error('LeafletMap: Message parse error:', e);
-    }
-  }, [onMapReady]);
+  const handleMessage = useCallback(
+      (event: any) => {
+        const raw = event.nativeEvent.data;
+
+        // Log all raw incoming messages
+        console.log("WebView message:", raw);
+
+        try {
+          const data = typeof raw === "string" ? JSON.parse(raw) : null;
+          if (!data) return;
+
+          switch (data.type) {
+            case "LOG":
+              console.log("Map log:", data.msg);
+              break;
+
+            case "MAP_READY":
+              setIsReady(true);
+              onMapReady?.();
+              break;
+
+            case "LONG_PRESS":
+              console.log("Long press received from map:", data.lat, data.lon);
+              if (onMapLongPress) onMapLongPress(data.lat, data.lon);
+              break;
+
+            default:
+              console.log("Unrecognized message type:", data.type);
+              break;
+          }
+        } catch (e) {
+          console.error("LeafletMap: Message parse error:", e, raw);
+        }
+      },
+      [onMapReady, onMapLongPress]
+    );
 
   useEffect(() => {
     if (!isReady) return;
@@ -77,12 +104,17 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 
   return (
     <WebView
-      ref={webRef}
-      originWhitelist={['*']}
-      source={require('./LeafletHTML.html')}
-      onMessage={handleMessage}
-      style={{ flex: 1 }}
-    />
+          ref={webRef}
+          originWhitelist={["*"]}
+          source={require("./LeafletHTML.html")}
+          onMessage={handleMessage}
+          style={{ flex: 1 }}
+          // Debug-friendly settings (optional)
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          allowFileAccess={true}
+          mixedContentMode="always"
+        />
   );
 };
 

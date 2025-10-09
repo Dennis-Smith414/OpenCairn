@@ -9,7 +9,7 @@
         .leaflet-container { background: #e6edf2; }
         .attribution {
           position: absolute; right: 8px; bottom: 8px;
-          background: rgba(255, 255, 255, 0.85);
+          background: rgba(255,255,255,0.85);
           padding: 4px 6px; border-radius: 6px;
           font: 12px/1.2 system-ui, -apple-system, Roboto, Arial;
           z-index: 1000;
@@ -21,12 +21,23 @@
 <div class="attribution">© OpenStreetMap</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // === Forward console logs to React Native ===
+    const originalLog = console.log;
+    console.log = function (...args) {
+      originalLog(...args);
+      try {
+        window.ReactNativeWebView?.postMessage(JSON.stringify({
+          type: 'LOG',
+          msg: args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
+        }));
+      } catch {}
+    };
+
     const map = L.map('map', { zoomControl: true });
-    const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // just pick a default center/zoom initially
     map.setView([37.7749, -122.4194], 13);
 
     window.__lineColor = '#2196F3';
@@ -34,14 +45,18 @@
 
     let currentPolyline = null;
     let userMarker = null;
+    let tempMarker = null;
+    let longPressTimeout;
 
     const userIcon = L.divIcon({
       className: 'user-location-marker',
-      html: '<div style="background: #4285F4; width: 10px; height: 10px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+      html: '<div style="background:#4285F4;width:10px;height:10px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
       iconSize: [20, 20],
       iconAnchor: [10, 10]
     });
 
+
+    // Map control methods
     window.__clearMap = function() {
       if (currentPolyline) {
         map.removeLayer(currentPolyline);
@@ -84,9 +99,57 @@
       map.setView([lat, lng], zoom);
     };
 
+    // long press detection
+    function handleLongPress(e) {
+      const { lat, lng } = e.latlng;
+      if (!lat || !lng) return;
+
+      if (tempMarker) map.removeLayer(tempMarker);
+
+      // visual feedback
+      if (tempMarker) map.removeLayer(tempMarker);
+      tempMarker = L.circleMarker([lat, lng], {
+        radius: 6,
+        color: '#40E0D0',
+        weight: 2,
+        fillColor: '#40E0D0',
+        fillOpacity: 0.9
+      }).addTo(map);
+
+      console.log('LONG_PRESS fired', lat, lng);
+
+      try {
+        window.ReactNativeWebView?.postMessage(
+        JSON.stringify({ type: 'LONG_PRESS', lat, lon: lng })
+        );
+      }
+      catch (err) {
+        console.log('postMessage error', err);
+      }
+    }
+
+    map.on('touchstart', (e) => {
+      longPressTimeout = setTimeout(() => handleLongPress(e), 800);
+    });
+
+    map.on('touchend dragstart zoomstart', () => {
+      clearTimeout(longPressTimeout);
+    });
+
+    // Fallback contextmenu (right-click / long-touch)
+    map.on('contextmenu', (e) => {
+      console.log('Context menu fallback fired', e.latlng);
+      window.ReactNativeWebView?.postMessage(JSON.stringify({
+        type: 'LONG_PRESS',
+        lat: e.latlng.lat,
+        lon: e.latlng.lng
+      }));
+    });
+
+    // Notify React Native that map loaded
     setTimeout(() => {
       window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
-    }, 100);
+    }, 300);
 </script>
 </body>
 </html>

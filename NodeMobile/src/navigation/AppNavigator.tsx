@@ -15,6 +15,7 @@ import MapScreen from "../screens/MapScreen";
 import RouteSelectScreen from "../screens/RouteSelectScreen";
 import FileManagerScreen from "../screens/FileManagerScreen";
 import RouteCreateScreen from "../screens/RouteCreateScreen";
+import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -128,12 +129,15 @@ export default function AppNavigator() {
           component={LoginScreen}
           options={{ title: "Login" }}
         />
-
         <Stack.Screen
             name="RouteCreate"
             component={RouteCreateScreen}
         />
-
+        <Stack.Screen
+            name="WaypointCreate"
+            component={WaypointCreateScreen}
+            options={{ presentation: "modal", title: "Create Waypoint" }}
+        />
         {/* Main app (bottom tabs) */}
         <Stack.Screen
           name="Main"

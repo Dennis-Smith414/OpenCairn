@@ -5,8 +5,18 @@ const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  //ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false },
 });
+
+pool
+  .connect()
+  .then((client) => {
+    console.log("[Postgres] Connected to database successfully");
+    client.release();
+  })
+  .catch((err) => {
+    console.error("[Postgres] Connection error:", err.message);
+  });
 
 /** Write (INSERT/UPDATE/DELETE). Returns { rowCount, rows }. */
 async function run(sql, params = []) {
@@ -60,11 +70,9 @@ await run(`
     id SERIAL PRIMARY KEY,
     route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
     user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    geom geometry(Point, 4326) NOT NULL,
-    ele DOUBLE PRECISION,
     name VARCHAR(63) NOT NULL,
     description TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
   )
 `);
 /**
