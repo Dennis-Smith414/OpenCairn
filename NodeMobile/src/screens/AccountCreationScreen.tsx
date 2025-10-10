@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE } from "../lib/api";
 import {
     View,
     Text,
@@ -9,6 +10,7 @@ import {
     Platform,
     ScrollView,
     Image,
+    Alert,
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 
@@ -20,6 +22,39 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
+
+    const handleCreateAccount = async () => {
+        setError(null);
+
+        const validationError = validateInputs();
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username.trim(), email: email.trim(), password }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create account.');
+          }
+
+          Alert.alert(
+            'Success!',
+            'Account created. Please log in.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+
+        } catch (err: any) {
+          setError(err.message);
+        }
+      };
 
     const validateInputs = (): string | null => {
         if (!username.trim() || !email.trim() || !password || !confirmPassword) {
@@ -35,19 +70,6 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
         }
 
         return null;
-    };
-
-    const handleCreateAccount = async () => {
-        setError(null);
-
-        const validationError = validateInputs();
-        if (validationError) {
-            setError(validationError);
-            return;
-        }
-
-        // TODO: API goes here
-        navigation.goBack();
     };
 
     return (

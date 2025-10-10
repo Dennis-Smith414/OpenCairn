@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { API_BASE } from "../lib/api";
 import {
     View,
     Text,
@@ -9,6 +11,7 @@ import {
     Platform,
     ScrollView,
     Image,
+    Alert,
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 
@@ -16,25 +19,37 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const { login } = useAuth(); // Get the login function from context
 
     const handleLogin = async () => {
         setError(null);
 
-        // Validation
-        if (!username.trim() || !password.trim()) {
+        if (!username.trim() || !password) {
             setError("Please fill out all fields.");
             return;
         }
 
-        // TODO: Replace with real auth logic
-        const loginSuccessful = true;
+        try {
+          const response = await fetch(`${API_BASE}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username.trim(), password }),
+          });
+            const responseText = await response.text();
+            const data = JSON.parse(responseText);
 
-        if (loginSuccessful) {
-            navigation.replace("Main");
-        } else {
-            setError("Invalid credentials. Please try again.");
+          if (!response.ok) {
+            throw new Error(data.error || 'Invalid credentials.');
+          }
+
+          // On success, call the context's login function with the token.
+          // The context will handle storing the token and triggering navigation.
+          login(data.token);
+
+        } catch (err: any) {
+          setError(err.message);
         }
-    };
+      };
 
     return (
         <KeyboardAvoidingView

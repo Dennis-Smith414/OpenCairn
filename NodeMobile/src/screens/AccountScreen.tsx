@@ -1,71 +1,89 @@
-    // client/src/screens/AccountScreen.jsx
-    import React from "react";
-    import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
-    import { baseStyles } from "../styles/theme";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { baseStyles } from "../styles/theme";
+import { useAuth } from "../context/AuthContext";
+import { API_BASE } from "../lib/api";
+import { jwtDecode } from "jwt-decode";
 
-    export default function AccountScreen({ navigation }) {
-      // TODO: Replace with real user data from context / API
-      const user = {
-        username: "DemoUser",
-        email: "demo@example.com",
-      };
+export default function AccountScreen({ navigation }) {
+    const { logout, userToken } = useAuth();
+    const [profile, setProfile] = useState(null); // State to hold the fetched profile data
+
+    // This `useEffect` hook runs when the component first loads
+    useEffect(() => {
+        const fetchProfile = async () => {
+          if (userToken) {
+            try {
+              const response = await fetch(`${API_BASE}/api/users/me`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${userToken}`,
+                },
+              });
+
+              // 1. Check if the response itself is "ok"
+              if (!response.ok) {
+                // If not, throw an error to be caught by the catch block
+                throw new Error('Failed to fetch profile data');
+              }
+
+              // 2. If it is "ok", then parse the JSON
+              const data = await response.json();
+
+              // 3. Set the profile state
+              // Your original code assumed the user object is nested under a "user" key.
+              // If your API returns the user object directly, you should use setProfile(data) instead.
+              setProfile(data.user);
+
+            } catch (error) {
+              console.error("Failed to fetch profile data:", error);
+            }
+          }
+        };
+        fetchProfile();
+      }, [userToken]);
 
       function handleLogout() {
-        // TODO: hook into your auth logic
-        // e.g. clear tokens, reset context, etc.
-        navigation.navigate("Landing");
+        logout();
       }
 
-      return (
-
-        <View style={styles.container}>
-              {/* Account info */}
-              <View style={styles.statsCard}>
-                <Text style={styles.statsHeader}>My Account</Text>
-
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Username</Text>
-                  <Text style={styles.statValue}>DemoUser</Text>
-                </View>
-
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Email</Text>
-                  <Text style={styles.statValue}>demo@example.com</Text>
-                </View>
-              </View>
-                  <View style={styles.statsCard}>
-                    <Text style={styles.statsHeader}>Profile Statistics</Text>
-
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Cairns created</Text>
-                      <Text style={styles.statValue}>12</Text>
-                    </View>
-
-                    <View style={styles.statRow}>
-                       <Text style={styles.statLabel}>Comments written</Text>
-                       <Text style={styles.statValue}>14</Text>
-                    </View>
-
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Ratings given</Text>
-                      <Text style={styles.statValue}>34</Text>
-                    </View>
-
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Member since</Text>
-                      <Text style={styles.statValue}>August 9, 2025</Text>
-                    </View>
-                  </View>
-
-          <TouchableOpacity
-            style={[baseStyles.button, baseStyles.buttonPrimary]}
-            onPress={handleLogout}
-          >
-            <Text style={baseStyles.buttonText}>Log Out</Text>
-          </TouchableOpacity>
+return (
+    <View style={styles.container}>
+      {/* Account info */}
+      <View style={styles.statsCard}>
+        <Text style={styles.statsHeader}>My Account</Text>
+        <View style={styles.statRow}>
+          <Text style={styles.statLabel}>Username</Text>
+          <Text style={styles.statValue}>{profile?.username || 'Loading...'}</Text>
         </View>
-      );
-    }
+        <View style={styles.statRow}>
+          <Text style={styles.statLabel}>Email</Text>
+          <Text style={styles.statValue}>{profile?.email || 'Loading...'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.statsCard}>
+        <Text style={styles.statsHeader}>Profile Statistics</Text>
+        <View style={styles.statRow}>
+          <Text style={styles.statLabel}>Member since</Text>
+          {/* We format the date string to be more readable */}
+          <Text style={styles.statValue}>
+            {profile ? new Date(profile.created_at).toLocaleDateString() : 'Loading...'}
+          </Text>
+        </View>
+        {/* ... other stats */}
+      </View>
+
+      <TouchableOpacity
+        style={[baseStyles.button, baseStyles.buttonPrimary]}
+        onPress={handleLogout}
+      >
+        <Text style={baseStyles.buttonText}>Log Out</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 
     const styles = StyleSheet.create({
       container: {
