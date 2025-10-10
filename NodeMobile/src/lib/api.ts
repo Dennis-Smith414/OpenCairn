@@ -17,3 +17,32 @@ export async function fetchRouteGeo(id: number) {
   if (!r.ok) throw new Error(`geo error ${r.status}`);
   return r.json();
 }
+
+export async function fetchUserRoutes(token: string) {
+  const res = await fetch(`${API_BASE}/api/users/me/routes`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to load user routes (${res.status})`);
+  }
+
+  return res.json();
+}
+
+
+export async function fetchUserWaypoints(token: string) {
+  const res = await fetch(`${API_BASE}/api/users/me/waypoints`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to load user waypoints (${res.status})`);
+  }
+
+  return res.json();
+}
