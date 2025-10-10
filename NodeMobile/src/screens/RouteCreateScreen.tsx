@@ -13,6 +13,7 @@ import { pick } from "@react-native-documents/picker";
 import RNFS from "react-native-fs";
 import { baseStyles, colors } from "../styles/theme";
 import { uploadGpxFile } from "../utils/uploadGpx";
+import { useAuth } from "../context/AuthContext";
 
 export default function RouteCreateScreen({ navigation }: any) {
     const [name, setName] = useState("");
@@ -20,6 +21,7 @@ export default function RouteCreateScreen({ navigation }: any) {
     const [fileUri, setFileUri] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    const { userToken } = useAuth();
 
     const pickFile = async () => {
         try {
@@ -42,13 +44,16 @@ export default function RouteCreateScreen({ navigation }: any) {
         }
         setUploading(true);
         try {
-            // 1️⃣ Upload GPX file (this inserts the route + gpx rows)
-            const uploadResult = await uploadGpxFile(fileUri);
-            // 2️⃣ PATCH to set name and region
+            // Upload GPX file, and get auth (this inserts the route + gpx rows)
+            const uploadResult = await uploadGpxFile(fileUri, userToken);
+            // PATCH to set user, name, and region
             const res = await fetch(`http://10.0.2.2:5100/api/routes/${uploadResult.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, region }),
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${userToken}`,
+              },
+              body: JSON.stringify({ name, region }),
             });
             if (!res.ok) throw new Error("Failed to set metadata");
             Alert.alert("Success", "Route created!");

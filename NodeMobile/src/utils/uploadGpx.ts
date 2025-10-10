@@ -1,14 +1,14 @@
 // utils/uploadGpx.ts
 import RNFS from 'react-native-fs';
 
-export async function uploadGpxFile(fileUri: string) {
+export async function uploadGpxFile(fileUri: string, token?: string) {
   if (!fileUri) throw new Error('Invalid file URI');
 
   // Derive filename
   const filename = fileUri.split('/').pop() || 'route.gpx';
   const API_BASE = 'http://10.0.2.2:5100';
 
-  // ✅ Read file as base64, then convert to Blob-like object for FormData
+  //Read file as base64, then convert to Blob-like object for FormData
   const base64Data = await RNFS.readFile(fileUri, 'base64');
   const file = {
     uri: fileUri,
@@ -33,7 +33,13 @@ export async function uploadGpxFile(fileUri: string) {
     console.log('  Part', i, JSON.stringify(part[0]), '=>', JSON.stringify(part[1]));
   });
 
-  const res = await fetch(`${API_BASE}/api/routes/upload`, { method: 'POST', body: formData });
+  const res = await fetch(`${API_BASE}/api/routes/upload`, {
+      method: 'POST',
+      headers: token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined,
+      body: formData,
+    });
 
   let json;
   try {

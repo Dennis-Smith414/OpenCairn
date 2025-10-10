@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { Pool } = require("pg");
 const gpxParse = require("gpx-parse");
 const { featureCollection, lineString } = require("@turf/helpers");
+const authorize = require("../middleware/authorize");
 
 console.log('[gpx] Loaded DATABASE_URL =', JSON.stringify(process.env.DATABASE_URL));
 
@@ -49,7 +50,7 @@ router.get("/routes/list", async (req, res) => {
   }
 });
 
-// 📌 Route metadata (no geometry)
+// Route metadata (no geometry)
 router.get("/routes/:id.meta", async (req, res) => {
   const { id } = req.params;
   const q = await pool.query(
@@ -60,7 +61,7 @@ router.get("/routes/:id.meta", async (req, res) => {
   res.json(q.rows[0]);
 });
 
-// 🧭 GeoJSON for *all GPX entries* of a route
+// GeoJSON for *all GPX entries* of a route
 router.get("/routes/:id.geojson", async (req, res) => {
   try {
     const { id } = req.params;
@@ -91,8 +92,13 @@ router.get("/routes/:id.geojson", async (req, res) => {
   }
 });
 
+router.use((req, res, next) => {
+  console.log("[gpx router] hit path:", req.path);
+  next();
+});
+
 // GPX Upload
-router.post("/routes/upload", upload.single("file"), async (req, res) => {
+router.post("/routes/upload", authorize, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "no-file" });
     const xml = req.file.buffer.toString("utf8");
@@ -117,13 +123,16 @@ router.post("/routes/upload", upload.single("file"), async (req, res) => {
 
     const slug = "route-" + checksum.slice(0, 8);
     const name = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded Route";
+    const userId = req.user?.id || null;
 
     const routeRes = await pool.query(
-      `INSERT INTO routes (slug, name)
-       VALUES ($1,$2)
-       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+      `INSERT INTO routes (slug, name, user_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (slug) DO UPDATE
+         SET name = EXCLUDED.name,
+             user_id = COALESCE(routes.user_id, EXCLUDED.user_id)
        RETURNING id`,
-      [slug, name]
+      [slug, name, userId]
     );
     const routeId = routeRes.rows[0].id;
 

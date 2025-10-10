@@ -16,6 +16,7 @@ function authorize(req, res, next) {
 
     // 4. If it's valid, attach the decoded payload (e.g., user id and username) to the request object
     req.user = decoded;
+    console.log("[authorize] decoded:", decoded);
 
     // 5. Call next() to pass control to the next function in the chain (the actual route handler)
     next();

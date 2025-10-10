@@ -1,17 +1,17 @@
 // Server/index.js
 require("dotenv").config({ path: __dirname + "/.env", override: true });
 
-// ✅ 1. Add a clear boot-time check for DATABASE_URL
+// 1. Add a clear boot-time check for DATABASE_URL
 if (!process.env.DATABASE_URL) {
   console.error("[boot] ❌ No DATABASE_URL found. Check your .env file path and contents.");
   process.exit(1);
 }
 
-console.log("[boot] ✅ DATABASE_URL =", process.env.DATABASE_URL);
+console.log("[boot] DATABASE_URL =", process.env.DATABASE_URL);
 
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");        // ✅ 2. Import here for quick connectivity check
+const { Pool } = require("pg");
 
 const PORT = process.env.PORT || 5100;
 const app = express();
@@ -19,7 +19,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Optional: early DB connectivity check (helps catch SASL/password errors early)
 (async () => {
   try {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -40,14 +39,14 @@ const waypointRoutes = require("./routes/waypoints");
 const userRoutes = require("./routes/users");
 
 // mount the routes under /api
-app.use("/api", gpxRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/waypoints", waypointRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/waypoints", waypointRoutes);
+app.use("/api", gpxRoutes);
 
 // health
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, db: true, startedAt: new Date().toISOString() });
 });
 
-app.listen(PORT, () => console.log(`🚀 Backend listening on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
