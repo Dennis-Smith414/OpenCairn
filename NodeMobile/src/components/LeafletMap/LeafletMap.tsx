@@ -26,6 +26,7 @@ interface LeafletMapProps {
   onMapReady?: () => void;
   onMapLongPress?: (lat: number, lon: number) => void;
   waypoints?: Waypoint[];
+  onWaypointPress?: (wp: Waypoint | null) => void;
 }
 
 const FALLBACK_CENTER: LatLng = [37.7749, -122.4194];
@@ -39,6 +40,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   onMapReady,
   onMapLongPress,
   waypoints = [],
+  onWaypointPress,
 }) => {
   const webRef = useRef<WebViewType>(null);
   const [isReady, setIsReady] = useState(false);
@@ -69,15 +71,27 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
               if (onMapLongPress) onMapLongPress(data.lat, data.lon);
               break;
 
+            case "WAYPOINT_CLICK":
+              if (data.waypoint) {
+                console.log("Waypoint clicked:", data.waypoint);
+                onWaypointPress?.(data.waypoint);
+              }
+              break;
+
+            case "MAP_TAP":
+              onWaypointPress?.(null);
+              break;
+
             default:
               console.log("Unrecognized message type:", data.type);
               break;
+
           }
         } catch (e) {
           console.error("LeafletMap: Message parse error:", e, raw);
         }
       },
-      [onMapReady, onMapLongPress]
+      [onMapReady, onMapLongPress, onWaypointPress]
     );
 
   useEffect(() => {

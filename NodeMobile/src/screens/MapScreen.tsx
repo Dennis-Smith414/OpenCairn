@@ -9,6 +9,8 @@ import { flattenToLatLng } from '../utils/geoUtils';
 import LeafletMap, { LatLng } from '../components/LeafletMap/LeafletMap';
 import { colors } from '../styles/theme';
 import { fetchWaypoints } from "../lib/waypoints";
+import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
+
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
@@ -22,7 +24,7 @@ const MapScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [initialLocationLoaded, setInitialLocationLoaded] = useState(false);
-
+    const [selectedWaypoint, setSelectedWaypoint] = useState<any | null>(null);
     const watchIdRef = useRef<number | null>(null);
 
     const {
@@ -48,6 +50,10 @@ const MapScreen: React.FC = () => {
         const initLocationTracking = async () => {
             const hasPermission = await requestPermission();
             if (!hasPermission || !mounted) return;
+
+        const handleWaypointPress = (wp) => {
+          setSelectedWaypoint(wp);
+        };
 
             const watchId = startWatching();
             if (watchId !== null) {
@@ -159,6 +165,7 @@ const MapScreen: React.FC = () => {
     };
 
     return (
+
         <View style={styles.container}>
             <LeafletMap
                 coordinates={coords}
@@ -167,6 +174,7 @@ const MapScreen: React.FC = () => {
                 zoom={DEFAULT_ZOOM}
                 onMapLongPress={handleMapLongPress}
                 waypoints={waypoints}
+                onWaypointPress={(wp) => setSelectedWaypoint(wp)}
             />
 
             {/* Loading Overlay */}
@@ -178,6 +186,17 @@ const MapScreen: React.FC = () => {
                     </Text>
                 </View>
             )}
+
+            <WaypointPopup
+              visible={!!selectedWaypoint}
+              name={selectedWaypoint?.name ?? ""}
+              type={selectedWaypoint?.type ?? "generic"}
+              votes={selectedWaypoint?.votes ?? 0}
+              onUpvote={() => console.log("Upvoted", selectedWaypoint?.id)}
+              onDownvote={() => console.log("Downvoted", selectedWaypoint?.id)}
+              onExpand={() => console.log("Expand details", selectedWaypoint?.id)}
+              onClose={() => setSelectedWaypoint(null)}
+            />
 
             {/* Error Overlay */}
             {showError && (

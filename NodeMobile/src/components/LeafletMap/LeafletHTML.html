@@ -37,7 +37,6 @@
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
-
     map.setView([37.7749, -122.4194], 13);
 
     window.__lineColor = '#2196F3';
@@ -56,8 +55,7 @@
       iconAnchor: [10, 10]
     });
 
-
-    // Map control methods
+    // === Map control methods ===
     window.__clearMap = function() {
       if (currentPolyline) {
         map.removeLayer(currentPolyline);
@@ -100,14 +98,11 @@
       map.setView([lat, lng], zoom);
     };
 
-    // long press detection
+    // === Long press detection ===
     function handleLongPress(e) {
       const { lat, lng } = e.latlng;
       if (!lat || !lng) return;
 
-      if (tempMarker) map.removeLayer(tempMarker);
-
-      // visual feedback
       if (tempMarker) map.removeLayer(tempMarker);
       tempMarker = L.circleMarker([lat, lng], {
         radius: 6,
@@ -118,13 +113,11 @@
       }).addTo(map);
 
       console.log('LONG_PRESS fired', lat, lng);
-
       try {
         window.ReactNativeWebView?.postMessage(
-        JSON.stringify({ type: 'LONG_PRESS', lat, lon: lng })
+          JSON.stringify({ type: 'LONG_PRESS', lat, lon: lng })
         );
-      }
-      catch (err) {
+      } catch (err) {
         console.log('postMessage error', err);
       }
     }
@@ -132,12 +125,9 @@
     map.on('touchstart', (e) => {
       longPressTimeout = setTimeout(() => handleLongPress(e), 800);
     });
+    map.on('touchend dragstart zoomstart', () => clearTimeout(longPressTimeout));
 
-    map.on('touchend dragstart zoomstart', () => {
-      clearTimeout(longPressTimeout);
-    });
-
-    // Fallback contextmenu (right-click / long-touch)
+    // === Context menu fallback ===
     map.on('contextmenu', (e) => {
       console.log('Context menu fallback fired', e.latlng);
       window.ReactNativeWebView?.postMessage(JSON.stringify({
@@ -147,61 +137,84 @@
       }));
     });
 
-    // Render waypoints from React Native
-window.__setWaypoints = function (payload) {
-  try {
-    const { waypoints, iconUrls } = payload || {};
+    // === Render waypoints from React Native ===
+    window.__setWaypoints = function (payload) {
+      try {
+        const { waypoints, iconUrls } = payload || {};
 
-    // Clear existing waypoint markers
-    if (Array.isArray(window.__waypointMarkers)) {
-      window.__waypointMarkers.forEach(m => map.removeLayer(m));
-    }
-    window.__waypointMarkers = [];
+        if (Array.isArray(window.__waypointMarkers)) {
+          window.__waypointMarkers.forEach(m => map.removeLayer(m));
+        }
+        window.__waypointMarkers = [];
 
-    if (!Array.isArray(waypoints) || !iconUrls) {
-      console.log("Invalid waypoint payload:", payload);
-      return;
-    }
+        if (!Array.isArray(waypoints) || !iconUrls) {
+          console.log("Invalid waypoint payload:", payload);
+          return;
+        }
 
-    console.log(`Rendering ${waypoints.length} waypoints`);
+        console.log(`Rendering ${waypoints.length} waypoints`);
 
-    // Create a Leaflet marker for each waypoint
-    waypoints.forEach(wp => {
-      let iconUrl =
-        wp.type === "water" ? iconUrls.water :
-        wp.type === "campsite" ? iconUrls.campsite :
-        wp.type === "road-access-point" ? iconUrls.roadAccess :
-        wp.type === "intersection" ? iconUrls.intersection :
-        wp.type === "hazard" ? iconUrls.hazard :
-        wp.type === "landmark" ? iconUrls.landmark :
-        wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
-        iconUrls.generic; // fallback icon
+        waypoints.forEach(wp => {
+          let iconUrl =
+            wp.type === "water" ? iconUrls.water :
+            wp.type === "campsite" ? iconUrls.campsite :
+            wp.type === "road-access-point" ? iconUrls.roadAccess :
+            wp.type === "intersection" ? iconUrls.intersection :
+            wp.type === "hazard" ? iconUrls.hazard :
+            wp.type === "landmark" ? iconUrls.landmark :
+            wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
+            iconUrls.generic;
 
-      const icon = L.icon({
-        iconUrl,
-        iconSize: [26, 26],
-        iconAnchor: [13, 26],
-        popupAnchor: [0, -20],
-      });
+          const icon = L.icon({
+            iconUrl,
+            iconSize: [26, 26],
+            iconAnchor: [13, 26],
+            popupAnchor: [0, -20],
+          });
 
-      const marker = L.marker([wp.lat, wp.lon], { icon })
-        .bindPopup(`<b>${wp.name}</b><br>${wp.description || ""}`)
-        .addTo(map);
+          const marker = L.marker([wp.lat, wp.lon], { icon }).addTo(map);
 
-      window.__waypointMarkers.push(marker);
-    });
+          // stop map click from firing afterward
+          marker.on("click", function (e) {
+            try {
+              if (e?.originalEvent?.stopPropagation) {
+                e.originalEvent.stopPropagation();
+              }
+              console.log("Waypoint clicked:", wp.name);
+              window.ReactNativeWebView?.postMessage(
+                JSON.stringify({ type: "WAYPOINT_CLICK", waypoint: wp })
+              );
+            } catch (err) {
+              console.log("Error sending WAYPOINT_CLICK", err);
+            }
+          });
 
-    console.log(`Rendered ${waypoints.length} waypoint markers`);
-  } catch (err) {
-    console.log("Error in __setWaypoints:", err);
-  }
-};
+          window.__waypointMarkers.push(marker);
+        });
 
+        console.log(`Rendered ${waypoints.length} waypoint markers`);
+      } catch (err) {
+        console.log("Error in __setWaypoints:", err);
+      }
+    };
 
-    // Notify React Native that map loaded
+    // === Notify map ready ===
     setTimeout(() => {
       window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
     }, 300);
+
+    // === Detect taps on empty map to clear selection ===
+    map.on("click", function (e) {
+      try {
+        if (e.originalEvent?.target?.closest(".leaflet-interactive")) {
+          return; // ignore marker clicks
+        }
+        console.log("Map tap -> clear popup");
+        window.ReactNativeWebView?.postMessage(JSON.stringify({ type: "MAP_TAP" }));
+      } catch (err) {
+        console.log("Error handling MAP_TAP", err);
+      }
+    });
 </script>
 </body>
 </html>
