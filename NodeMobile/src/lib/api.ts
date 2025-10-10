@@ -1,5 +1,5 @@
 // src/lib/api.ts
-export const API_BASE = 'http://172.18.96.1:5100';
+export const API_BASE = 'http://10.0.2.2:5100';
 
 export async function fetchRouteList() {
   const res = await fetch(`${API_BASE}/api/routes/list`);
