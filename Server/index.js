@@ -35,10 +35,12 @@ app.use(express.json());
 // Full GPX/Trails router (list, meta, geojson, bbox, upload)
 const gpxRoutes = require("./routes/gpx");
 const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/users");
 
 // mount the routes under /api
 app.use("/api", gpxRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 
 // health
 app.get("/api/health", (req, res) => {
