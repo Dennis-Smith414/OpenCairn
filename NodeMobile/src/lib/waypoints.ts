@@ -27,8 +27,7 @@ export async function createWaypoint(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // ⚠️ TEMP: omit Authorization while testing (backend will not require it)
-      // Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(waypoint),
   });

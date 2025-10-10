@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../Postgres"); // Neon helper functions
-// const authorize = require("../middleware/authorize"); //enable later
+const authorize = require("../middleware/authorize");
 
 // ===================================================================
 // GET /api/waypoints/route/:route_id
@@ -32,13 +32,11 @@ router.get("/route/:route_id", async (req, res) => {
 
 // ===================================================================
 // POST /api/waypoints
-// → Create a new waypoint (TEMPORARY: no auth)
 // ===================================================================
-// TODO: add authorize middleware once JWT auth is working
-router.post("/", async (req, res) => {
+router.post("/", authorize, async (req, res) => {
   try {
     const { route_id, name, description, lat, lon, type } = req.body;
-    const user_id = 1; // Placeholder until auth context provides a user ID
+    const user_id = req.user?.id || null; // Placeholder until auth context provides a user ID
 
     // Validate required fields
     if (!route_id || !name || lat == null || lon == null) {

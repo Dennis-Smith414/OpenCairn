@@ -12,10 +12,13 @@ import { Picker } from "@react-native-picker/picker";
 import { baseStyles, colors } from "../styles/theme";
 import { createWaypoint } from "../lib/waypoints";
 import { useRouteSelection } from "../context/RouteSelectionContext";
+import { useAuth } from "../context/AuthContext";
+
 
 export default function WaypointCreateScreen({ navigation }: any) {
     const route = useRoute<any>();
     const { selectedRoutes } = useRouteSelection();
+    const { userToken } = useAuth();
 
     const [name, setName] = useState("");
     const [desc, setDesc] = useState("");
@@ -57,10 +60,11 @@ export default function WaypointCreateScreen({ navigation }: any) {
     }
 
     try {
-        // ⚠️ TEMPORARY AUTH BYPASS
-        // TODO: Replace with a real token from user context after login integration
-        const token = "demo-token-bypass";
-
+        const token = userToken; // ✅ Use real JWT
+        if (!token) {
+          Alert.alert("Not logged in", "You must be logged in to create a waypoint.");
+          return;
+        }
         const waypointData = {
             route_id: routeId,
             name,
