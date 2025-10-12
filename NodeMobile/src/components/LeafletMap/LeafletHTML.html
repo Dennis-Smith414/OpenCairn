@@ -1,0 +1,220 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, width=device-width"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        html, body, #map { height: 100%; margin: 0; }
+        .leaflet-container { background: #e6edf2; }
+        .attribution {
+          position: absolute; right: 8px; bottom: 8px;
+          background: rgba(255,255,255,0.85);
+          padding: 4px 6px; border-radius: 6px;
+          font: 12px/1.2 system-ui, -apple-system, Roboto, Arial;
+          z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="attribution">© OpenStreetMap</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // === Forward console logs to React Native ===
+    const originalLog = console.log;
+    console.log = function (...args) {
+      originalLog(...args);
+      try {
+        window.ReactNativeWebView?.postMessage(JSON.stringify({
+          type: 'LOG',
+          msg: args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
+        }));
+      } catch {}
+    };
+
+    const map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+    map.setView([37.7749, -122.4194], 13);
+
+    window.__lineColor = '#2196F3';
+    window.__lineWeight = 4;
+
+    let currentPolyline = null;
+    let userMarker = null;
+    let tempMarker = null;
+    let longPressTimeout;
+    let waypointMarkers = [];
+
+    const userIcon = L.divIcon({
+      className: 'user-location-marker',
+      html: '<div style="background:#4285F4;width:10px;height:10px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    // === Map control methods ===
+    window.__clearMap = function() {
+      if (currentPolyline) {
+        map.removeLayer(currentPolyline);
+        currentPolyline = null;
+      }
+    };
+
+    window.__setUserLocation = function(lat, lng) {
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+      } else {
+        userMarker = L.marker([lat, lng], {
+          icon: userIcon,
+          zIndexOffset: 1000
+        }).addTo(map);
+        userMarker.bindPopup('Your Location');
+      }
+    };
+
+    window.__removeUserLocation = function() {
+      if (userMarker) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+      }
+    };
+
+    window.__setCoords = function(payload) {
+      const coords = (payload?.coords) || [];
+      if (!coords.length) return;
+      if (currentPolyline) map.removeLayer(currentPolyline);
+      currentPolyline = L.polyline(coords, {
+        color: window.__lineColor,
+        weight: window.__lineWeight,
+        opacity: 0.8
+      }).addTo(map);
+      map.fitBounds(currentPolyline.getBounds(), { padding: [20, 20] });
+    };
+
+    window.__setView = function(lat, lng, zoom) {
+      map.setView([lat, lng], zoom);
+    };
+
+    // === Long press detection ===
+    function handleLongPress(e) {
+      const { lat, lng } = e.latlng;
+      if (!lat || !lng) return;
+
+      if (tempMarker) map.removeLayer(tempMarker);
+      tempMarker = L.circleMarker([lat, lng], {
+        radius: 6,
+        color: '#40E0D0',
+        weight: 2,
+        fillColor: '#40E0D0',
+        fillOpacity: 0.9
+      }).addTo(map);
+
+      console.log('LONG_PRESS fired', lat, lng);
+      try {
+        window.ReactNativeWebView?.postMessage(
+          JSON.stringify({ type: 'LONG_PRESS', lat, lon: lng })
+        );
+      } catch (err) {
+        console.log('postMessage error', err);
+      }
+    }
+
+    map.on('touchstart', (e) => {
+      longPressTimeout = setTimeout(() => handleLongPress(e), 800);
+    });
+    map.on('touchend dragstart zoomstart', () => clearTimeout(longPressTimeout));
+
+    // === Context menu fallback ===
+    map.on('contextmenu', (e) => {
+      console.log('Context menu fallback fired', e.latlng);
+      window.ReactNativeWebView?.postMessage(JSON.stringify({
+        type: 'LONG_PRESS',
+        lat: e.latlng.lat,
+        lon: e.latlng.lng
+      }));
+    });
+
+    // === Render waypoints from React Native ===
+    window.__setWaypoints = function (payload) {
+      try {
+        const { waypoints, iconUrls } = payload || {};
+
+        if (Array.isArray(window.__waypointMarkers)) {
+          window.__waypointMarkers.forEach(m => map.removeLayer(m));
+        }
+        window.__waypointMarkers = [];
+
+        if (!Array.isArray(waypoints) || !iconUrls) {
+          console.log("Invalid waypoint payload:", payload);
+          return;
+        }
+
+        console.log(`Rendering ${waypoints.length} waypoints`);
+
+        waypoints.forEach(wp => {
+          let iconUrl =
+            wp.type === "water" ? iconUrls.water :
+            wp.type === "campsite" ? iconUrls.campsite :
+            wp.type === "road-access-point" ? iconUrls.roadAccess :
+            wp.type === "intersection" ? iconUrls.intersection :
+            wp.type === "hazard" ? iconUrls.hazard :
+            wp.type === "landmark" ? iconUrls.landmark :
+            wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
+            iconUrls.generic;
+
+          const icon = L.icon({
+            iconUrl,
+            iconSize: [26, 26],
+            iconAnchor: [13, 26],
+            popupAnchor: [0, -20],
+          });
+
+          const marker = L.marker([wp.lat, wp.lon], { icon }).addTo(map);
+
+          // stop map click from firing afterward
+          marker.on("click", function (e) {
+            try {
+              if (e?.originalEvent?.stopPropagation) {
+                e.originalEvent.stopPropagation();
+              }
+              console.log("Waypoint clicked:", wp.name);
+              window.ReactNativeWebView?.postMessage(
+                JSON.stringify({ type: "WAYPOINT_CLICK", waypoint: wp })
+              );
+            } catch (err) {
+              console.log("Error sending WAYPOINT_CLICK", err);
+            }
+          });
+
+          window.__waypointMarkers.push(marker);
+        });
+
+        console.log(`Rendered ${waypoints.length} waypoint markers`);
+      } catch (err) {
+        console.log("Error in __setWaypoints:", err);
+      }
+    };
+
+    // === Notify map ready ===
+    setTimeout(() => {
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+    }, 300);
+
+    // === Detect taps on empty map to clear selection ===
+    map.on("click", function (e) {
+      try {
+        if (e.originalEvent?.target?.closest(".leaflet-interactive")) {
+          return; // ignore marker clicks
+        }
+        console.log("Map tap -> clear popup");
+        window.ReactNativeWebView?.postMessage(JSON.stringify({ type: "MAP_TAP" }));
+      } catch (err) {
+        console.log("Error handling MAP_TAP", err);
+      }
+    });
+</script>
+</body>
+</html>

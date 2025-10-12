@@ -1,135 +1,181 @@
-    // client/src/screens/AccountScreen.jsx
-    import React from "react";
-    import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
-    import { baseStyles } from "../styles/theme";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  UIManager,
+  LayoutAnimation,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
+import { baseStyles, colors } from "../styles/theme";
+import { useAuth } from "../context/AuthContext";
+import { API_BASE } from "../lib/api";
+import { Card } from "../components/common/Card";
+import { StatRow } from "../components/common/StatRow";
+import { EmptyState } from "../components/common/EmptyState";
+import { AccountSection } from "../components/account/AccountSection";
+import { UserItemRow } from "../components/account/UserItemRow";
+import { fetchUserRoutes, fetchUserWaypoints } from "../lib/api";
 
-    export default function AccountScreen({ navigation }) {
-      // TODO: Replace with real user data from context / API
-      const user = {
-        username: "DemoUser",
-        email: "demo@example.com",
-      };
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
-      function handleLogout() {
-        // TODO: hook into your auth logic
-        // e.g. clear tokens, reset context, etc.
-        navigation.navigate("Landing");
+export default function AccountScreen({ navigation }: any) {
+  const { logout, userToken } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [expanded, setExpanded] = useState({
+    routes: false,
+    waypoints: false,
+    comments: false,
+  });
+
+  const [userRoutes, setUserRoutes] = useState<any[]>([]);
+  const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchProfileAndRoutes = async () => {
+      if (!userToken) return;
+      try {
+        const profileRes = await fetch(`${API_BASE}/api/users/me`, {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
+        if (!profileRes.ok) throw new Error("Failed to fetch profile data");
+
+        const profileJson = await profileRes.json();
+        setProfile({
+          ...profileJson.user,
+          stats: profileJson.stats,
+        });
+
+        const routesRes = await fetchUserRoutes(userToken);
+        if (routesRes.ok) setUserRoutes(routesRes.routes);
+
+        const waypointsRes = await fetchUserWaypoints(userToken);
+        if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
+      } catch (error) {
+        console.error("Failed to fetch profile data / routes:", error);
       }
+    };
+    fetchProfileAndRoutes();
+  }, [userToken]);
 
-      return (
+  const toggleSection = (key: keyof typeof expanded) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
-        <View style={styles.container}>
-              {/* Account info */}
-              <View style={styles.statsCard}>
-                <Text style={styles.statsHeader}>My Account</Text>
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={[baseStyles.headerText, styles.pageTitle]}>My Account</Text>
 
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Username</Text>
-                  <Text style={styles.statValue}>DemoUser</Text>
-                </View>
+      {/* Basic Info */}
+      <Card>
+        <StatRow label="Username" value={profile?.username || "Loading..."} />
+        <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
+      </Card>
 
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Email</Text>
-                  <Text style={styles.statValue}>demo@example.com</Text>
-                </View>
-              </View>
-                  <View style={styles.statsCard}>
-                    <Text style={styles.statsHeader}>Profile Statistics</Text>
+      {/* Stats */}
+      <Card title="Profile Statistics">
+        <StatRow
+          label="Member Since"
+          value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
+        />
+        <StatRow label="Routes Created" value={profile?.stats?.routes_created ?? "—"} />
+        <StatRow
+          label="Waypoints Created"
+          value={profile?.stats?.waypoints_created ?? "—"}
+          showBorder={false}
+        />
+      </Card>
 
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Cairns created</Text>
-                      <Text style={styles.statValue}>12</Text>
-                    </View>
+      {/* Routes */}
+      <AccountSection
+        title="My Routes"
+        expanded={expanded.routes}
+        onToggle={() => toggleSection("routes")}
+      >
+        {userRoutes.length > 0 ? (
+          userRoutes.map((r) => (
+            <UserItemRow
+              key={r.id}
+              title={r.name}
+              subtitle={`${r.region || "—"} • ${new Date(r.created_at).toLocaleDateString()}`}
+              onEdit={() => console.log("Edit route", r.id)}
+              onDelete={() => console.log("Delete route", r.id)}
+            />
+          ))
+        ) : (
+          <EmptyState
+            icon="🗺️"
+            title="No routes created yet"
+            subtitle="Create your first route from the map screen."
+          />
+        )}
+      </AccountSection>
 
-                    <View style={styles.statRow}>
-                       <Text style={styles.statLabel}>Comments written</Text>
-                       <Text style={styles.statValue}>14</Text>
-                    </View>
+      {/* Waypoints */}
+      <AccountSection
+        title="My Waypoints"
+        expanded={expanded.waypoints}
+        onToggle={() => toggleSection("waypoints")}
+      >
+        {userWaypoints.length > 0 ? (
+          userWaypoints.map((w) => (
+            <UserItemRow
+              key={w.id}
+              title={w.name}
+              subtitle={`${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
+              onEdit={() => console.log("Edit waypoint", w.id)}
+              onDelete={() => console.log("Delete waypoint", w.id)}
+            />
+          ))
+        ) : (
+          <EmptyState
+            icon="📍"
+            title="No waypoints created yet"
+            subtitle="Tap on the map to add your first waypoint."
+          />
+        )}
+      </AccountSection>
 
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Ratings given</Text>
-                      <Text style={styles.statValue}>34</Text>
-                    </View>
+      {/* Comments */}
+      <AccountSection
+        title="My Comments"
+        expanded={expanded.comments}
+        onToggle={() => toggleSection("comments")}
+      >
+        <EmptyState
+          icon="💬"
+          title="No comments yet"
+          subtitle="Leave a comment on a waypoint or route to see it here."
+        />
+      </AccountSection>
 
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Member since</Text>
-                      <Text style={styles.statValue}>August 9, 2025</Text>
-                    </View>
-                  </View>
+      <TouchableOpacity
+        style={[baseStyles.button, baseStyles.buttonPrimary, styles.logoutButton]}
+        onPress={logout}
+      >
+        <Text style={baseStyles.buttonText}>Log Out</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
 
-          <TouchableOpacity
-            style={[baseStyles.button, baseStyles.buttonPrimary]}
-            onPress={handleLogout}
-          >
-            <Text style={baseStyles.buttonText}>Log Out</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    const styles = StyleSheet.create({
-      container: {
-        flex: 1,
-        backgroundColor: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      },
-      logo: {
-        width: "70%",
-        height: 120,
-        marginBottom: 16,
-      },
-      infoBox: {
-        width: "100%",
-        backgroundColor: "#f8f9fa",
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 24,
-      },
-      label: {
-        fontWeight: "600",
-        fontSize: 14,
-        color: "#555",
-        marginTop: 8,
-      },
-      value: {
-        fontSize: 16,
-        marginBottom: 8,
-        color: "#222",
-      },
-        statsCard: {
-          width: "100%",
-          backgroundColor: "#fff",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 24,
-          shadowColor: "#000",
-          shadowOpacity: 0.05,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: 3, // Android shadow
-        },
-        statsHeader: {
-          fontWeight: "700",
-          fontSize: 16,
-          marginBottom: 12,
-          color: "#222",
-          textAlign: "center",
-        },
-        statRow: {
-          flexDirection: "row",
-          justifyContent: "space-between",
-          marginBottom: 8,
-        },
-        statLabel: {
-          fontSize: 14,
-          color: "#555",
-        },
-        statValue: {
-          fontSize: 14,
-          fontWeight: "600",
-          color: "#222",
-        },
-
-    });
+const styles = StyleSheet.create({
+  pageTitle: {
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  logoutButton: {
+    marginTop: 24,
+    marginBottom: 60,
+    alignSelf: "center",
+  },
+});

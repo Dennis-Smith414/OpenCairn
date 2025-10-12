@@ -3,8 +3,8 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Text } from "react-native";
-import { Image } from "react-native";
+import { Text, Image, View, ActivityIndicator } from "react-native";
+import { useAuth } from "../context/AuthContext";
 
 // Screens
 import AccountCreationScreen from "../screens/AccountCreationScreen";
@@ -15,6 +15,7 @@ import MapScreen from "../screens/MapScreen";
 import RouteSelectScreen from "../screens/RouteSelectScreen";
 import FileManagerScreen from "../screens/FileManagerScreen";
 import RouteCreateScreen from "../screens/RouteCreateScreen";
+import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -110,36 +111,60 @@ function MainTabs() {
 
 // Root stack for auth + main app
 export default function AppNavigator() {
+    const { userToken, isLoading } = useAuth();
+
+
+// Show a loading screen while the app checks for a token on startup
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Landing">
-        <Stack.Screen
-          name="Landing"
-          component={LandingScreen}
-          options={{ title: "Welcome" }}
-        />
-        <Stack.Screen
-          name="CreateAccount"
-          component={AccountCreationScreen}
-          options={{ title: "Create Account" }}
-        />
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ title: "Login" }}
-        />
-
-        <Stack.Screen
-            name="RouteCreate"
-            component={RouteCreateScreen}
-        />
-
-        {/* Main app (bottom tabs) */}
-        <Stack.Screen
-          name="Main"
-          component={MainTabs}
-          options={{ headerShown: false }}
-        />
+      <Stack.Navigator>
+        {userToken == null ? (
+          // No token found, show the screens for logged-out users
+          <>
+            <Stack.Screen
+              name="Landing"
+              component={LandingScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CreateAccount"
+              component={AccountCreationScreen}
+              options={{ title: "Create Account" }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{ title: "Login" }}
+            />
+          </>
+        ) : (
+          // User is signed in, show the main app screens
+          <>
+            <Stack.Screen
+              name="Main"
+              component={MainTabs}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="RouteCreate"
+              component={RouteCreateScreen}
+            />
+            <Stack.Screen
+            name="WaypointCreate"
+            component={WaypointCreateScreen}
+            options={{ presentation: "modal", title: "Create Waypoint" }}
+            />
+          </>
+          
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,23 +1,30 @@
+// src/screens/MapScreen.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { useNavigation } from "@react-navigation/native";
 import { useRouteSelection } from '../context/RouteSelectionContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { fetchRouteGeo } from '../lib/api';
 import { flattenToLatLng } from '../utils/geoUtils';
 import LeafletMap, { LatLng } from '../components/LeafletMap/LeafletMap';
 import { colors } from '../styles/theme';
+import { fetchWaypoints } from "../lib/waypoints";
+import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
+
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
 
 const MapScreen: React.FC = () => {
     const { selectedRouteIds } = useRouteSelection();
+    const navigation = useNavigation<any>();
 
     const [coords, setCoords] = useState<LatLng[]>([]);
+    const [waypoints, setWaypoints] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [initialLocationLoaded, setInitialLocationLoaded] = useState(false);
-
+    const [selectedWaypoint, setSelectedWaypoint] = useState<any | null>(null);
     const watchIdRef = useRef<number | null>(null);
 
     const {
@@ -43,6 +50,10 @@ const MapScreen: React.FC = () => {
         const initLocationTracking = async () => {
             const hasPermission = await requestPermission();
             if (!hasPermission || !mounted) return;
+
+        const handleWaypointPress = (wp) => {
+          setSelectedWaypoint(wp);
+        };
 
             const watchId = startWatching();
             if (watchId !== null) {
@@ -83,7 +94,10 @@ const MapScreen: React.FC = () => {
                 setError(null);
 
                 if (selectedRouteIds.length === 0) {
-                    if (mounted) setCoords([]);
+                    if (mounted){
+                        setCoords([]);
+                        setWaypoints([]);
+                    }
                     return;
                 }
 
@@ -108,19 +122,59 @@ const MapScreen: React.FC = () => {
         return () => { mounted = false; };
     }, [selectedRouteIds.join(',')]);
 
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadWaypoints = async () => {
+          if (selectedRouteIds.length === 0) {
+            setWaypoints([]);
+            return;
+          }
+
+          try {
+            const all: any[] = [];
+            for (const id of selectedRouteIds) {
+              const wps = await fetchWaypoints(id);
+              all.push(...wps);
+            }
+            if (mounted) {
+              setWaypoints(all);
+              console.log(`[MapScreen] Loaded ${all.length} waypoints`);
+            }
+          } catch (err: any) {
+            console.error("Failed to fetch waypoints:", err);
+          }
+        };
+
+        loadWaypoints();
+
+        return () => { mounted = false; };
+      }, [selectedRouteIds.join(",")]);
+
     // Compute derived values
     const userLocation = location ? [location.lat, location.lng] as LatLng : null;
     const mapCenter = userLocation || DEFAULT_CENTER;
     const showLocationLoading = locationLoading && !initialLocationLoaded;
     const showError = error || (locationError && !initialLocationLoaded);
 
+
+    const handleMapLongPress = (lat: number, lon: number) => {
+      console.log("Long press received:", lat, lon);
+      navigation.navigate("WaypointCreate", { lat, lon });
+    };
+
     return (
+
         <View style={styles.container}>
             <LeafletMap
                 coordinates={coords}
                 userLocation={userLocation}
                 center={mapCenter}
                 zoom={DEFAULT_ZOOM}
+                onMapLongPress={handleMapLongPress}
+                waypoints={waypoints}
+                onWaypointPress={(wp) => setSelectedWaypoint(wp)}
             />
 
             {/* Loading Overlay */}
@@ -132,6 +186,17 @@ const MapScreen: React.FC = () => {
                     </Text>
                 </View>
             )}
+
+            <WaypointPopup
+              visible={!!selectedWaypoint}
+              name={selectedWaypoint?.name ?? ""}
+              type={selectedWaypoint?.type ?? "generic"}
+              votes={selectedWaypoint?.votes ?? 0}
+              onUpvote={() => console.log("Upvoted", selectedWaypoint?.id)}
+              onDownvote={() => console.log("Downvoted", selectedWaypoint?.id)}
+              onExpand={() => console.log("Expand details", selectedWaypoint?.id)}
+              onClose={() => setSelectedWaypoint(null)}
+            />
 
             {/* Error Overlay */}
             {showError && (

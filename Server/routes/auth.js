@@ -1,10 +1,10 @@
-// Server/routes/auth.js
 require('dotenv').config({ path: '../.env' });
 console.log('[boot] DATABASE_URL =', process.env.DATABASE_URL);
 
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const { Pool } = require("pg");
+const jwt = require("jsonwebtoken");
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -78,6 +78,50 @@ router.post("/register", async (req, res) => {
     res.status(201).json({ ok: true, user: ins.rows[0] });
   } catch (e) {
     console.error("POST /api/auth/register error:", e);
+    res.status(500).json({ ok: false, error: "Server error." });
+  }
+});
+
+// POST /api/auth/login
+router.post("/login", async (req, res) => {
+  try {
+    let { username, password } = req.body || {};
+    username = (username || "").trim();
+
+    if (!isNonEmpty(username) || !isNonEmpty(password)) {
+      return res.status(400).json({ ok: false, error: "Username and password are required." });
+    }
+
+    // Find the user by their username
+    const result = await pool.query(
+      `SELECT id, username, password_hash FROM users WHERE LOWER(username) = LOWER($1)`,
+      [username]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(400).json({ ok: false, error: "Invalid username or password." });
+    }
+
+    const user = result.rows[0];
+
+    // Check if the provided password matches the stored hash
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!isValidPassword) {
+      return res.status(400).json({ ok: false, error: "Invalid username or password." });
+    }
+
+    // If login is successful, create a JWT
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" } // Token expires in 1 day
+    );
+
+    res.json({ ok: true, token });
+
+  } catch (e) {
+    console.error("POST /api/auth/login error:", e);
     res.status(500).json({ ok: false, error: "Server error." });
   }
 });
