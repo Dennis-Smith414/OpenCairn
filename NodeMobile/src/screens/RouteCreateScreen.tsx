@@ -14,6 +14,7 @@ import RNFS from "react-native-fs";
 import { baseStyles, colors } from "../styles/theme";
 import { uploadGpxFile } from "../lib/uploadGpx";
 import { useAuth } from "../context/AuthContext";
+import {API_BASE as BASE} from "../lib/api";
 
 export default function RouteCreateScreen({ navigation }: any) {
     const [name, setName] = useState("");
@@ -22,7 +23,8 @@ export default function RouteCreateScreen({ navigation }: any) {
     const [fileName, setFileName] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const { userToken } = useAuth();
-
+    const {API_BASE} = BASE;
+    
     const pickFile = async () => {
         try {
             const [file] = await pick();
@@ -47,7 +49,7 @@ export default function RouteCreateScreen({ navigation }: any) {
             // Upload GPX file, and get auth (this inserts the route + gpx rows)
             const uploadResult = await uploadGpxFile(fileUri, userToken);
             // PATCH to set user, name, and region
-            const res = await fetch(`http://10.0.2.2:5100/api/routes/${uploadResult.id}`, {
+            const res = await fetch(`http://${API_BASE}/api/routes/${uploadResult.id}`, {
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
