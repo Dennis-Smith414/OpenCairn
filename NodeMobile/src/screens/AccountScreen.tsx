@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../lib/api";
+import { API_BASE AS BASE} from "../lib/api";
 import { Card } from "../components/common/Card";
 import { StatRow } from "../components/common/StatRow";
 import { EmptyState } from "../components/common/EmptyState";
@@ -31,7 +31,7 @@ export default function AccountScreen({ navigation }: any) {
     waypoints: false,
     comments: false,
   });
-
+  const API_BASE = BASE;
   const [userRoutes, setUserRoutes] = useState<any[]>([]);
   const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
 

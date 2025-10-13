@@ -24,7 +24,7 @@ export default function RouteCreateScreen({ navigation }: any) {
     const [uploading, setUploading] = useState(false);
     const { userToken } = useAuth();
     const {API_BASE} = BASE;
-    
+
     const pickFile = async () => {
         try {
             const [file] = await pick();
