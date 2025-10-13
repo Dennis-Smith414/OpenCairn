@@ -12,7 +12,7 @@ import {
 import { pick } from "@react-native-documents/picker";
 import RNFS from "react-native-fs";
 import { baseStyles, colors } from "../styles/theme";
-import { uploadGpxFile } from "../utils/uploadGpx";
+import { uploadGpxFile } from "../lib/uploadGpx";
 import { useAuth } from "../context/AuthContext";
 
 export default function RouteCreateScreen({ navigation }: any) {

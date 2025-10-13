@@ -1,5 +1,7 @@
 // utils/uploadGpx.ts
 import RNFS from 'react-native-fs';
+import { API_BASE as BASE} from "./api";
+
 
 export async function uploadGpxFile(fileUri: string, token?: string) {
   if (!fileUri) throw new Error('Invalid file URI');
@@ -11,7 +13,7 @@ export async function uploadGpxFile(fileUri: string, token?: string) {
   const filename = safeUri.split('/').pop() || 'route.gpx';
 
   // ✅ Use your local backend running in the emulator bridge
-  const API_BASE = 'http://10.0.2.2:5100';
+  const API_BASE = BASE;
 
 
   const formData = new FormData();
