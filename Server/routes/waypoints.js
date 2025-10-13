@@ -16,10 +16,10 @@ router.get("/route/:route_id", async (req, res) => {
     }
 
     const result = await db.all(
-      `SELECT id, route_id, user_id, name, description, lat, lon, type, created_at
-       FROM waypoints
-       WHERE route_id = $1
-       ORDER BY created_at ASC`,
+      `SELECT w.*, u.username
+       FROM waypoints w
+       JOIN users u ON w.user_id = u.id
+       WHERE w.route_id = $1`,
       [route_id]
     );
 

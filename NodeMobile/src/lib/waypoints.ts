@@ -5,6 +5,7 @@ export interface Waypoint {
   id?: number;
   route_id: number;
   user_id?: number;
+  username?: string;
   name: string;
   description?: string;
   lat: number;

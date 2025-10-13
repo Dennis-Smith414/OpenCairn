@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import AppNavigator from './src/navigation/AppNavigator';
 import { RouteSelectionProvider } from './src/context/RouteSelectionContext';
 import { AuthProvider } from './src/context/AuthContext';
+import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
 
 export default function App() {
   const startedRef = useRef(false);
@@ -30,7 +31,9 @@ export default function App() {
   return (
     <AuthProvider>
       <RouteSelectionProvider>
-        <AppNavigator />
+        <DistanceUnitProvider>
+           <AppNavigator />
+        </DistanceUnitProvider>
       </RouteSelectionProvider>
     </AuthProvider>
   );

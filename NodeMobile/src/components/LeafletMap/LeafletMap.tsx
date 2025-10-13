@@ -1,19 +1,24 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { StyleSheet, Image, View, TouchableOpacity, Text } from "react-native";
 import { WebView } from "react-native-webview";
+import { getDistanceMeters } from "../../utils/geoUtils";
+
 import type { WebViewMessageEvent } from "react-native-webview";
 
 export type LatLng = [number, number];
 
 interface MapPayload { coords: LatLng[]; }
 
-interface Waypoint {
+export interface Waypoint {
   id: number;
   name: string;
   description?: string;
   lat: number;
   lon: number;
   type?: string;
+    //Optional fields:
+  distance?: number; // meters
+  iconRequire?: any;
 }
 
 interface LeafletMapProps {
@@ -27,6 +32,8 @@ interface LeafletMapProps {
   onWaypointPress?: (wp: Waypoint | null) => void;
   showTrackingButton?: boolean; // default true
 }
+
+
 
 const FALLBACK_CENTER: LatLng = [43.075915779364294, -87.88550589992784]; // <--Fall back is now UWM rendering the fallback should be removed later on
 const DEFAULT_ZOOM = 13;
@@ -51,6 +58,36 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 
   const lastLocationRef = useRef<LatLng | null>(null);
 
+
+  // React Native image requires (used for popup)
+    const rnIcons = {
+      generic: require("../../assets/icons/waypoints/generic.png"),
+      water: require("../../assets/icons/waypoints/water.png"),
+      campsite: require("../../assets/icons/waypoints/campsite.png"),
+      roadAccess: require("../../assets/icons/waypoints/road-access-point.png"),
+      intersection: require("../../assets/icons/waypoints/intersection.png"),
+      hazard: require("../../assets/icons/waypoints/hazard.png"),
+      landmark: require("../../assets/icons/waypoints/landmark.png"),
+      parkingTrailhead: require("../../assets/icons/waypoints/parking-trailhead.png"),
+    };
+
+    // Leaflet (WebView) image URIs — needs .uri resolved
+    const iconUrls = useMemo(
+      () => ({
+        generic: Image.resolveAssetSource(rnIcons.generic).uri,
+        water: Image.resolveAssetSource(rnIcons.water).uri,
+        campsite: Image.resolveAssetSource(rnIcons.campsite).uri,
+        roadAccess: Image.resolveAssetSource(rnIcons.roadAccess).uri,
+        intersection: Image.resolveAssetSource(rnIcons.intersection).uri,
+        hazard: Image.resolveAssetSource(rnIcons.hazard).uri,
+        landmark: Image.resolveAssetSource(rnIcons.landmark).uri,
+        parkingTrailhead: Image.resolveAssetSource(rnIcons.parkingTrailhead).uri,
+      }),
+      []
+    );
+
+    console.log("🧭 iconUrls available:", Object.keys(iconUrls));
+
   // --- messages from HTML ---
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -60,16 +97,42 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         if (!data) return;
 
         switch (data.type) {
+
           case "MAP_READY":
             setIsReady(true);
             onMapReady?.();
             break;
+
           case "LONG_PRESS":
             onMapLongPress?.(data.lat, data.lon);
             break;
+
           case "WAYPOINT_CLICK":
-            if (data.waypoint) onWaypointPress?.(data.waypoint);
+            if (data.waypoint) {
+              const wp = data.waypoint;
+              const typeKey = wp.type || "generic";
+
+              //For popup display in React Native
+              wp.iconRequire = rnIcons[typeKey] || rnIcons.generic;
+
+
+
+              console.log("✅ waypoint iconUrl:", wp.iconRequire);
+
+              //For distance
+              if (userLocation) {
+                const meters = getDistanceMeters(
+                  [userLocation[0], userLocation[1]],
+                  [wp.lat, wp.lon]
+                );
+                wp.distance = meters;
+              }
+
+              onWaypointPress?.(wp);
+            }
             break;
+
+
           case "MAP_TAP":
             onWaypointPress?.(null);
             break;
@@ -84,7 +147,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         console.error("LeafletMap message parse error:", e, raw);
       }
     },
-    [onMapLongPress, onMapReady, onWaypointPress]
+    [onMapLongPress, onMapReady, onWaypointPress, userLocation]
   );
 
   // set initial camera ONCE
@@ -140,20 +203,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   }, [isReady, userLocation, tracking]);
 
-  // waypoint icons (memoized)
-  const iconUrls = useMemo(
-    () => ({
-      generic: Image.resolveAssetSource(require("../../assets/icons/waypoints/generic.png")).uri,
-      water: Image.resolveAssetSource(require("../../assets/icons/waypoints/water.png")).uri,
-      campsite: Image.resolveAssetSource(require("../../assets/icons/waypoints/campsite.png")).uri,
-      roadAccess: Image.resolveAssetSource(require("../../assets/icons/waypoints/road-access-point.png")).uri,
-      intersection: Image.resolveAssetSource(require("../../assets/icons/waypoints/intersection.png")).uri,
-      hazard: Image.resolveAssetSource(require("../../assets/icons/waypoints/hazard.png")).uri,
-      landmark: Image.resolveAssetSource(require("../../assets/icons/waypoints/landmark.png")).uri,
-      parkingTrailhead: Image.resolveAssetSource(require("../../assets/icons/waypoints/parking-trailhead.png")).uri,
-    }),
-    []
-  );
+
 
   useEffect(() => {
     if (!isReady) return;
@@ -172,6 +222,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       webRef.current?.injectJavaScript(`window.__panTo(${lat}, ${lng}); true;`);
     }
   };
+
 
   return (
     <View style={styles.container}>

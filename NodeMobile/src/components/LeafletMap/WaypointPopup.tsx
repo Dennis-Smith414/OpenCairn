@@ -5,98 +5,132 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from "react-native";
 import { colors } from "../../styles/theme";
+import { useDistanceUnit } from "../../context/DistanceUnitContext";
+
 
 interface WaypointPopupProps {
   visible: boolean;
   name: string;
+  description: string;
   type: string;
+  username: string;
+  dateUploaded: string;
+  distance?: number;
   votes: number;
   onUpvote: () => void;
   onDownvote: () => void;
   onExpand: () => void;
   onClose: () => void;
+  iconRequire?: any;
 }
 
 export const WaypointPopup: React.FC<WaypointPopupProps> = ({
   visible,
   name,
+  description,
   type,
+  username,
+  dateUploaded,
+  distance,
   votes,
   onUpvote,
   onDownvote,
   onExpand,
   onClose,
+  iconRequire,
 }) => {
-  const slideAnim = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
-
-  // Local display state so we can smoothly animate out
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const { convertDistance } = useDistanceUnit();
   const [displayData, setDisplayData] = useState({
     name: "",
+    description: "",
     type: "generic",
+    username: "",
+    dateUploaded: "",
+    distance: undefined as number | undefined,
     votes: 0,
   });
 
-  // update local data when visible becomes true
   useEffect(() => {
     if (visible) {
-      setDisplayData({ name, type, votes });
+      setDisplayData({ name, description, type, username, dateUploaded, distance, votes });
     }
-  }, [visible, name, type, votes]);
+  }, [visible, name, description, type, username, dateUploaded, distance, votes]);
 
-  // slide animation
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: visible ? 1 : 0,
       duration: 250,
       useNativeDriver: true,
     }).start(() => {
-      // after hiding, clear local data so ghost content disappears
       if (!visible) {
-        setDisplayData({ name: "", type: "generic", votes: 0 });
+        setDisplayData({
+          name: "",
+          description: "",
+          username: "",
+          dateUploaded: "",
+          distance: undefined,
+          votes: 0,
+        });
       }
     });
   }, [visible]);
 
   const translateY = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [150, 0], // slide up from bottom
+    outputRange: [150, 0],
   });
 
   if (!visible && slideAnim.__getValue() === 0) return null;
 
-  // temporary type icon mapping
-  const icons: Record<string, string> = {
-    water: "💧",
-    campsite: "⛺",
-    hazard: "⚠️",
-    "road-access-point": "🛣️",
-    intersection: "🔀",
-    landmark: "📍",
-    "parking-trailhead": "🅿️",
-    generic: "📍",
-  };
-  const icon = icons[displayData.type] || "📍";
+  // Format helpers
+  const formattedDate = displayData.dateUploaded
+    ? new Date(displayData.dateUploaded).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+
+
+  const formattedDistance =
+    displayData.distance !== undefined
+      ? convertDistance(displayData.distance)
+      : "";
+
 
   return (
     <Animated.View
       style={[
         styles.container,
-        {
-          transform: [{ translateY }],
-          opacity: slideAnim,
-        },
+        { transform: [{ translateY }], opacity: slideAnim },
       ]}
     >
       <TouchableOpacity activeOpacity={0.9} onPress={onExpand}>
         <View style={styles.row}>
-          <Text style={styles.icon}>{icon}</Text>
+          {iconRequire ? (
+            <Image
+              source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
+              style={styles.iconImage}
+              resizeMode="contain"
+            />
+
+          ) : (
+            <View style={[styles.iconImage, styles.placeholderIcon]} />
+          )}
+
           <View style={styles.info}>
-            <Text style={styles.title}>
-              {displayData.name || "Waypoint"}
+            <Text style={styles.title}>{displayData.name || "Waypoint"}</Text>
+            <Text style={styles.desc} numberOfLines={2}>
+              {displayData.description || "No description provided."}
             </Text>
-            <Text style={styles.subtitle}>{displayData.type}</Text>
+            <Text style={styles.meta}>
+              {formattedDate} • {displayData.username}
+              {formattedDistance ? ` • ${formattedDistance}` : ""}
+            </Text>
           </View>
 
           <View style={styles.voteContainer}>
@@ -133,9 +167,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  icon: {
-    fontSize: 28,
+  iconImage: {
+    width: 36,
+    height: 36,
     marginRight: 12,
+    borderRadius: 8,
+  },
+  placeholderIcon: {
+    backgroundColor: "#ddd",
   },
   info: {
     flex: 1,
@@ -144,11 +183,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
+    marginBottom: 2,
   },
-  subtitle: {
+  desc: {
     fontSize: 13,
     color: colors.textSecondary,
-    textTransform: "capitalize",
+    marginBottom: 4,
+  },
+  meta: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   voteContainer: {
     alignItems: "center",

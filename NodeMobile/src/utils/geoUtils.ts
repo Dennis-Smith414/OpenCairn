@@ -1,6 +1,7 @@
-//Utillity for the Geo features
+//Utility for the Geo features
 import { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { LatLng } from '../components/LeafletMap/LeafletMap'; // Adjust path as needed
+import haversine from "haversine-distance";
 
 export function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] {
   if (!geo) return [];
@@ -9,4 +10,12 @@ export function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): La
   if (geo.type === 'LineString') return geo.coordinates.map(([lng, lat]) => [lat, lng]);
   if (geo.type === 'MultiLineString') return geo.coordinates.map(([lng, lat]) => [lat, lng] as unknown as LatLng); //<--GET THIS OUT ASAP!!!, type asserting for testing only, UNSAFE!!
   return [];
+}
+
+export function getDistanceMeters(a: LatLng, b: LatLng): number {
+  try {
+    return haversine(a, b);
+  } catch {
+    return NaN;
+  }
 }
