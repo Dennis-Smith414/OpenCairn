@@ -4,55 +4,56 @@ import RNFS from 'react-native-fs';
 export async function uploadGpxFile(fileUri: string, token?: string) {
   if (!fileUri) throw new Error('Invalid file URI');
 
-  // Derive filename
-  const filename = fileUri.split('/').pop() || 'route.gpx';
+  // ✅ Ensure the URI is absolute (Android sometimes omits 'file://')
+  const safeUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+
+  // Derive filename from the URI
+  const filename = safeUri.split('/').pop() || 'route.gpx';
+
+  // ✅ Use your local backend running in the emulator bridge
   const API_BASE = 'http://10.0.2.2:5100';
 
-  //Read file as base64, then convert to Blob-like object for FormData
-  const base64Data = await RNFS.readFile(fileUri, 'base64');
-  const file = {
-    uri: fileUri,
-    name: filename,
-    type: 'application/gpx+xml',
-    data: base64Data,
-  };
 
   const formData = new FormData();
 
-  // For Android, FormData expects a 'uri', not base64 directly.
-  // But RNFS files are already 'file://' URIs now, so this is okay.
+  // Append the file properly for React Native + Express + Multer
+  // React Native's FormData expects the file object to contain:
+  // - uri (must start with "file://")
+  // - type (MIME type)
+  // - name (filename)
   formData.append('file', {
-    uri: file.uri,
-    type: file.type,
-    name: file.name,
+    uri: safeUri,
+    type: 'application/gpx+xml',
+    name: filename,
   } as any);
 
-  console.log('[uploadGpxFile] Uploading', filename, fileUri);
-  console.log('[uploadGpxFile] FormData inspection:');
-  (formData as any)._parts?.forEach((part: any, i: number) => {
-    console.log('  Part', i, JSON.stringify(part[0]), '=>', JSON.stringify(part[1]));
+  console.log('[uploadGpxFile] Uploading:', filename);
+  console.log('[uploadGpxFile] Safe URI:', safeUri);
+
+  // fetch() will set the correct multipart/form-data boundary automatically.
+  const res = await fetch(`${API_BASE}/api/routes/upload`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
   });
 
-  const res = await fetch(`${API_BASE}/api/routes/upload`, {
-      method: 'POST',
-      headers: token
-        ? { Authorization: `Bearer ${token}` }
-        : undefined,
-      body: formData,
-    });
-
-  let json;
+  // Safely parse response text as JSON
+  const text = await res.text();
+  let json: any;
   try {
-    json = await res.json();
-  } catch (e) {
-    const text = await res.text();
-    console.error('Non-JSON response:', text);
+    json = JSON.parse(text);
+  } catch {
+    console.error('[uploadGpxFile] Non-JSON response:', text);
     throw new Error(`Unexpected server response: ${text}`);
   }
 
-  if (!res.ok) {
-    throw new Error(json.error || 'Upload failed');
+  if (!res.ok || !json.ok) {
+    throw new Error(json?.error || `Upload failed (${res.status})`);
   }
 
+  console.log('[uploadGpxFile] Upload successful:', json);
   return json;
 }

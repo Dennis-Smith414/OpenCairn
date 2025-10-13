@@ -1,5 +1,11 @@
 // src/lib/api.ts
-export const API_BASE = 'http://10.0.2.2:5100';
+/* import { API_BASE } from "@env";
+
+if (!API_BASE) {
+  console.error("[boot] ❌ No API_BASE found. Check your .env file path and contents.");
+  throw new Error("Missing API_BASE");
+} */
+export const API_BASE = 'http://10.0.2.2:5100'
 
 export async function fetchRouteList() {
   const res = await fetch(`${API_BASE}/api/routes/list`);
