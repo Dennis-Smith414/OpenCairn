@@ -23,7 +23,7 @@ export default function RouteCreateScreen({ navigation }: any) {
     const [fileName, setFileName] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const { userToken } = useAuth();
-    const {API_BASE} = BASE;
+    const API_BASE = BASE;
 
     const pickFile = async () => {
         try {
