@@ -10,6 +10,7 @@ import LeafletMap, { LatLng } from "../components/LeafletMap/LeafletMap";
 import { colors } from "../styles/theme";
 import { fetchWaypoints } from "../lib/waypoints";
 import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
+import { WaypointDetail } from "../components/LeafletMap/WaypointDetail";
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
@@ -24,6 +25,7 @@ const MapScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [initialLocationLoaded, setInitialLocationLoaded] = useState(false);
   const [selectedWaypoint, setSelectedWaypoint] = useState<any | null>(null);
+  const [showWaypointDetail, setShowWaypointDetail] = useState(false);
   const watchIdRef = useRef<number | null>(null);
 
   const {
@@ -164,16 +166,22 @@ const MapScreen: React.FC = () => {
     // LeafletHTML + LeafletMap now handle the temp marker + popup
   };
 
-  const handleExpandWaypoint = () => {
-    if (selectedWaypoint?.name === "Marked Location") {
-      navigation.navigate("WaypointCreate", {
-        lat: selectedWaypoint.lat,
-        lon: selectedWaypoint.lon,
-      });
-    } else {
-      console.log("Expand details for waypoint:", selectedWaypoint?.id);
-    }
-  };
+    const handleExpandWaypoint = () => {
+      if (selectedWaypoint?.name === "Marked Location") {
+        navigation.navigate("WaypointCreate", {
+          lat: selectedWaypoint.lat,
+          lon: selectedWaypoint.lon,
+        });
+      } else {
+        setShowWaypointDetail(true);
+      }
+    };
+
+    const handleCloseWaypointDetail = () => {
+      setShowWaypointDetail(false);
+      setSelectedWaypoint(null);
+    };
+
 
   return (
     <View style={styles.container}>
@@ -184,8 +192,18 @@ const MapScreen: React.FC = () => {
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}
         waypoints={waypoints}
-        onWaypointPress={(wp) => setSelectedWaypoint(wp)}
+        onWaypointPress={(wp) => {
+          if (!wp) {
+            // 🧭 User tapped off-map: clear both popup and detail
+            setSelectedWaypoint(null);
+            setShowWaypointDetail(false);
+          } else {
+            // 🪧 User tapped a waypoint
+            setSelectedWaypoint(wp);
+          }
+        }}
       />
+
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>
@@ -197,7 +215,7 @@ const MapScreen: React.FC = () => {
       )}
 
       <WaypointPopup
-        visible={!!selectedWaypoint}
+        visible={!!selectedWaypoint && !showWaypointDetail}
         name={selectedWaypoint?.name ?? ""}
         description={selectedWaypoint?.description ?? ""}
         type={selectedWaypoint?.type}
@@ -212,17 +230,28 @@ const MapScreen: React.FC = () => {
         onClose={() => setSelectedWaypoint(null)}
       />
 
+      <WaypointDetail
+        visible={showWaypointDetail}
+        name={selectedWaypoint?.name ?? ""}
+        description={selectedWaypoint?.description ?? ""}
+        type={selectedWaypoint?.type ?? "generic"}
+        username={selectedWaypoint?.username ?? "Unknown user"}
+        dateUploaded={selectedWaypoint?.created_at ?? ""}
+        distance={selectedWaypoint?.distance}
+        votes={selectedWaypoint?.votes ?? 0}
+        onUpvote={() => console.log("Upvoted", selectedWaypoint?.id)}
+        onDownvote={() => console.log("Downvoted", selectedWaypoint?.id)}
+        onClose={handleCloseWaypointDetail}
+        iconRequire={selectedWaypoint?.iconRequire}
+      />
+
+
       {showError && (
         <View style={styles.overlay}>
           <Text style={styles.errorText}>{error || locationError}</Text>
         </View>
       )}
 
-      {location && (
-        <View style={styles.trackingIndicator}>
-          <Text style={styles.trackingText}>• Tracking</Text>
-        </View>
-      )}
     </View>
   );
 };

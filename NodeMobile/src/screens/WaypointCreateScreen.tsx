@@ -61,7 +61,7 @@ export default function WaypointCreateScreen({ navigation }: any) {
     }
 
     try {
-        const token = userToken; // ✅ Use real JWT
+        const token = userToken;
         if (!token) {
           Alert.alert("Not logged in", "You must be logged in to create a waypoint.");
           return;

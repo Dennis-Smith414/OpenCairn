@@ -158,6 +158,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
           case "MAP_TAP":
             onWaypointPress?.(null);
             break;
+
           case "USER_GESTURE":
             // user dragged/zoomed → stop following
             setTracking(false);
