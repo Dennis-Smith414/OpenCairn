@@ -44,6 +44,7 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
 }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { convertDistance } = useDistanceUnit();
+
   const [displayData, setDisplayData] = useState({
     name: "",
     description: "",
@@ -59,6 +60,9 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
       setDisplayData({ name, description, type, username, dateUploaded, distance, votes });
     }
   }, [visible, name, description, type, username, dateUploaded, distance, votes]);
+
+  const isMarkedLocation =
+    !displayData.name || displayData.name === "Marked Location";
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -124,24 +128,38 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
 
           <View style={styles.info}>
             <Text style={styles.title}>{displayData.name || "Waypoint"}</Text>
+            {!isMarkedLocation && (
             <Text style={styles.desc} numberOfLines={2}>
               {displayData.description || "No description provided."}
             </Text>
+            )}
             <Text style={styles.meta}>
-              {formattedDate} • {displayData.username}
+              {formattedDate} {displayData.username ? ` • ${displayData.username}` : ""}
               {formattedDistance ? ` • ${formattedDistance}` : ""}
             </Text>
           </View>
 
-          <View style={styles.voteContainer}>
-            <TouchableOpacity onPress={onUpvote}>
-              <Text style={styles.voteButton}>⬆️</Text>
+          {!isMarkedLocation && (
+            <View style={styles.voteContainer}>
+              <TouchableOpacity onPress={onUpvote}>
+                <Text style={styles.voteButton}>⬆️</Text>
+              </TouchableOpacity>
+              <Text style={styles.voteCount}>{displayData.votes}</Text>
+              <TouchableOpacity onPress={onDownvote}>
+                <Text style={styles.voteButton}>⬇️</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {displayData.name === "Marked Location" && (
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={onExpand} // we’ll repurpose onExpand for creation
+            >
+              <Text style={styles.createButtonText}>Create Waypoint</Text>
             </TouchableOpacity>
-            <Text style={styles.voteCount}>{displayData.votes}</Text>
-            <TouchableOpacity onPress={onDownvote}>
-              <Text style={styles.voteButton}>⬇️</Text>
-            </TouchableOpacity>
-          </View>
+          )}
+
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -208,4 +226,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
   },
+  createButton: {
+    marginTop: 12,
+    backgroundColor: colors.accent,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  createButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
 });

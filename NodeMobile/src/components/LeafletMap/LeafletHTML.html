@@ -34,23 +34,30 @@
     };
 
     const map = L.map('map', { zoomControl: true });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     map.setView([37.7749, -122.4194], 13);
 
     window.__lineColor = '#2196F3';
     window.__lineWeight = 4;
 
+    // --- state ---
     let currentPolyline = null;
     let userMarker = null;
-    let tempMarker = null;
+    let tempMarker = null;           // 👈 temp marker (mirrors user marker)
     let longPressTimeout;
     let waypointMarkers = [];
 
+    // --- icons ---
     const userIcon = L.divIcon({
       className: 'user-location-marker',
       html: '<div style="background:#4285F4;width:10px;height:10px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    const tempIcon = L.divIcon({
+      className: 'marked-location-marker',
+      html: '<div style="background:#DDDDDD;width:10px;height:10px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
       iconSize: [20, 20],
       iconAnchor: [10, 10]
     });
@@ -82,6 +89,26 @@
       }
     };
 
+    // 👇 Exact same behavior as user marker, but for the temp/marked location
+    window.__setTempLocation = function(lat, lng) {
+      if (tempMarker) {
+        tempMarker.setLatLng([lat, lng]);
+      } else {
+        tempMarker = L.marker([lat, lng], {
+          icon: tempIcon,
+          zIndexOffset: 900
+        }).addTo(map);
+        tempMarker.bindPopup('Marked Location');
+      }
+    };
+
+    window.__removeTempLocation = function() {
+      if (tempMarker) {
+        map.removeLayer(tempMarker);
+        tempMarker = null;
+      }
+    };
+
     window.__setCoords = function(payload) {
       const coords = (payload?.coords) || [];
       if (!coords.length) return;
@@ -103,14 +130,8 @@
       const { lat, lng } = e.latlng;
       if (!lat || !lng) return;
 
-      if (tempMarker) map.removeLayer(tempMarker);
-      tempMarker = L.circleMarker([lat, lng], {
-        radius: 6,
-        color: '#40E0D0',
-        weight: 2,
-        fillColor: '#40E0D0',
-        fillOpacity: 0.9
-      }).addTo(map);
+      // Drop/update the temp marker exactly like user marker
+      window.__setTempLocation(lat, lng);
 
       console.log('LONG_PRESS fired', lat, lng);
       try {
@@ -127,9 +148,10 @@
     });
     map.on('touchend dragstart zoomstart', () => clearTimeout(longPressTimeout));
 
-    // === Context menu fallback ===
+    // === Context menu fallback (desktop long-press) ===
     map.on('contextmenu', (e) => {
       console.log('Context menu fallback fired', e.latlng);
+      window.__setTempLocation(e.latlng.lat, e.latlng.lng);
       window.ReactNativeWebView?.postMessage(JSON.stringify({
         type: 'LONG_PRESS',
         lat: e.latlng.lat,
@@ -142,6 +164,7 @@
       try {
         const { waypoints, iconUrls } = payload || {};
 
+        // Clear existing waypoint markers only
         if (Array.isArray(window.__waypointMarkers)) {
           window.__waypointMarkers.forEach(m => map.removeLayer(m));
         }
@@ -180,6 +203,9 @@
               if (e?.originalEvent?.stopPropagation) {
                 e.originalEvent.stopPropagation();
               }
+              // Clear the temp marker when selecting a real waypoint
+              window.__removeTempLocation();
+
               console.log("Waypoint clicked:", wp.name);
               window.ReactNativeWebView?.postMessage(
                 JSON.stringify({ type: "WAYPOINT_CLICK", waypoint: wp })
@@ -209,6 +235,9 @@
         if (e.originalEvent?.target?.closest(".leaflet-interactive")) {
           return; // ignore marker clicks
         }
+        // Clear temp marker and let RN clear popup
+        window.__removeTempLocation();
+
         console.log("Map tap -> clear popup");
         window.ReactNativeWebView?.postMessage(JSON.stringify({ type: "MAP_TAP" }));
       } catch (err) {

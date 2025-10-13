@@ -103,9 +103,31 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
             onMapReady?.();
             break;
 
-          case "LONG_PRESS":
-            onMapLongPress?.(data.lat, data.lon);
+          case "LONG_PRESS": {
+            const { lat, lon } = data;
+
+            const wp = {
+              id: null,
+              name: "Marked Location",
+              description: "",
+              type: "generic",
+              username: "",
+              created_at: new Date().toISOString(),
+              lat,
+              lon,
+            };
+
+            if (userLocation) {
+              const meters = getDistanceMeters(userLocation, [lat, lon]);
+              wp.distance = meters;
+            }
+
+            wp.iconRequire = rnIcons.generic;
+
+            onWaypointPress?.(wp);
             break;
+          }
+
 
           case "WAYPOINT_CLICK":
             if (data.waypoint) {

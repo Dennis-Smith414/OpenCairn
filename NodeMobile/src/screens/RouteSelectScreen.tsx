@@ -45,11 +45,6 @@ export default function RouteSelectScreen({ navigation }: any) {
     loadRoutes();
   }, [loadRoutes]);
 
-  const confirmSelection = () => {
-    console.log("[RouteSelect] Navigating with global routes =", selectedRoutes);
-    navigation.navigate("Map");
-  };
-
   if (loading) {
     return (
       <View style={baseStyles.container}>
@@ -110,15 +105,6 @@ export default function RouteSelectScreen({ navigation }: any) {
         }}
         ListEmptyComponent={<Text style={baseStyles.subText}>No routes found.</Text>}
       />
-
-      {selectedRouteIds.length > 0 && (
-        <TouchableOpacity
-          style={[baseStyles.button, { marginTop: 16 }]}
-          onPress={confirmSelection}
-        >
-          <Text style={baseStyles.buttonText}>Show on Map</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }

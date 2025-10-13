@@ -15,6 +15,7 @@ import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useAuth } from "../context/AuthContext";
 
 
+
 export default function WaypointCreateScreen({ navigation }: any) {
     const route = useRoute<any>();
     const { selectedRoutes } = useRouteSelection();
