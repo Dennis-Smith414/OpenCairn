@@ -11,65 +11,43 @@ import {
 } from "react-native";
 import { colors } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
+import { useAuth } from "../../context/AuthContext";
+import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
 
 interface WaypointDetailProps {
   visible: boolean;
+  id?: number;
   name: string;
   description: string;
   type: string;
   username: string;
   dateUploaded: string;
   distance?: number;
-  votes: number;
-  upvotePercentage?: number; // future implementation
-  onUpvote: () => void;
-  onDownvote: () => void;
-  onClose: () => void;
   iconRequire?: any;
+  onClose: () => void;
 }
 
 export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   visible,
+  id,
   name,
   description,
   type,
   username,
   dateUploaded,
   distance,
-  votes,
-  upvotePercentage,
-  onUpvote,
-  onDownvote,
-  onClose,
   iconRequire,
+  onClose,
 }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { convertDistance } = useDistanceUnit();
+  const { userToken } = useAuth();
 
-  const [displayData, setDisplayData] = useState({
-    name: "",
-    description: "",
-    type: "generic",
-    username: "",
-    dateUploaded: "",
-    distance: undefined as number | undefined,
-    votes: 0,
-  });
+  const [votes, setVotes] = useState(0);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [loadingVote, setLoadingVote] = useState(false);
 
-  useEffect(() => {
-    if (visible) {
-      setDisplayData({
-        name,
-        description,
-        type,
-        username,
-        dateUploaded,
-        distance,
-        votes,
-      });
-    }
-  }, [visible, name, description, type, username, dateUploaded, distance, votes]);
-
+  // --- Animate slide in/out ---
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: visible ? 1 : 0,
@@ -78,15 +56,35 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     }).start();
   }, [visible]);
 
-  const translateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [400, 0],
-  });
+  // --- Fetch live rating when visible ---
+  useEffect(() => {
+    if (visible && id && userToken) {
+      fetchWaypointRating(id, userToken)
+        .then((r) => {
+          setVotes(r.total);
+          setUserRating(r.user_rating);
+        })
+        .catch((err) => console.warn("Failed to fetch rating:", err));
+    }
+  }, [visible, id, userToken]);
 
-  if (!visible && slideAnim.__getValue() === 0) return null;
+  const handleVote = async (val: 1 | -1) => {
+    if (!id || !userToken || loadingVote) return;
+    setLoadingVote(true);
+    try {
+      const result = await submitWaypointVote(id, val, userToken);
+      setVotes(result.total);
+      setUserRating(result.user_rating);
+    } catch (err) {
+      console.error("Vote failed:", err);
+    } finally {
+      setLoadingVote(false);
+    }
+  };
 
-  const formattedDate = displayData.dateUploaded
-    ? new Date(displayData.dateUploaded).toLocaleDateString(undefined, {
+  // --- Formatters ---
+  const formattedDate = dateUploaded
+    ? new Date(dateUploaded).toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -94,9 +92,14 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     : "";
 
   const formattedDistance =
-    displayData.distance !== undefined
-      ? convertDistance(displayData.distance)
-      : "";
+    distance !== undefined ? convertDistance(distance) : "";
+
+  const translateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [400, 0],
+  });
+
+  if (!visible && slideAnim.__getValue() === 0) return null;
 
   return (
     <Animated.View
@@ -107,25 +110,19 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     >
       {/* Header Section */}
       <View style={styles.header}>
-        <View style={styles.iconWrapper}>
-          <Image
-            source={
-              iconRequire || require("../../assets/icons/waypoints/generic.png")
-            }
-            style={styles.iconImage}
-            resizeMode="contain"
-          />
-        </View>
-
+        <Image
+          source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
+          style={styles.iconImage}
+          resizeMode="contain"
+        />
         <View style={styles.headerInfo}>
-          <Text style={styles.title}>{displayData.name}</Text>
+          <Text style={styles.title}>{name}</Text>
           <Text style={styles.meta}>
             {formattedDate}
-            {displayData.username ? ` • ${displayData.username}` : ""}
+            {username ? ` • ${username}` : ""}
             {formattedDistance ? ` • ${formattedDistance}` : ""}
           </Text>
         </View>
-
         <TouchableOpacity onPress={onClose}>
           <Text style={styles.closeButton}>✕</Text>
         </TouchableOpacity>
@@ -134,32 +131,46 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
       {/* Scrollable content */}
       <ScrollView style={styles.content}>
         <Text style={styles.description}>
-          {displayData.description || "No description provided."}
+          {description || "No description provided."}
         </Text>
 
-        {/* Upvote Section */}
+        {/* Voting */}
         <View style={styles.votingSection}>
-          <TouchableOpacity onPress={onUpvote}>
-            <Text style={styles.voteButton}>⬆️</Text>
+          <TouchableOpacity
+            onPress={() => handleVote(1)}
+            disabled={loadingVote}
+          >
+            <Text
+              style={[
+                styles.voteButton,
+                userRating === 1 && { color: colors.accent },
+              ]}
+            >
+              ⬆️
+            </Text>
           </TouchableOpacity>
-          <Text style={styles.voteCount}>{displayData.votes}</Text>
-          <TouchableOpacity onPress={onDownvote}>
-            <Text style={styles.voteButton}>⬇️</Text>
+
+          <Text style={styles.voteCount}>{votes}</Text>
+
+          <TouchableOpacity
+            onPress={() => handleVote(-1)}
+            disabled={loadingVote}
+          >
+            <Text
+              style={[
+                styles.voteButton,
+                userRating === -1 && { color: colors.error || "#d33" },
+              ]}
+            >
+              ⬇️
+            </Text>
           </TouchableOpacity>
         </View>
-
-        {upvotePercentage !== undefined && (
-          <Text style={styles.upvotePercent}>
-            {`Upvote Score: ${Math.round(upvotePercentage)}%`}
-          </Text>
-        )}
 
         {/* Comments Section Placeholder */}
         <View style={styles.commentsSection}>
           <Text style={styles.commentsHeader}>Comments</Text>
-          <Text style={styles.commentPlaceholder}>
-            Comments coming soon...
-          </Text>
+          <Text style={styles.commentPlaceholder}>Comments coming soon...</Text>
         </View>
       </ScrollView>
     </Animated.View>
@@ -189,14 +200,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  iconWrapper: {
+  iconImage: {
     width: 40,
     height: 40,
     marginRight: 12,
-  },
-  iconImage: {
-    width: "100%",
-    height: "100%",
   },
   headerInfo: {
     flex: 1,
@@ -237,11 +244,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
-  },
-  upvotePercent: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 16,
   },
   commentsSection: {
     borderTopWidth: 1,

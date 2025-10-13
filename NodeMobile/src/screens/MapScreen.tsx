@@ -216,31 +216,27 @@ const MapScreen: React.FC = () => {
 
       <WaypointPopup
         visible={!!selectedWaypoint && !showWaypointDetail}
+        id={selectedWaypoint?.id}
         name={selectedWaypoint?.name ?? ""}
         description={selectedWaypoint?.description ?? ""}
         type={selectedWaypoint?.type}
         username={selectedWaypoint?.username ?? "Unknown user"}
         dateUploaded={selectedWaypoint?.created_at ?? ""}
         distance={selectedWaypoint?.distance}
-        votes={selectedWaypoint?.votes ?? 0}
         iconRequire={selectedWaypoint?.iconRequire}
-        onUpvote={() => console.log("Upvoted", selectedWaypoint?.id)}
-        onDownvote={() => console.log("Downvoted", selectedWaypoint?.id)}
         onExpand={handleExpandWaypoint}
         onClose={() => setSelectedWaypoint(null)}
       />
 
       <WaypointDetail
         visible={showWaypointDetail}
+        id={selectedWaypoint?.id}
         name={selectedWaypoint?.name ?? ""}
         description={selectedWaypoint?.description ?? ""}
         type={selectedWaypoint?.type ?? "generic"}
         username={selectedWaypoint?.username ?? "Unknown user"}
         dateUploaded={selectedWaypoint?.created_at ?? ""}
         distance={selectedWaypoint?.distance}
-        votes={selectedWaypoint?.votes ?? 0}
-        onUpvote={() => console.log("Upvoted", selectedWaypoint?.id)}
-        onDownvote={() => console.log("Downvoted", selectedWaypoint?.id)}
         onClose={handleCloseWaypointDetail}
         iconRequire={selectedWaypoint?.iconRequire}
       />

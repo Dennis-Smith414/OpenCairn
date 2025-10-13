@@ -86,8 +86,6 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       []
     );
 
-    console.log("🧭 iconUrls available:", Object.keys(iconUrls));
-
   // --- messages from HTML ---
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -136,10 +134,6 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 
               //For popup display in React Native
               wp.iconRequire = rnIcons[typeKey] || rnIcons.generic;
-
-
-
-              console.log("✅ waypoint iconUrl:", wp.iconRequire);
 
               //For distance
               if (userLocation) {

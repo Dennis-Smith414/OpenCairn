@@ -9,19 +9,18 @@ import {
 } from "react-native";
 import { colors } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
-
+import { useAuth } from "../../context/AuthContext";
+import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
 
 interface WaypointPopupProps {
   visible: boolean;
+  id?: number;
   name: string;
   description: string;
   type: string;
   username: string;
   dateUploaded: string;
   distance?: number;
-  votes: number;
-  onUpvote: () => void;
-  onDownvote: () => void;
   onExpand: () => void;
   onClose: () => void;
   iconRequire?: any;
@@ -29,21 +28,20 @@ interface WaypointPopupProps {
 
 export const WaypointPopup: React.FC<WaypointPopupProps> = ({
   visible,
+  id,
   name,
   description,
   type,
   username,
   dateUploaded,
   distance,
-  votes,
-  onUpvote,
-  onDownvote,
   onExpand,
   onClose,
   iconRequire,
 }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { convertDistance } = useDistanceUnit();
+  const { userToken } = useAuth();
 
   const [displayData, setDisplayData] = useState({
     name: "",
@@ -52,18 +50,37 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
     username: "",
     dateUploaded: "",
     distance: undefined as number | undefined,
-    votes: 0,
   });
 
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [loadingVote, setLoadingVote] = useState(false);
+  const [totalVotes, setTotalVotes] = useState(0);
+
+  // --- Load waypoint details when visible ---
   useEffect(() => {
     if (visible) {
-      setDisplayData({ name, description, type, username, dateUploaded, distance, votes });
+      setDisplayData({
+        name,
+        description,
+        type,
+        username,
+        dateUploaded,
+        distance,
+      });
+
+      // Fetch live rating when popup opens
+      if (id && userToken) {
+        fetchWaypointRating(id, userToken)
+          .then((r) => {
+            setTotalVotes(r.total);
+            setUserRating(r.user_rating);
+          })
+          .catch((err) => console.warn("Failed to fetch rating:", err));
+      }
     }
-  }, [visible, name, description, type, username, dateUploaded, distance, votes]);
+  }, [visible, id, name, description, type, username, dateUploaded, distance, userToken]);
 
-  const isMarkedLocation =
-    !displayData.name || displayData.name === "Marked Location";
-
+  // --- Animate in/out ---
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: visible ? 1 : 0,
@@ -77,8 +94,8 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
           username: "",
           dateUploaded: "",
           distance: undefined,
-          votes: 0,
         });
+        setUserRating(null);
       }
     });
   }, [visible]);
@@ -90,7 +107,29 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
 
   if (!visible && slideAnim.__getValue() === 0) return null;
 
-  // Format helpers
+  // --- Voting handler ---
+const handleVote = async (val: 1 | -1) => {
+  if (!id || !userToken || loadingVote) {
+    console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
+    return;
+  }
+
+  setLoadingVote(true);
+
+  try {
+    const result = await submitWaypointVote(id, val, userToken);
+    setTotalVotes(result.total);
+    setUserRating(result.user_rating);
+  } catch (err) {
+    console.error("❌ Vote failed:", err);
+  } finally {
+    setLoadingVote(false);
+  }
+};
+
+
+
+  // --- Formatting ---
   const formattedDate = displayData.dateUploaded
     ? new Date(displayData.dateUploaded).toLocaleDateString(undefined, {
         month: "short",
@@ -99,12 +138,13 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
       })
     : "";
 
-
   const formattedDistance =
     displayData.distance !== undefined
       ? convertDistance(displayData.distance)
       : "";
 
+  const isMarkedLocation =
+    !displayData.name || displayData.name === "Marked Location";
 
   return (
     <Animated.View
@@ -113,55 +153,75 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
         { transform: [{ translateY }], opacity: slideAnim },
       ]}
     >
-      <TouchableOpacity activeOpacity={0.9} onPress={onExpand}>
-        <View style={styles.row}>
-          {iconRequire ? (
-            <Image
-              source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
-              style={styles.iconImage}
-              resizeMode="contain"
-            />
-
-          ) : (
-            <View style={[styles.iconImage, styles.placeholderIcon]} />
-          )}
-
-          <View style={styles.info}>
-            <Text style={styles.title}>{displayData.name || "Waypoint"}</Text>
-            {!isMarkedLocation && (
-            <Text style={styles.desc} numberOfLines={2}>
-              {displayData.description || "No description provided."}
-            </Text>
+      <View style={styles.row}>
+        {/* === Expandable Info Section === */}
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          activeOpacity={0.9}
+          onPress={onExpand}
+        >
+          <View style={styles.infoSection}>
+            {iconRequire ? (
+              <Image
+                source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
+                style={styles.iconImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={[styles.iconImage, styles.placeholderIcon]} />
             )}
-            <Text style={styles.meta}>
-              {formattedDate} {displayData.username ? ` • ${displayData.username}` : ""}
-              {formattedDistance ? ` • ${formattedDistance}` : ""}
-            </Text>
-          </View>
 
-          {!isMarkedLocation && (
-            <View style={styles.voteContainer}>
-              <TouchableOpacity onPress={onUpvote}>
-                <Text style={styles.voteButton}>⬆️</Text>
-              </TouchableOpacity>
-              <Text style={styles.voteCount}>{displayData.votes}</Text>
-              <TouchableOpacity onPress={onDownvote}>
-                <Text style={styles.voteButton}>⬇️</Text>
-              </TouchableOpacity>
+            <View style={styles.info}>
+              <Text style={styles.title}>{displayData.name || "Waypoint"}</Text>
+              {!isMarkedLocation && (
+                <Text style={styles.desc} numberOfLines={2}>
+                  {displayData.description || "No description provided."}
+                </Text>
+              )}
+              <Text style={styles.meta}>
+                {formattedDate}{" "}
+                {displayData.username ? `• ${displayData.username}` : ""}
+                {formattedDistance ? ` • ${formattedDistance}` : ""}
+              </Text>
             </View>
-          )}
+          </View>
+        </TouchableOpacity>
 
-          {displayData.name === "Marked Location" && (
+        {/* === Voting Section === */}
+        {!isMarkedLocation && (
+          <View style={styles.voteContainer}>
             <TouchableOpacity
-              style={styles.createButton}
-              onPress={onExpand} // we’ll repurpose onExpand for creation
+              onPress={() => handleVote(1)}
+              disabled={loadingVote}
             >
-              <Text style={styles.createButtonText}>Create Waypoint</Text>
+              <Text
+                style={[
+                  styles.voteButton,
+                  userRating === 1 && { color: colors.accent },
+                ]}
+              >
+                ⬆️
+              </Text>
             </TouchableOpacity>
-          )}
 
-        </View>
-      </TouchableOpacity>
+            <Text style={styles.voteCount}>{totalVotes}</Text>
+
+            <TouchableOpacity
+              onPress={() => handleVote(-1)}
+              disabled={loadingVote}
+            >
+              <Text
+                style={[
+                  styles.voteButton,
+                  userRating === -1 && { color: colors.error || "#d33" },
+                ]}
+              >
+                ⬇️
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </Animated.View>
   );
 };
@@ -181,22 +241,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 5,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  row: { flexDirection: "row", alignItems: "center" },
   iconImage: {
     width: 36,
     height: 36,
     marginRight: 12,
     borderRadius: 8,
   },
-  placeholderIcon: {
-    backgroundColor: "#ddd",
-  },
-  info: {
-    flex: 1,
-  },
+  placeholderIcon: { backgroundColor: "#ddd" },
+  info: { flex: 1 },
   title: {
     fontSize: 16,
     fontWeight: "700",
@@ -208,10 +261,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
   },
-  meta: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
+  meta: { fontSize: 12, color: colors.textSecondary },
   voteContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -238,5 +288,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
-
+  infoSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
 });

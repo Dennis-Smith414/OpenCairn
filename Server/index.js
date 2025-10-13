@@ -35,13 +35,15 @@ app.use(express.json());
 const gpxRoutes = require("./routes/gpx");
 const authRoutes = require("./routes/auth");
 const waypointRoutes = require("./routes/waypoints");
-
 const userRoutes = require("./routes/users");
+const ratingRoutes = require("./routes/ratings");
+
 
 // mount the routes under /api
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/waypoints", waypointRoutes);
+app.use("/api/ratings", ratingRoutes);
 app.use("/api", gpxRoutes);
 
 // health
