@@ -1,34 +1,67 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import styles from "./Login.module.css";
-import logo from "../assets/logo.png"; // 
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import logo from "../assets/logo.png";
+import { useNavigate, Link } from "react-router-dom";
+
+const API =
+  (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE ||
+  (window as unknown as { __API_BASE__?: string })?.__API_BASE__ ||
+  "http://localhost:5000";
 
 export default function Login() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
+  const [emailOrUsername, setEmailOrUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [showPwd, setShowPwd] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const navigate = useNavigate();
-  async function onSubmit(e: React.FormEvent) {
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
-    if (!username || !password) {
-      setError("Please enter a username and password.");
+    if (!emailOrUsername || !password) {
+      setError("emailOrUsername and password required");
       return;
     }
 
-    alert(`Logged in as ${username} (demo)`);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrUsername, password }),
+      });
+
+      // Non-2xx -> show API error if present
+      const text = await res.text();
+      let json: { ok?: boolean; token?: string; error?: string } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        /* ignore; json stays {} */
+      }
+
+      if (!res.ok || !json.ok || !json.token) {
+        const msg = json.error || `Login failed (${res.status})`;
+        setError(msg);
+        return;
+      }
+
+      // success: persist token and continue
+      localStorage.setItem("token", json.token);
+      navigate("/", { replace: true }); // adjust if your route is different
+    } catch (err) {
+      setError((err as Error).message || "Network error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        {/* Logo */}
         <img src={logo} alt="OpenCairn Logo" className={styles.logo} />
-
-        {/* Title */}
         <h1 className={styles.title}>Welcome to OpenCairn</h1>
 
         <form onSubmit={onSubmit} className={styles.form}>
@@ -37,20 +70,17 @@ export default function Login() {
             <input
               className={styles.input}
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
+              value={emailOrUsername}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEmailOrUsername(e.target.value)
+              }
+              placeholder="email or username"
               autoComplete="username"
               required
+              disabled={loading}
             />
           </label>
-          <div className="card">
 
-            <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-            
-
-            </div>
-          </div>
           <label className={styles.label}>
             Password
             <div style={{ position: "relative" }}>
@@ -58,15 +88,19 @@ export default function Login() {
                 className={`${styles.input} ${styles.inputWithToggle}`}
                 type={showPwd ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setPassword(e.target.value)
+                }
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
                 onClick={() => setShowPwd((s) => !s)}
                 className={styles.toggle}
+                disabled={loading}
               >
                 {showPwd ? "Hide" : "Show"}
               </button>
@@ -75,22 +109,33 @@ export default function Login() {
 
           {error && <div className={styles.error}>{error}</div>}
 
-          <button type="submit" className={styles.button}>
-            Log In
+          <button type="submit" className={styles.button} disabled={loading}>
+            {loading ? "Logging in…" : "Log In"}
           </button>
+
           <button
             type="button"
             className={styles.Create_button}
-            onClick={() => navigate("/register")}  // must be lowercase to match route
+            onClick={() => navigate("/register")}
+            disabled={loading}
           >
             Create Account
           </button>
-          <button type="submit" className={styles.Map_button}>
+
+          <button type="button" className={styles.Map_button} disabled={loading}>
             Demo Map
           </button>
-            <Link to="/routes">
-                  <button type="button"className={styles.Routes_button}  style={{ width: "100%", padding: 12 }}>Routes</button>
-            </Link>
+
+          <Link to="/routes">
+            <button
+              type="button"
+              className={styles.Routes_button}
+              style={{ width: "100%", padding: 12 }}
+              disabled={loading}
+            >
+              Routes
+            </button>
+          </Link>
         </form>
       </div>
     </div>
