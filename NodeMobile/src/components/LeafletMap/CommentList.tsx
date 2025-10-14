@@ -7,8 +7,8 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { colors } from "../../styles/theme";
 import { fetchComments, postComment, deleteComment } from "../../lib/comments";
@@ -31,7 +31,44 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { token, user } = useAuth();
+  const { userToken, user } = useAuth();
+
+  const loadComments = React.useCallback(async () => {
+      try {
+        const data = await fetchComments(waypointId);
+        setComments(data);
+      } catch (err) {
+        console.error("Error fetching comments:", err);
+      } finally {
+        setLoading(false);
+      }
+    }, [waypointId]);
+
+    useEffect(() => {
+        setLoading(true);
+        loadComments();
+      }, [loadComments]);
+
+    // 📝 Post comment
+      const handleSubmit = async () => {
+        if (!newComment.trim()) return;
+        if (!userToken) {
+          alert("You must be logged in to comment.");
+          return;
+        }
+
+    setSubmitting(true);
+        try {
+          await postComment(waypointId, newComment.trim(), userToken);
+          setNewComment("");
+          await loadComments(); // ← refresh from server
+        } catch (err) {
+          console.error("Failed to post comment:", err);
+          alert("Failed to post comment");
+        } finally {
+          setSubmitting(false);
+        }
+      };
 
   // 🧭 Load comments
   useEffect(() => {
@@ -51,43 +88,11 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     };
   }, [waypointId]);
 
-  // 📝 Post comment
-  const handleSubmit = async () => {
-    if (!newComment.trim()) return;
-    if (!token) {
-      alert("You must be logged in to comment.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Optimistic update
-      const tempComment: Comment = {
-        id: Date.now(),
-        user_id: user?.id || 0,
-        username: user?.username || "You",
-        content: newComment.trim(),
-        create_time: new Date().toISOString(),
-      };
-      setComments((prev) => [tempComment, ...prev]);
-      setNewComment("");
-
-      const realComment = await postComment(waypointId, tempComment.content, token);
-      setComments((prev) =>
-        prev.map((c) => (c.id === tempComment.id ? realComment : c))
-      );
-    } catch (err) {
-      console.error("Failed to post comment:", err);
-      alert("Failed to post comment");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleDelete = async (id: number) => {
-    if (!token) return;
+    if (!userToken) return;
     try {
-      await deleteComment(id, token);
+      await deleteComment(id, userToken);
       setComments((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       console.error("Failed to delete comment:", err);
@@ -122,14 +127,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
     >
-      <FlatList
-        data={comments}
-        renderItem={renderComment}
-        keyExtractor={(item) => item.id.toString()}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No comments yet. Be the first!</Text>
-        }
-      />
+      {/* 💬 Input always visible at top */}
       <View style={styles.inputRow}>
         <TextInput
           value={newComment}
@@ -147,11 +145,22 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
           <Text style={styles.submitText}>Post</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 🧾 Comments scrollable below */}
+      <FlatList
+        data={comments}
+        renderItem={renderComment}
+        keyExtractor={(item) => item.id.toString()}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No comments yet. Be the first!</Text>
+        }
+        contentContainerStyle={{ paddingVertical: 8 }}
+      />
     </KeyboardAvoidingView>
   );
 };
 
-// ⏰ Utility for readable timestamps
+// ⏰ Relative time helper
 function formatRelativeTime(timestamp: string): string {
   const diff = (Date.now() - new Date(timestamp).getTime()) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;
@@ -168,6 +177,32 @@ const styles = StyleSheet.create({
   loading: {
     padding: 20,
     alignItems: "center",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: colors.backgroundSecondary,
+    color: colors.textPrimary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  submitButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  submitText: {
+    color: "#fff",
+    fontWeight: "600",
   },
   commentBox: {
     backgroundColor: colors.card,
@@ -195,32 +230,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.danger || "#c33",
     marginTop: 4,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-    color: colors.textPrimary,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  submitText: {
-    color: "#fff",
-    fontWeight: "600",
   },
   emptyText: {
     textAlign: "center",

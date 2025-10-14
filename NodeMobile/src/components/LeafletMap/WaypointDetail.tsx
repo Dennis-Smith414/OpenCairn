@@ -1,4 +1,3 @@
-// components/LeafletMap/WaypointDetail.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -7,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  ScrollView,
 } from "react-native";
 import { colors } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
@@ -47,7 +45,6 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   const [votes, setVotes] = useState(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [loadingVote, setLoadingVote] = useState(false);
-  const [showComments, setShowComments] = useState(false);
 
   // --- Animate slide in/out ---
   useEffect(() => {
@@ -130,64 +127,51 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Scrollable content */}
-      <ScrollView style={styles.content}>
-        <Text style={styles.description}>
-          {description || "No description provided."}
-        </Text>
+      {/* Description */}
+      <Text style={styles.description}>
+        {description || "No description provided."}
+      </Text>
 
-        {/* Voting */}
-        <View style={styles.votingSection}>
-          <TouchableOpacity
-            onPress={() => handleVote(1)}
-            disabled={loadingVote}
+      {/* Voting */}
+      <View style={styles.votingSection}>
+        <TouchableOpacity
+          onPress={() => handleVote(1)}
+          disabled={loadingVote}
+        >
+          <Text
+            style={[
+              styles.voteButton,
+              userRating === 1 && { color: colors.accent },
+            ]}
           >
-            <Text
-              style={[
-                styles.voteButton,
-                userRating === 1 && { color: colors.accent },
-              ]}
-            >
-              ⬆️
-            </Text>
-          </TouchableOpacity>
+            ⬆️
+          </Text>
+        </TouchableOpacity>
 
-          <Text style={styles.voteCount}>{votes}</Text>
+        <Text style={styles.voteCount}>{votes}</Text>
 
-          <TouchableOpacity
-            onPress={() => handleVote(-1)}
-            disabled={loadingVote}
+        <TouchableOpacity
+          onPress={() => handleVote(-1)}
+          disabled={loadingVote}
+        >
+          <Text
+            style={[
+              styles.voteButton,
+              userRating === -1 && { color: colors.error || "#d33" },
+            ]}
           >
-            <Text
-              style={[
-                styles.voteButton,
-                userRating === -1 && { color: colors.error || "#d33" },
-              ]}
-            >
-              ⬇️
-            </Text>
-          </TouchableOpacity>
+            ⬇️
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Comments (Always visible) */}
+      {id && (
+        <View style={styles.commentsSection}>
+          <Text style={styles.commentsHeader}>Comments</Text>
+          <CommentList waypointId={id} />
         </View>
-
-        {/* Comments Section */}
-                {id && (
-                  <View style={styles.commentsSection}>
-                    <TouchableOpacity
-                      onPress={() => setShowComments((prev) => !prev)}
-                      style={styles.commentToggle}
-                    >
-                      <Text style={styles.commentsHeader}>
-                        {showComments ? "Hide Comments" : "Show Comments"}
-                      </Text>
-                      <Text style={styles.commentArrow}>
-                        {showComments ? "▲" : "▼"}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {showComments && <CommentList waypointId={id} />}
-                  </View>
-                )}
-      </ScrollView>
+      )}
     </Animated.View>
   );
 };
@@ -198,7 +182,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "70%",
+    height: "75%",
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -238,9 +222,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     padding: 4,
   },
-  content: {
-    flex: 1,
-  },
   description: {
     fontSize: 15,
     color: colors.textPrimary,
@@ -249,7 +230,7 @@ const styles = StyleSheet.create({
   votingSection: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   voteButton: {
     fontSize: 22,
@@ -261,6 +242,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   commentsSection: {
+    flex: 1,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 10,
@@ -269,10 +251,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: colors.textPrimary,
-    marginBottom: 6,
-  },
-  commentPlaceholder: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    marginBottom: 8,
   },
 });

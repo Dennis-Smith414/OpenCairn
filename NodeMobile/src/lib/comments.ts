@@ -17,14 +17,18 @@ export async function fetchComments(waypointId: number) {
 }
 
 //Post a new comment (requires auth)
-export async function postComment(waypointId: number, content: string, token: string) {
-  const res = await fetch(`${API_BASE}/api/comments`, {
+export async function postComment(
+  waypointId: number,
+  content: string,
+  token: string
+) {
+  const res = await fetch(`${API_BASE}/api/comments/${waypointId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ waypoint_id: waypointId, content }),
+    body: JSON.stringify({ content }),
   });
 
   const text = await res.text();
@@ -38,6 +42,7 @@ export async function postComment(waypointId: number, content: string, token: st
     throw new Error("Failed to post comment");
   }
 }
+
 
 // Delete a comment (author only)
 export async function deleteComment(commentId: number, token: string) {
