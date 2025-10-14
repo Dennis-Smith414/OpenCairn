@@ -13,6 +13,7 @@ import { colors } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
+import { CommentList } from "./CommentList";
 
 interface WaypointDetailProps {
   visible: boolean;
@@ -46,6 +47,7 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   const [votes, setVotes] = useState(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [loadingVote, setLoadingVote] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   // --- Animate slide in/out ---
   useEffect(() => {
@@ -167,11 +169,24 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Comments Section Placeholder */}
-        <View style={styles.commentsSection}>
-          <Text style={styles.commentsHeader}>Comments</Text>
-          <Text style={styles.commentPlaceholder}>Comments coming soon...</Text>
-        </View>
+        {/* Comments Section */}
+                {id && (
+                  <View style={styles.commentsSection}>
+                    <TouchableOpacity
+                      onPress={() => setShowComments((prev) => !prev)}
+                      style={styles.commentToggle}
+                    >
+                      <Text style={styles.commentsHeader}>
+                        {showComments ? "Hide Comments" : "Show Comments"}
+                      </Text>
+                      <Text style={styles.commentArrow}>
+                        {showComments ? "▲" : "▼"}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showComments && <CommentList waypointId={id} />}
+                  </View>
+                )}
       </ScrollView>
     </Animated.View>
   );
