@@ -37,7 +37,7 @@ const authRoutes = require("./routes/auth");
 const waypointRoutes = require("./routes/waypoints");
 const userRoutes = require("./routes/users");
 const ratingRoutes = require("./routes/ratings");
-const commentsRoutes = require("./routes/comments");
+
 
 // mount the routes under /api
 app.use("/api/auth", authRoutes);
@@ -45,7 +45,6 @@ app.use("/api/users", userRoutes);
 app.use("/api/waypoints", waypointRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api", gpxRoutes);
-app.use("/api/comments", commentsRoutes);
 
 // health
 app.get("/api/health", (req, res) => {

@@ -143,7 +143,7 @@ const MapScreen: React.FC = () => {
     };
   }, [loadWaypoints]);
 
-  // Refetch when the screen regains focus (after creating a waypoint)
+  // 🔁 Refetch when the screen regains focus (after creating a waypoint)
   useFocusEffect(
     useCallback(() => {
       // Clear any open popup when refocusing (optional)
