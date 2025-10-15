@@ -17,7 +17,7 @@ import { StatRow } from "../components/common/StatRow";
 import { EmptyState } from "../components/common/EmptyState";
 import { AccountSection } from "../components/account/AccountSection";
 import { UserItemRow } from "../components/account/UserItemRow";
-import { fetchUserRoutes, fetchUserWaypoints } from "../lib/api";
+import { fetchUserComments, fetchUserRoutes, fetchUserWaypoints } from "../lib/api";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -33,7 +33,10 @@ export default function AccountScreen({ navigation }: any) {
   });
   const [userRoutes, setUserRoutes] = useState<any[]>([]);
   const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
+  const [userComments, setUserComments] = useState<any[]>([]);
 
+    //this fetches pretty much everything,
+    //not just profile and routes
   useEffect(() => {
     const fetchProfileAndRoutes = async () => {
       if (!userToken) return;
@@ -54,6 +57,11 @@ export default function AccountScreen({ navigation }: any) {
 
         const waypointsRes = await fetchUserWaypoints(userToken);
         if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
+
+        const commentsRes = await fetchUserComments(userToken);
+        if (commentsRes.ok) setUserComments(commentsRes.comments);
+
+
       } catch (error) {
         console.error("Failed to fetch profile data / routes:", error);
       }
@@ -150,12 +158,25 @@ export default function AccountScreen({ navigation }: any) {
         expanded={expanded.comments}
         onToggle={() => toggleSection("comments")}
       >
-        <EmptyState
-          icon="💬"
-          title="No comments yet"
-          subtitle="Leave a comment on a waypoint or route to see it here."
-        />
+        {userComments.length > 0 ? (
+          userComments.map((c) => (
+            <UserItemRow
+              key={c.id}
+              title={c.waypoint_name || "Unknown Waypoint"}
+              subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
+              onEdit={() => console.log("Edit comment", c.id)}
+              onDelete={() => console.log("Delete comment", c.id)}
+            />
+          ))
+        ) : (
+          <EmptyState
+            icon="💬"
+            title="No comments yet"
+            subtitle="Leave a comment on a waypoint or route to see it here."
+          />
+        )}
       </AccountSection>
+
 
       <TouchableOpacity
         style={[baseStyles.button, baseStyles.buttonPrimary, styles.logoutButton]}

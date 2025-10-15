@@ -43,16 +43,19 @@ router.post("/:waypointId", authorize, async (req, res) => {
   }
 });
 
-// 🗑️ DELETE comment
 router.delete("/:commentId", authorize, async (req, res) => {
   try {
     const { commentId } = req.params;
     const userId = req.user.id;
 
+    console.log("Deleting comment:", commentId, "by user:", userId);
+
     const existing = await db.get(
       "SELECT * FROM comments WHERE id = $1 AND user_id = $2",
       [commentId, userId]
     );
+    console.log("Existing comment:", existing);
+
     if (!existing)
       return res.status(403).json({ ok: false, error: "Not your comment" });
 
@@ -63,5 +66,6 @@ router.delete("/:commentId", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to delete comment" });
   }
 });
+
 
 module.exports = router;

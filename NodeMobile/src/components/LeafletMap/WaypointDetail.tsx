@@ -246,6 +246,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 10,
+    paddingBottom: 40,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 10,
   },
   commentsHeader: {
     fontSize: 16,

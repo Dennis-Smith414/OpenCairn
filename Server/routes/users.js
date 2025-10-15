@@ -82,5 +82,29 @@ router.get("/me/waypoints", authorize, async (req, res) => {
   }
 });
 
+// ================================================================
+// GET /api/users/me/comments
+// Returns all comments written by the logged-in user
+// ================================================================
+router.get("/me/comments", authorize, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT c.id, c.content, c.create_time, w.name AS waypoint_name
+         FROM comments c
+         LEFT JOIN waypoints w ON c.waypoint_id = w.id
+        WHERE c.user_id = $1
+        ORDER BY c.create_time DESC`,
+      [userId]
+    );
+
+    res.json({ ok: true, comments: result.rows });
+  } catch (err) {
+    console.error("GET /api/users/me/comments error:", err);
+    res.status(500).json({ ok: false, error: "server-error" });
+  }
+});
+
 
 module.exports = router;

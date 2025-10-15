@@ -53,3 +53,30 @@ export async function fetchUserWaypoints(token: string) {
 
   return res.json();
 }
+
+export async function fetchUserComments(token: string) {
+  const res = await fetch(`${API_BASE}/api/users/me/comments`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to load user comments (${res.status})`);
+  }
+
+  return res.json();
+}
+
+
+export async function fetchCurrentUser(token: string) {
+  const res = await fetch(`${API_BASE}/api/users/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
+  const json = await res.json();
+  return json.user;
+}
+
+
