@@ -24,7 +24,7 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 export default function AccountScreen({ navigation }: any) {
-  const { logout, userToken } = useAuth();
+  const { userToken } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [expanded, setExpanded] = useState({
     routes: false,
@@ -177,12 +177,11 @@ export default function AccountScreen({ navigation }: any) {
         )}
       </AccountSection>
 
-
       <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonPrimary, styles.logoutButton]}
-        onPress={logout}
+        style={[baseStyles.button, baseStyles.buttonSecondary, styles.settingsButton]}
+        onPress={() => navigation.navigate("Settings")}
       >
-        <Text style={baseStyles.buttonText}>Log Out</Text>
+        <Text style={baseStyles.buttonText}>Settings</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -193,9 +192,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: "center",
   },
-  logoutButton: {
-    marginTop: 24,
-    marginBottom: 60,
-    alignSelf: "center",
-  },
+
+    settingsButton: {
+      marginTop: 24,
+      alignSelf: "center",
+    },
+
 });

@@ -97,6 +97,10 @@ export default function WaypointCreateScreen({ navigation }: any) {
         paddingVertical: 20,
       }}
     >
+      {/* Back Button */}
+            <TouchableOpacity onPress={() => navigation.goBack()} style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
+            </TouchableOpacity>
       <Text style={baseStyles.headerText}>Create Waypoint</Text>
 
       {/* Name (required) */}
