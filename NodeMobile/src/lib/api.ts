@@ -1,12 +1,14 @@
 // src/lib/api.ts
-import { API_BASE as ENV_API_BASE } from '@env';
+//import { API_BASE as ENV_API_BASE } from '@env';
+import { API_BASE } from '../config/env';
 
-if (!ENV_API_BASE) {
+
+if (!API_BASE) {
   console.error("[boot] ❌ No API_BASE found. Check your .env file path and contents.");
   throw new Error("Missing API_BASE");
 }
 
-export const API_BASE = ENV_API_BASE;
+//export const API_BASE = ENV_API_BASE;
 
 export async function fetchRouteList() {
   const res = await fetch(`${API_BASE}/api/routes/list`);

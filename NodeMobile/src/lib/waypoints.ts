@@ -1,5 +1,6 @@
 // src/lib/waypoint.ts
-import { API_BASE } from "./api";
+//import { API_BASE } from "./api";
+import { API_BASE } from '../config/env';
 
 export interface Waypoint {
   id?: number;

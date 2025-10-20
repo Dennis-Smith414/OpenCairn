@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../lib/api";
+//import { API_BASE } from "../lib/api";
+import { API_BASE } from "../config/env";
 import { Card } from "../components/common/Card";
 import { StatRow } from "../components/common/StatRow";
 import { EmptyState } from "../components/common/EmptyState";

@@ -1,6 +1,7 @@
 // utils/uploadGpx.ts
 import RNFS from 'react-native-fs';
-import { API_BASE } from "./api";
+//import { API_BASE } from "./api";
+import { API_BASE } from "../config/env";
 
 
 export async function uploadGpxFile(fileUri: string, token?: string) {

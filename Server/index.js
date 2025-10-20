@@ -52,4 +52,6 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, db: true, startedAt: new Date().toISOString() });
 });
 
-app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Backend listening on http://10.0.2.2:${PORT}`));
+//app.listen(PORT, () => console.log(`Backend listening on http://YOUR_IP_HERE:${PORT}`));
+
