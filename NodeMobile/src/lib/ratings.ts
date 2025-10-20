@@ -1,5 +1,7 @@
 // src/lib/ratings.ts
-import { API_BASE } from "./api";
+//import { API_BASE } from "./api";
+
+import { API_BASE } from "../config/env";
 
 /**
  * Fetch the total and user-specific rating for a given waypoint.
