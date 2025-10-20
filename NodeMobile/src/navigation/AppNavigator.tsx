@@ -100,7 +100,7 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: "#fff",
           height: 80,
-          paddingTop: 10,
+          paddingTop: 15,
         },
         tabBarShowLabel: false,
         tabBarActiveTintColor: "#008b8b",
@@ -115,8 +115,8 @@ function MainTabs() {
             <Image
               source={require("../assets/icons/RouteSelectLight.png")}
               style={{
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 resizeMode: "contain",
                 tintColor: color,
               }}
@@ -132,8 +132,8 @@ function MainTabs() {
             <Image
               source={require("../assets/icons/MapLight.png")}
               style={{
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 resizeMode: "contain",
                 tintColor: color,
               }}
@@ -149,8 +149,8 @@ function MainTabs() {
             <Image
               source={require("../assets/icons/AccountLight.png")}
               style={{
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 resizeMode: "contain",
                 tintColor: color,
               }}
@@ -166,8 +166,8 @@ function MainTabs() {
             <Image
               source={require("../assets/icons/FilesLight.png")}
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 resizeMode: "contain",
                 tintColor: color,
               }}
