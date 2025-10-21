@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../lib/api";
+//import { API_BASE } from "../lib/api";
+import { API_BASE } from "../config/env";
 import {
     View,
     Text,

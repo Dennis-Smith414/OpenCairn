@@ -1,5 +1,6 @@
 // src/lib/comments.ts
-import { API_BASE } from "./api";
+//import { API_BASE } from "./api";
+import { API_BASE } from "../config/env";
 
 //Fetch comments for a given waypoint
 export async function fetchComments(waypointId: number) {
