@@ -1,4 +1,4 @@
-// src/lib/waypoint.ts
+// src/lib/waypoints.ts
 //import { API_BASE } from "./api";
 import { API_BASE } from '../config/env';
 
