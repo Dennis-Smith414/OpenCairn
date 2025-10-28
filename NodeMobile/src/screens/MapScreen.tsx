@@ -6,7 +6,7 @@ import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { fetchRouteGeo } from "../lib/api";
 import { flattenToLatLng } from "../utils/geoUtils";
-import LeafletMap, { LatLng } from "../components/LeafletMap/LeafletMap";
+import LeafletMap, { LatLng, Track } from "../components/LeafletMap/LeafletMap";
 import { colors } from "../styles/theme";
 import { fetchWaypoints } from "../lib/waypoints";
 import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
@@ -16,10 +16,10 @@ const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
 
 const MapScreen: React.FC = () => {
-  const { selectedRouteIds } = useRouteSelection();
+  const { selectedRouteIds, selectedRoutes } = useRouteSelection();
   const navigation = useNavigation<any>();
 
-  const [coords, setCoords] = useState<LatLng[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [waypoints, setWaypoints] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +51,25 @@ const MapScreen: React.FC = () => {
       setError(null);
 
       if (selectedRouteIds.length === 0) {
-        setCoords([]);
+        setTracks([]);
         setWaypoints([]);
         return;
       }
 
-      const allCoords: LatLng[] = [];
+      const nextTracks: Track[] = [];
       for (const id of selectedRouteIds) {
         const geo = await fetchRouteGeo(id);
-        if (geo) allCoords.push(...flattenToLatLng(geo));
+        if (!geo) continue;
+
+        const coords = flattenToLatLng(geo) as LatLng[];
+
+        nextTracks.push({
+          id,
+          coords,
+          color: selectedRoutes.find(r => r.id === id)?.color,
+        });
       }
-      setCoords(allCoords);
+      setTracks(nextTracks);
     } catch (e: any) {
       setError(e?.message || "Failed to load routes");
     } finally {
@@ -146,13 +154,9 @@ const MapScreen: React.FC = () => {
   // Refetch when the screen regains focus (after creating a waypoint)
   useFocusEffect(
     useCallback(() => {
-      // Clear any open popup when refocusing (optional)
       setSelectedWaypoint(null);
-      // Refresh waypoints (and routes if you want)
       loadWaypoints();
-      // If your route geometry can change when creating waypoints, also do:
-      // loadRoutes();
-    }, [loadWaypoints /*, loadRoutes*/])
+    }, [loadWaypoints])
   );
 
   // Derived values
@@ -163,30 +167,29 @@ const MapScreen: React.FC = () => {
 
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
-    // LeafletHTML + LeafletMap now handle the temp marker + popup
+    // LeafletHTML + LeafletMap handle temp marker + popup
   };
 
-    const handleExpandWaypoint = () => {
-      if (selectedWaypoint?.name === "Marked Location") {
-        navigation.navigate("WaypointCreate", {
-          lat: selectedWaypoint.lat,
-          lon: selectedWaypoint.lon,
-        });
-      } else {
-        setShowWaypointDetail(true);
-      }
-    };
+  const handleExpandWaypoint = () => {
+    if (selectedWaypoint?.name === "Marked Location") {
+      navigation.navigate("WaypointCreate", {
+        lat: selectedWaypoint.lat,
+        lon: selectedWaypoint.lon,
+      });
+    } else {
+      setShowWaypointDetail(true);
+    }
+  };
 
-    const handleCloseWaypointDetail = () => {
-      setShowWaypointDetail(false);
-      setSelectedWaypoint(null);
-    };
-
+  const handleCloseWaypointDetail = () => {
+    setShowWaypointDetail(false);
+    setSelectedWaypoint(null);
+  };
 
   return (
     <View style={styles.container}>
       <LeafletMap
-        coordinates={coords}
+        tracks={tracks}                    // 👈 NEW: pass tracks, not `coordinates`
         userLocation={userLocation}
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
@@ -194,16 +197,13 @@ const MapScreen: React.FC = () => {
         waypoints={waypoints}
         onWaypointPress={(wp) => {
           if (!wp) {
-            // 🧭 User tapped off-map: clear both popup and detail
             setSelectedWaypoint(null);
             setShowWaypointDetail(false);
           } else {
-            // 🪧 User tapped a waypoint
             setSelectedWaypoint(wp);
           }
         }}
       />
-
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>
@@ -241,13 +241,11 @@ const MapScreen: React.FC = () => {
         iconRequire={selectedWaypoint?.iconRequire}
       />
 
-
       {showError && (
         <View style={styles.overlay}>
           <Text style={styles.errorText}>{error || locationError}</Text>
         </View>
       )}
-
     </View>
   );
 };
@@ -271,23 +269,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 24,
   },
-  trackingIndicator: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  trackingText: { color: colors.accent, fontSize: 12, fontWeight: "600" },
 });
 
 export default MapScreen;

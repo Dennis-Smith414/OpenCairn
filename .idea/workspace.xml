@@ -5,15 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/uploadGpx.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/uploadGpx.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountCreationScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/LoginScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/LoginScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Server/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dev-startup.js" beforeDir="false" afterPath="$PROJECT_DIR$/dev-startup.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/nodejs-assets/build-native-modules-MacOS-helper-script-node.sh" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/nodejs-assets/build-native-modules-MacOS-helper-script-node.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/nodejs-assets/build-native-modules-MacOS-helper-script-npm.sh" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/nodejs-assets/build-native-modules-MacOS-helper-script-npm.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletHTML.html" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletHTML.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletMap.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/LeafletMap.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/context/RouteSelectionContext.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/context/RouteSelectionContext.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -65,7 +64,7 @@
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "dennis-auth-fix",
+    "git-widget-placeholder": "Felix-MapBugFixes",
     "last_opened_file_path": "/Users/felixkoch/Documents/GitHub/CS595-Capstone/NodeMobile/src/assets/icons/waypoints"
   }
 }]]></component>
