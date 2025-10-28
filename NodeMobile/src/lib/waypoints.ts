@@ -38,3 +38,21 @@ export async function createWaypoint(
   if (!data.ok) throw new Error(data.error || "Failed to create waypoint");
   return data.waypoint;
 }
+
+export async function deleteWaypoint(waypointId: number, token: string) {
+  const res = await fetch(`${API_BASE}/api/waypoints/${waypointId}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+
+  const text = await res.text();
+  let json: any = {};
+  try { json = JSON.parse(text); } catch {}
+
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.error || `Failed to delete waypoint ${waypointId}`);
+  }
+  return json; // { ok: true }
+}

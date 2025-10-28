@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   View,
   Text,
@@ -12,6 +13,8 @@ import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
 import { CommentList } from "./CommentList";
+import { fetchCurrentUser } from "../../lib/api";
+import { deleteWaypoint } from "../../lib/waypoints";
 
 interface WaypointDetailProps {
   visible: boolean;
@@ -24,6 +27,8 @@ interface WaypointDetailProps {
   distance?: number;
   iconRequire?: any;
   onClose: () => void;
+  onDeleted?: () => void;
+  ownerId?: number;
 }
 
 export const WaypointDetail: React.FC<WaypointDetailProps> = ({
@@ -37,11 +42,13 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   distance,
   iconRequire,
   onClose,
+  onDeleted,
+  ownerId,
 }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { convertDistance } = useDistanceUnit();
   const { userToken } = useAuth();
-
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [votes, setVotes] = useState(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [loadingVote, setLoadingVote] = useState(false);
@@ -66,6 +73,20 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
         .catch((err) => console.warn("Failed to fetch rating:", err));
     }
   }, [visible, id, userToken]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!userToken) return;
+      try {
+        const me = await fetchCurrentUser(userToken);
+        if (mounted) setCurrentUser(me);
+      } catch (e) {
+        console.log("Failed to fetch /me", e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [userToken]);
 
   const handleVote = async (val: 1 | -1) => {
     if (!id || !userToken || loadingVote) return;
@@ -97,6 +118,40 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     inputRange: [0, 1],
     outputRange: [400, 0],
   });
+
+  const isOwner =
+    !!currentUser &&
+    (
+      (typeof ownerId === "number" && Number(currentUser.id) === Number(ownerId)) ||
+      (username && currentUser.username && currentUser.username === username)
+    );
+
+  const confirmDeleteWaypoint = () => {
+    if (!id) return;
+    Alert.alert(
+      "Delete Waypoint",
+      "Are you sure you want to delete this waypoint?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: handleDeleteWaypoint },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleDeleteWaypoint = async () => {
+    if (!id || !userToken) return;
+    try {
+      await deleteWaypoint(id, userToken);
+      // Close panel and let parent refresh list/map
+      onClose?.();
+      onDeleted?.();
+    } catch (err) {
+      console.error("Failed to delete waypoint:", err);
+      Alert.alert("Error", "Failed to delete waypoint.");
+    }
+  };
+
 
   if (!visible && slideAnim.__getValue() === 0) return null;
 
@@ -172,6 +227,23 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
           <CommentList waypointId={id} />
         </View>
       )}
+
+      {isOwner && (
+        <TouchableOpacity
+          onPress={confirmDeleteWaypoint}
+          style={{
+            alignSelf: "center",
+            marginTop: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 10,
+            backgroundColor: "#d33",
+            borderRadius: 6,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600" }}>Delete Waypoint</Text>
+        </TouchableOpacity>
+      )}
+
     </Animated.View>
   );
 };

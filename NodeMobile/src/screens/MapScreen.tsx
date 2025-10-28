@@ -186,10 +186,16 @@ const MapScreen: React.FC = () => {
     setSelectedWaypoint(null);
   };
 
+  const handleWaypointDeleted = () => {
+    setShowWaypointDetail(false);
+    setSelectedWaypoint(null);
+    loadWaypoints();
+  };
+
   return (
     <View style={styles.container}>
       <LeafletMap
-        tracks={tracks}                    // 👈 NEW: pass tracks, not `coordinates`
+        tracks={tracks}
         userLocation={userLocation}
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
@@ -239,6 +245,8 @@ const MapScreen: React.FC = () => {
         distance={selectedWaypoint?.distance}
         onClose={handleCloseWaypointDetail}
         iconRequire={selectedWaypoint?.iconRequire}
+        ownerId={selectedWaypoint?.user_id}
+        onDeleted={handleWaypointDeleted}
       />
 
       {showError && (

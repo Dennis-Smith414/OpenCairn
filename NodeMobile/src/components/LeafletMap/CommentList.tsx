@@ -206,7 +206,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
             style={styles.deleteButton}
             onPress={() => confirmDelete(item.id)}
           >
-            <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+            <Text style={styles.deleteButtonText}>Delete</Text>
           </TouchableOpacity>
         )}
       </View>

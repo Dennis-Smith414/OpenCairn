@@ -69,4 +69,34 @@ router.post("/", authorize, async (req, res) => {
   }
 });
 
+// ===================================================================
+// DELETE /api/waypoints/:id  (owner-only)
+// ===================================================================
+router.delete("/:id", authorize, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    if (!id) return res.status(400).json({ ok: false, error: "Missing waypoint id." });
+    if (!userId) return res.status(401).json({ ok: false, error: "Unauthorized." });
+
+    // Only allow the owner to delete
+    const { rows } = await db.run(
+      `DELETE FROM waypoints
+       WHERE id = $1 AND user_id = $2
+       RETURNING id`,
+      [id, userId]
+    );
+
+    if (rows.length === 0) {
+      // Either waypoint doesn't exist, or the user isn't the owner
+      return res.status(403).json({ ok: false, error: "Not found or not permitted." });
+    }
+
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err) {
+    console.error("DELETE /waypoints error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
