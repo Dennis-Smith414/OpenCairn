@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-//import { API_BASE } from "../lib/api";
 import { API_BASE } from "../config/env";
 import {
     View,
@@ -14,7 +13,7 @@ import {
     Image,
     Alert,
 } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { globalStyles, theme } from '../styles/globalStyles';
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
     const [username, setUsername] = useState("");
@@ -54,24 +53,24 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
     return (
         <KeyboardAvoidingView
-            style={styles.container}
+            style={globalStyles.centeredContainer}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={globalStyles.scrollContent}
                 keyboardShouldPersistTaps="handled"
             >
                 <Image
                     source={require("../assets/images/OCLogoLight.png")}
-                    style={styles.logo}
+                    style={globalStyles.logo}
                     resizeMode="contain"
                 />
 
-                <View style={styles.form}>
+                <View style={globalStyles.form}>
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Username"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={theme.colors.textSecondary}
                         autoCapitalize="none"
                         autoCorrect={false}
                         value={username}
@@ -80,9 +79,9 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                     />
 
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Password"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={theme.colors.textSecondary}
                         secureTextEntry
                         autoCapitalize="none"
                         value={password}
@@ -91,20 +90,20 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                         onSubmitEditing={handleLogin}
                     />
 
-                    {error && <Text style={baseStyles.error}>{error}</Text>}
+                    {error && <Text style={globalStyles.error}>{error}</Text>}
 
                     <TouchableOpacity
-                        style={[baseStyles.button, baseStyles.buttonPrimary, styles.loginButton]}
+                        style={[globalStyles.button, globalStyles.buttonPrimary, styles.loginButton]}
                         onPress={handleLogin}
                     >
-                        <Text style={baseStyles.buttonText}>Log In</Text>
+                        <Text style={globalStyles.buttonText}>Log In</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[baseStyles.button, baseStyles.buttonSecondary]}
+                        style={[globalStyles.button, globalStyles.buttonSecondary]}
                         onPress={() => navigation.goBack()}
                     >
-                        <Text style={baseStyles.buttonText}>Cancel</Text>
+                        <Text style={globalStyles.buttonText}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -113,37 +112,6 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 24,
-        paddingVertical: 32,
-    },
-    logo: {
-        width: "80%",
-        height: 140,
-        marginBottom: 24,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: "700",
-        color: colors.text,
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: colors.textSecondary,
-        marginBottom: 32,
-    },
-    form: {
-        width: "100%",
-        alignItems: "center",
-    },
     loginButton: {
         marginTop: 8,
     },
