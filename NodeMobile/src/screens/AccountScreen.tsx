@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,14 @@ import { StatRow } from "../components/common/StatRow";
 import { EmptyState } from "../components/common/EmptyState";
 import { AccountSection } from "../components/account/AccountSection";
 import { UserItemRow } from "../components/account/UserItemRow";
-import { fetchUserComments, fetchUserRoutes, fetchUserWaypoints } from "../lib/api";
+import {
+    fetchUserComments,
+    fetchUserRoutes,
+    fetchUserWaypoints,
+    deleteRoute,
+    deleteWaypoint,
+    deleteComment,
+    } from "../lib/api";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -35,6 +42,15 @@ export default function AccountScreen({ navigation }: any) {
   const [userRoutes, setUserRoutes] = useState<any[]>([]);
   const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
   const [userComments, setUserComments] = useState<any[]>([]);
+
+
+  const [routesQuery, setRoutesQuery] = useState("");
+  const [waypointsQuery, setWaypointsQuery] = useState("");
+  const [commentsQuery, setCommentsQuery] = useState("");
+
+  const [routesPreset, setRoutesPreset] = useState<DatePreset>("all");
+  const [waypointsPreset, setWaypointsPreset] = useState<DatePreset>("all");
+  const [commentsPreset, setCommentsPreset] = useState<DatePreset>("all");
 
     //this fetches pretty much everything,
     //not just profile and routes
@@ -75,56 +91,143 @@ export default function AccountScreen({ navigation }: any) {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={[baseStyles.headerText, styles.pageTitle]}>My Account</Text>
 
-      {/* Basic Info */}
-      <Card>
-        <StatRow label="Username" value={profile?.username || "Loading..."} />
-        <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
-      </Card>
 
-      {/* Stats */}
-      <Card title="Profile Statistics">
-        <StatRow
-          label="Member Since"
-          value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
-        />
-        <StatRow label="Routes Created" value={profile?.stats?.routes_created ?? "—"} />
-        <StatRow
-          label="Waypoints Created"
-          value={profile?.stats?.waypoints_created ?? "—"}
-          showBorder={false}
-        />
-      </Card>
+// ---- Filtering helpers ----
+  function withinPreset(dateStr: string, preset: DatePreset) {
+    if (preset === "all") return true;
+    const days = preset === "7" ? 7 : preset === "30" ? 30 : 365;
+    const then = new Date();
+    then.setDate(then.getDate() - days);
+    const d = new Date(dateStr);
+    return d >= then;
+  }
+
+  function textIncludes(haystack: string, needle: string) {
+    if (!needle) return true;
+    return haystack.toLowerCase().includes(needle.trim().toLowerCase());
+  }
+
+  const filteredRoutes = useMemo(() => {
+    return userRoutes.filter((r) => {
+      const name = r.name ?? "";
+      const region = r.region ?? "";
+      const when = r.created_at ?? r.create_time ?? r.createdAt ?? "";
+      return (
+        withinPreset(when, routesPreset) &&
+        textIncludes(`${name} ${region}`, routesQuery)
+      );
+    });
+  }, [userRoutes, routesPreset, routesQuery]);
+
+  const filteredWaypoints = useMemo(() => {
+    return userWaypoints.filter((w) => {
+      const text = `${w.name ?? ""} ${w.type ?? ""} ${w.description ?? ""}`;
+      const when = w.created_at ?? w.create_time ?? w.createdAt ?? "";
+      return withinPreset(when, waypointsPreset) && textIncludes(text, waypointsQuery);
+    });
+  }, [userWaypoints, waypointsPreset, waypointsQuery]);
+
+  const filteredComments = useMemo(() => {
+    return userComments.filter((c) => {
+      const text = `${c.content ?? ""} ${c.waypoint_name ?? ""} ${c.route_name ?? ""}`;
+      const when = c.create_time ?? c.created_at ?? c.createdAt ?? "";
+      return withinPreset(when, commentsPreset) && textIncludes(text, commentsQuery);
+    });
+  }, [userComments, commentsPreset, commentsQuery]);
+
+  // ---- Delete handlers ----
+  const handleDeleteRoute = async (id: number) => {
+    if (!userToken) return;
+    try {
+      const res = await deleteRoute(id, userToken);
+      if (res.ok) setUserRoutes((prev) => prev.filter((r) => r.id !== id));
+      else console.warn("Delete route failed:", res.error || res);
+    } catch (e) {
+      console.error("Delete route error:", e);
+    }
+  };
+
+  const handleDeleteWaypoint = async (id: number) => {
+    if (!userToken) return;
+    try {
+      const res = await deleteWaypoint(id, userToken);
+      if (res.ok) setUserWaypoints((prev) => prev.filter((w) => w.id !== id));
+      else console.warn("Delete waypoint failed:", res.error || res);
+    } catch (e) {
+      console.error("Delete waypoint error:", e);
+    }
+  };
+
+  const handleDeleteComment = async (id: number) => {
+    if (!userToken) return;
+    try {
+      const res = await deleteComment(id, userToken);
+      if (res.ok) setUserComments((prev) => prev.filter((c) => c.id !== id));
+      else console.warn("Delete comment failed:", res.error || res);
+    } catch (e) {
+      console.error("Delete comment error:", e);
+    }
+  };
+
+  // ---- Edit handlers (adjust to your navigator screen names) ----
+  const handleEditRoute = (id: number) => navigation.navigate("RouteEdit", { id });
+  const handleEditWaypoint = (id: number) => navigation.navigate("WaypointEdit", { id });
+  const handleEditComment = (id: number) => navigation.navigate("CommentEdit", { id });
+
+return (
+  <ScrollView
+    style={{ flex: 1, backgroundColor: colors.background }}
+    contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+    showsVerticalScrollIndicator={false}
+  >
+    <Text style={[baseStyles.headerText, styles.pageTitle]}>My Account</Text>
+
+    {/* Basic Info */}
+    <Card>
+      <StatRow label="Username" value={profile?.username || "Loading..."} />
+      <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
+    </Card>
+
+    {/* Stats */}
+    <Card title="Profile Statistics">
+      <StatRow
+        label="Member Since"
+        value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
+      />
+      <StatRow label="Routes Created" value={profile?.stats?.routes_created ?? "—"} />
+      <StatRow
+        label="Waypoints Created"
+        value={profile?.stats?.waypoints_created ?? "—"}
+        showBorder={false}
+      />
+    </Card>
 
       {/* Routes */}
       <AccountSection
         title="My Routes"
         expanded={expanded.routes}
         onToggle={() => toggleSection("routes")}
+        showSearch
+        searchPlaceholder="Search name / region…"
+        query={routesQuery}
+        onQueryChange={setRoutesQuery}
+        showDatePresets
+        datePreset={routesPreset}
+        onDatePresetChange={setRoutesPreset}
       >
-        {userRoutes.length > 0 ? (
-          userRoutes.map((r) => (
+        {filteredRoutes.length > 0 ? (
+          filteredRoutes.map((r) => (
             <UserItemRow
               key={r.id}
               title={r.name}
               subtitle={`${r.region || "—"} • ${new Date(r.created_at).toLocaleDateString()}`}
-              onEdit={() => console.log("Edit route", r.id)}
-              onDelete={() => console.log("Delete route", r.id)}
+              onEdit={() => handleEditRoute(r.id)}
+              onDelete={() => handleDeleteRoute(r.id)}
             />
           ))
         ) : (
-          <EmptyState
-            icon="🗺️"
-            title="No routes created yet"
-            subtitle="Create your first route from the map screen."
-          />
+          <EmptyState title="No routes" subtitle="Try a different filter or search." />
         )}
       </AccountSection>
 
@@ -133,23 +236,26 @@ export default function AccountScreen({ navigation }: any) {
         title="My Waypoints"
         expanded={expanded.waypoints}
         onToggle={() => toggleSection("waypoints")}
+        showSearch
+        searchPlaceholder="Search name / type / description..."
+        query={waypointsQuery}
+        onQueryChange={setWaypointsQuery}
+        showDatePresets
+        datePreset={waypointsPreset}
+        onDatePresetChange={setWaypointsPreset}
       >
-        {userWaypoints.length > 0 ? (
-          userWaypoints.map((w) => (
+        {filteredWaypoints.length > 0 ? (
+          filteredWaypoints.map((w) => (
             <UserItemRow
               key={w.id}
               title={w.name}
               subtitle={`${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
-              onEdit={() => console.log("Edit waypoint", w.id)}
-              onDelete={() => console.log("Delete waypoint", w.id)}
+              onEdit={() => handleEditWaypoint(w.id)}
+              onDelete={() => handleDeleteWaypoint(w.id)}
             />
           ))
         ) : (
-          <EmptyState
-            icon="📍"
-            title="No waypoints created yet"
-            subtitle="Tap on the map to add your first waypoint."
-          />
+          <EmptyState title="No waypoints" subtitle="Adjust your filters or search." />
         )}
       </AccountSection>
 
@@ -158,23 +264,26 @@ export default function AccountScreen({ navigation }: any) {
         title="My Comments"
         expanded={expanded.comments}
         onToggle={() => toggleSection("comments")}
+        showSearch
+        searchPlaceholder="Search comment text / waypoint /route…"
+        query={commentsQuery}
+        onQueryChange={setCommentsQuery}
+        showDatePresets
+        datePreset={commentsPreset}
+        onDatePresetChange={setCommentsPreset}
       >
-        {userComments.length > 0 ? (
-          userComments.map((c) => (
+        {filteredComments.length > 0 ? (
+          filteredComments.map((c) => (
             <UserItemRow
               key={c.id}
-              title={c.waypoint_name || "Unknown Waypoint"}
+              title={c.waypoint_name || c.route_name || "Unknown"}
               subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
-              onEdit={() => console.log("Edit comment", c.id)}
-              onDelete={() => console.log("Delete comment", c.id)}
+              onEdit={() => handleEditComment(c.id)}
+              onDelete={() => handleDeleteComment(c.id)}
             />
           ))
         ) : (
-          <EmptyState
-            icon="💬"
-            title="No comments yet"
-            subtitle="Leave a comment on a waypoint or route to see it here."
-          />
+          <EmptyState title="No comments" subtitle="Nothing matches your search." />
         )}
       </AccountSection>
 
