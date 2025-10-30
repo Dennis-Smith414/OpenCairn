@@ -8,7 +8,7 @@ import { fetchRouteGeo } from "../lib/api";
 import { flattenToLatLng } from "../utils/geoUtils";
 import LeafletMap, { LatLng, Track } from "../components/LeafletMap/LeafletMap";
 import { colors } from "../styles/theme";
-import { fetchWaypoints } from "../lib/waypoints";
+import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
 import { WaypointDetail } from "../components/LeafletMap/WaypointDetail";
 
@@ -151,13 +151,44 @@ const MapScreen: React.FC = () => {
     };
   }, [loadWaypoints]);
 
-  // Refetch when the screen regains focus (after creating a waypoint)
-  useFocusEffect(
-    useCallback(() => {
-      setSelectedWaypoint(null);
-      loadWaypoints();
-    }, [loadWaypoints])
-  );
+  // Refetch when the screen regains focus (after creating /editing a waypoint)
+ useFocusEffect(
+   useCallback(() => {
+     let active = true;
+
+     (async () => {
+       // Always refresh the waypoint list (e.g., counts/icons on map)
+       await loadWaypoints();
+
+       // If a waypoint is open/selected, refresh just that one
+       const id = selectedWaypoint?.id;
+       if (!id) return;
+
+       try {
+         const fresh = await fetchWaypoint(id);
+         if (!active) return;
+
+         // update the list item
+         setWaypoints((prev) =>
+           prev.map((w) => (w.id === fresh.id ? { ...w, ...fresh } : w))
+         );
+
+         // update the detail panel if it's the same waypoint
+         setSelectedWaypoint((prev) =>
+           prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev
+         );
+       } catch (e) {
+         // swallow—if fetch fails, keep what we had
+         console.warn("[MapScreen] refresh selected waypoint failed:", e);
+       }
+     })();
+
+     return () => {
+       active = false;
+     };
+   }, [loadWaypoints, selectedWaypoint?.id])
+ );
+
 
   // Derived values
   const userLocation = location ? ([location.lat, location.lng] as LatLng) : null;

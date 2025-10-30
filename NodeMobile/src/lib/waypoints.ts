@@ -5,6 +5,7 @@ import { API_BASE } from '../config/env';
 export interface Waypoint {
   id?: number;
   route_id: number;
+  route_name?: string;
   user_id?: number;
   username?: string;
   name: string;
@@ -15,10 +16,25 @@ export interface Waypoint {
   created_at?: string;
 }
 
+//Get all waypoints for a route
 export async function fetchWaypoints(routeId: number): Promise<Waypoint[]> {
   const res = await fetch(`${API_BASE}/api/waypoints/route/${routeId}`);
   const data = await res.json();
   return data.items ?? [];
+}
+
+// GET one waypoint via waypoint id
+export async function fetchWaypoint(id: number): Promise<Waypoint> {
+  const r = await fetch(`${API_BASE}/api/waypoints/${id}`);
+  const text = await r.text();
+  try {
+    const json = JSON.parse(text);
+    if (!json.ok) throw new Error(json.error || "Failed to fetch waypoint");
+    return json.waypoint;
+  } catch (e) {
+    console.error("fetchWaypoint error:", e, text);
+    throw new Error("Failed to fetch waypoint");
+  }
 }
 
 export async function createWaypoint(
@@ -55,4 +71,26 @@ export async function deleteWaypoint(waypointId: number, token: string) {
     throw new Error(json?.error || `Failed to delete waypoint ${waypointId}`);
   }
   return json; // { ok: true }
+}
+
+// PATCH update waypoint (author only)
+export async function updateWaypoint(
+  token: string,
+  id: number,
+  payload: Partial<Pick<Waypoint, "route_id" | "name" | "description" | "lat" | "lon" | "type">>
+): Promise<Waypoint> {
+  const r = await fetch(`${API_BASE}/api/waypoints/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const text = await r.text();
+  try {
+    const json = JSON.parse(text);
+    if (!json.ok) throw new Error(json.error || "Failed to update waypoint");
+    return json.waypoint;
+  } catch (e) {
+    console.error("updateWaypoint error:", e, text);
+    throw new Error("Failed to update waypoint");
+  }
 }

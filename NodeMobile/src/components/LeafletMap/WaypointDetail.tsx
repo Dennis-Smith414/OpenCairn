@@ -15,6 +15,9 @@ import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
 import { CommentList } from "../comments/CommentList";
 import { fetchCurrentUser } from "../../lib/api";
 import { deleteWaypoint } from "../../lib/waypoints";
+import { useNavigation } from "@react-navigation/native";
+import {baseStyles} from "../../styles/theme"
+
 
 interface WaypointDetailProps {
   visible: boolean;
@@ -52,6 +55,7 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   const [votes, setVotes] = useState(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [loadingVote, setLoadingVote] = useState(false);
+  const navigation = useNavigation<any>();
 
   // --- Animate slide in/out ---
   useEffect(() => {
@@ -119,12 +123,7 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     outputRange: [400, 0],
   });
 
-  const isOwner =
-    !!currentUser &&
-    (
-      (typeof ownerId === "number" && Number(currentUser.id) === Number(ownerId)) ||
-      (username && currentUser.username && currentUser.username === username)
-    );
+  const isOwner = !!currentUser && (typeof ownerId === "number" && Number(currentUser.id) === Number(ownerId));
 
   const confirmDeleteWaypoint = () => {
     if (!id) return;
@@ -227,24 +226,67 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
           <CommentList waypointId={id} />
         </View>
       )}
+    {isOwner && (
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "center",
+          alignItems: "center",
+          marginTop: 20,
+          gap: 30,
+          paddingHorizontal: 80,
+        }}
+      >
+        {/* Edit Button */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate("WaypointEdit", { id })}
+          style={[
+            baseStyles.button,
+            {
+              backgroundColor: colors.primary,
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 8,
+            },
+          ]}
+        >
+          <Text
+            style={{
+              color: "#fff",
+              fontWeight: "600",
+            }}
+          >
+            Edit Waypoint
+          </Text>
+        </TouchableOpacity>
 
-      {isOwner && (
+        {/* Delete Button */}
         <TouchableOpacity
           onPress={confirmDeleteWaypoint}
-          style={{
-            alignSelf: "center",
-            marginTop: 8,
-            paddingHorizontal: 10,
-            paddingVertical: 10,
-            backgroundColor: "#d33",
-            borderRadius: 6,
-          }}
+          style={[
+            baseStyles.button,
+            {
+              backgroundColor: colors.error || "#d33",
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 8,
+            },
+          ]}
         >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>Delete Waypoint</Text>
+          <Text
+            style={{
+              color: "#fff",
+              fontWeight: "600",
+            }}
+          >
+            Delete Waypoint
+          </Text>
         </TouchableOpacity>
-      )}
+      </View>
+    )}
 
     </Animated.View>
+
   );
 };
 

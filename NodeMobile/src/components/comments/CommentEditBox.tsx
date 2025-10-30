@@ -36,16 +36,28 @@ export const CommentEditBox: React.FC<Props> = ({
         style={styles.input}
         multiline
       />
-      <View style={styles.row}>
-        <TouchableOpacity onPress={onCancel} style={[styles.btn, styles.cancelBtn]} disabled={saving}>
-          <Text style={styles.cancelText}>Cancel</Text>
+
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          onPress={onCancel}
+          style={[styles.actionBtn, styles.cancelBtn]}
+          disabled={saving}
+        >
+          <Text style={styles.actionBtnText}>Cancel</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => onSave(text.trim())}
-          style={[styles.btn, styles.saveBtn, !canSave && { opacity: 0.6 }]}
+          style={[
+            styles.actionBtn,
+            styles.saveBtn,
+            !canSave && { opacity: 0.6 },
+          ]}
           disabled={!canSave}
         >
-          <Text style={styles.saveText}>{saving ? "Saving…" : "Save"}</Text>
+          <Text style={styles.actionBtnText}>
+            {saving ? "Saving…" : "Save"}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -53,7 +65,11 @@ export const CommentEditBox: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: colors.card, borderRadius: 10, padding: 10 },
+  container: {
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    padding: 10,
+  },
   input: {
     minHeight: 80,
     maxHeight: 180,
@@ -63,10 +79,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  row: { flexDirection: "row", justifyContent: "flex-end", marginTop: 10, gap: 10 },
-  btn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8 },
-  cancelBtn: { backgroundColor: colors.backgroundSecondary },
-  saveBtn: { backgroundColor: colors.primary },
-  cancelText: { color: colors.textPrimary, fontWeight: "600" },
-  saveText: { color: "#fff", fontWeight: "700" },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end", // right-aligned
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  actionBtn: {
+    width: 90, // fixed width for consistency
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  cancelBtn: {
+    backgroundColor: colors.backgroundSecondary,
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
 });
+

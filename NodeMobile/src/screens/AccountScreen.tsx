@@ -91,6 +91,13 @@ export default function AccountScreen({ navigation }: any) {
     fetchProfileAndRoutes();
   }, [userToken]);
 
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      // re-fetch the user data lists here if you want fresh counts/content
+    });
+    return unsub;
+  }, [navigation]);
+
   const toggleSection = (key: keyof typeof expanded) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));

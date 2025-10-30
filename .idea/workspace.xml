@@ -5,13 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentEditBox.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/CommentList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/WaypointDetail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/WaypointDetail.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/comments.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/comments.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Server/routes/comments.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/routes/comments.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/WaypointEditScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/WaypointEditScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Server/routes/waypoints.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/routes/waypoints.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,21 +54,21 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "Felix-EditScreens",
-    "last_opened_file_path": "/Users/felixkoch/Documents/GitHub/CS595-Capstone/NodeMobile/src/assets/icons/waypoints"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Felix-EditScreens&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/felixkoch/Documents/GitHub/CS595-Capstone/NodeMobile/src/assets/icons/waypoints&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/NodeMobile/src/assets/icons/waypoints" />

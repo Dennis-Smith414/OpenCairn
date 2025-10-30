@@ -206,18 +206,23 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
             </View>
 
             {isOwner && (
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+              <View style={styles.buttonRow}>
                 <TouchableOpacity
-                  style={[styles.smallBtn, { backgroundColor: colors.backgroundSecondary }]}
                   onPress={() => setEditingId(item.id)}
+                  style={[styles.actionBtn, styles.editBtn]}
                 >
-                  <Text style={[styles.smallBtnText, { color: colors.textPrimary }]}>Edit</Text>
+                  <Text style={styles.actionBtnText}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.deleteButton]} onPress={() => confirmDelete(item.id)}>
-                  <Text style={styles.deleteButtonText}>Delete</Text>
+
+                <TouchableOpacity
+                  onPress={() => confirmDelete(item.id)}
+                  style={[styles.actionBtn, styles.deleteBtn]}
+                >
+                  <Text style={styles.actionBtnText}>Delete</Text>
                 </TouchableOpacity>
               </View>
             )}
+
           </>
         )}
       </View>
@@ -355,24 +360,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
   },
-  deleteButton: {
-    alignSelf: "flex-end",
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colors.error || "#d33",
-    borderRadius: 6,
-  },
-  deleteButtonText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
-  },
   emptyText: {
     textAlign: "center",
     color: colors.textSecondary,
     marginTop: 10,
   },
-  smallBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
-  smallBtnText: { fontSize: 13, fontWeight: "600" },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end", // push buttons to the right side
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  actionBtn: {
+    width: 90, // fixed button size
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  editBtn: {
+    backgroundColor: colors.accent,
+  },
+  deleteBtn: {
+    backgroundColor: colors.error || "#d33",
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
 });
