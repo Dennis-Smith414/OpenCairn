@@ -37,15 +37,21 @@
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     map.setView([37.7749, -122.4194], 13);
 
+    // Default styling (can be overridden per-track)
     window.__lineColor = '#2196F3';
     window.__lineWeight = 4;
 
     // --- state ---
-    let currentPolyline = null;
     let userMarker = null;
-    let tempMarker = null;           // 👈 temp marker (mirrors user marker)
+    let tempMarker = null;           // temp/marked location
     let longPressTimeout;
-    let waypointMarkers = [];
+
+    // Waypoints
+    window.__waypointMarkers = [];
+
+    // Multi-route support
+    const routesGroup = L.layerGroup().addTo(map);     // group that holds all tracks
+    const routeLayers = new Map();                     // id -> L.Polyline
 
     // --- icons ---
     const userIcon = L.divIcon({
@@ -63,10 +69,62 @@
     });
 
     // === Map control methods ===
-    window.__clearMap = function() {
-      if (currentPolyline) {
-        map.removeLayer(currentPolyline);
-        currentPolyline = null;
+    window.__clearRoutes = function() {
+      routeLayers.forEach(pl => routesGroup.removeLayer(pl));
+      routeLayers.clear();
+    };
+
+    // payload: { tracks: [{ id, coords, color?, weight? }], fit?: boolean }
+    // coords may be LatLng[] or LatLng[][] (multiple segments)
+    window.__setTracks = function(payload) {
+      const tracks = payload?.tracks || [];
+      const fit = (payload?.fit ?? true);
+
+      // Remove routes that are no longer present
+      const keep = new Set(tracks.map(t => String(t.id)));
+      routeLayers.forEach((pl, id) => {
+        if (!keep.has(id)) {
+          routesGroup.removeLayer(pl);
+          routeLayers.delete(id);
+        }
+      });
+
+      const boundsList = [];
+
+      tracks.forEach(t => {
+        const id = String(t.id);
+        const color = t.color || window.__lineColor;
+        const weight = t.weight || window.__lineWeight;
+        const latlngs = t.coords || [];
+
+        let pl = routeLayers.get(id);
+        if (pl) {
+          pl.setLatLngs(latlngs);
+          pl.setStyle({ color, weight, opacity: 0.8 });
+        } else {
+          pl = L.polyline(latlngs, { color, weight, opacity: 0.8 });
+          pl.addTo(routesGroup);
+          routeLayers.set(id, pl);
+        }
+        try { boundsList.push(pl.getBounds()); } catch {}
+      });
+
+      if (fit && routeLayers.size > 0) {
+        const overall = boundsList.reduce((acc, b) => acc ? acc.extend(b) : b, null);
+        if (overall) map.fitBounds(overall, { padding: [20, 20] });
+      }
+    };
+
+    // Optional helpers if you ever want single add/remove
+    window.__addTrack = function({ id, coords, color, weight, fit = true }) {
+      window.__setTracks({ tracks: [{ id, coords, color, weight }], fit });
+    };
+    window.__removeTrack = function(id) {
+      const key = String(id);
+      const pl = routeLayers.get(key);
+      if (pl) {
+        routesGroup.removeLayer(pl);
+        routeLayers.delete(key);
       }
     };
 
@@ -89,7 +147,7 @@
       }
     };
 
-    // 👇 Exact same behavior as user marker, but for the temp/marked location
+    // Temp/marked location (for long-press)
     window.__setTempLocation = function(lat, lng) {
       if (tempMarker) {
         tempMarker.setLatLng([lat, lng]);
@@ -109,18 +167,6 @@
       }
     };
 
-    window.__setCoords = function(payload) {
-      const coords = (payload?.coords) || [];
-      if (!coords.length) return;
-      if (currentPolyline) map.removeLayer(currentPolyline);
-      currentPolyline = L.polyline(coords, {
-        color: window.__lineColor,
-        weight: window.__lineWeight,
-        opacity: 0.8
-      }).addTo(map);
-      map.fitBounds(currentPolyline.getBounds(), { padding: [20, 20] });
-    };
-
     window.__setView = function(lat, lng, zoom) {
       map.setView([lat, lng], zoom);
     };
@@ -130,7 +176,6 @@
       const { lat, lng } = e.latlng;
       if (!lat || !lng) return;
 
-      // Drop/update the temp marker exactly like user marker
       window.__setTempLocation(lat, lng);
 
       console.log('LONG_PRESS fired', lat, lng);
@@ -183,6 +228,7 @@
             wp.type === "campsite" ? iconUrls.campsite :
             wp.type === "road-access-point" ? iconUrls.roadAccess :
             wp.type === "intersection" ? iconUrls.intersection :
+            wp.type === "navigation" ? iconUrls.navigation :
             wp.type === "hazard" ? iconUrls.hazard :
             wp.type === "landmark" ? iconUrls.landmark :
             wp.type === "parking-trailhead" ? iconUrls.parkingTrailhead :
@@ -197,13 +243,11 @@
 
           const marker = L.marker([wp.lat, wp.lon], { icon }).addTo(map);
 
-          // stop map click from firing afterward
           marker.on("click", function (e) {
             try {
               if (e?.originalEvent?.stopPropagation) {
                 e.originalEvent.stopPropagation();
               }
-              // Clear the temp marker when selecting a real waypoint
               window.__removeTempLocation();
 
               console.log("Waypoint clicked:", wp.name);
@@ -235,7 +279,6 @@
         if (e.originalEvent?.target?.closest(".leaflet-interactive")) {
           return; // ignore marker clicks
         }
-        // Clear temp marker and let RN clear popup
         window.__removeTempLocation();
 
         console.log("Map tap -> clear popup");
@@ -244,6 +287,7 @@
         console.log("Error handling MAP_TAP", err);
       }
     });
+    window.__panTo = function(lat, lng) { map.panTo([lat, lng]); };
 </script>
 </body>
 </html>

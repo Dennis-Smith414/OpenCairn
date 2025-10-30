@@ -19,11 +19,16 @@ router.get("/me", authorize, async (req, res) => {
     if (userRes.rowCount === 0) {
       return res.status(404).json({ ok: false, error: "User not found." });
     }
-    const statsRes = await pool.query(`
-          SELECT
-            (SELECT COUNT(*) FROM routes WHERE user_id = $1) AS routes_created,
-            (SELECT COUNT(*) FROM waypoints WHERE user_id = $1) AS waypoints_created
-        `, [userId]);
+     const statsRes = await pool.query(`
+       SELECT
+         (SELECT COUNT(*) FROM routes WHERE user_id = $1) AS routes_created,
+         (SELECT COUNT(*) FROM waypoints WHERE user_id = $1) AS waypoints_created,
+         (SELECT COUNT(*) FROM comments WHERE user_id = $1) AS comments_created,
+         (SELECT COUNT(*) FROM route_rating WHERE user_id = $1) AS route_ratings,
+         (SELECT COUNT(*) FROM comment_rating WHERE user_id = $1) AS comment_ratings,
+         (SELECT COUNT(*) FROM waypoint_rating WHERE user_id = $1) AS waypoint_ratings
+     `, [userId]);
+
 
     res.json({
       ok: true,
@@ -68,10 +73,11 @@ router.get("/me/waypoints", authorize, async (req, res) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      `SELECT id, route_id, name, description, lat, lon, type, created_at
-         FROM waypoints
-        WHERE user_id = $1
-        ORDER BY created_at DESC`,
+      `SELECT w.id, w.route_id, w.name, w.description, w.lat, w.lon, w.type, w.created_at, r.name AS route_name
+         FROM waypoints w
+         LEFT JOIN routes r ON r.id = w.route_id
+        WHERE w.user_id = $1
+        ORDER BY w.created_at DESC`,
       [userId]
     );
 
@@ -91,9 +97,10 @@ router.get("/me/comments", authorize, async (req, res) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      `SELECT c.id, c.content, c.create_time, w.name AS waypoint_name
+      `SELECT c.id, c.content, c.create_time, w.name AS waypoint_name, r.name AS route_name
          FROM comments c
          LEFT JOIN waypoints w ON c.waypoint_id = w.id
+         LEFT JOIN routes r ON r.id = w.route_id
         WHERE c.user_id = $1
         ORDER BY c.create_time DESC`,
       [userId]

@@ -7,7 +7,7 @@ import { API_BASE } from "../config/env";
 export async function uploadGpxFile(fileUri: string, token?: string) {
   if (!fileUri) throw new Error('Invalid file URI');
 
-  // ✅ Ensure the URI is absolute (Android sometimes omits 'file://')
+  // Ensure the URI is absolute (Android sometimes omits 'file://')
   const safeUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
 
   // Derive filename from the URI

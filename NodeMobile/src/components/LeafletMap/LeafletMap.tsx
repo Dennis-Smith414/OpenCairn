@@ -2,12 +2,9 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from "react"
 import { StyleSheet, Image, View, TouchableOpacity, Text } from "react-native";
 import { WebView } from "react-native-webview";
 import { getDistanceMeters } from "../../utils/geoUtils";
-
 import type { WebViewMessageEvent } from "react-native-webview";
 
 export type LatLng = [number, number];
-
-interface MapPayload { coords: LatLng[]; }
 
 export interface Waypoint {
   id: number;
@@ -16,13 +13,23 @@ export interface Waypoint {
   lat: number;
   lon: number;
   type?: string;
-    //Optional fields:
-  distance?: number; // meters
+  // Optional fields added client-side:
+  distance?: number;   // meters
   iconRequire?: any;
 }
 
+export interface Track {
+  id: string | number;
+  // One continuous line: LatLng[]
+  // Multiple disjoint segments: LatLng[][]
+  coords: LatLng[] | LatLng[][];
+  color?: string;
+  weight?: number;
+}
+
 interface LeafletMapProps {
-  coordinates: LatLng[];
+  // NEW: multi-route input
+  tracks?: Track[];
   center?: LatLng;
   zoom?: number;
   userLocation?: LatLng | null;
@@ -33,13 +40,11 @@ interface LeafletMapProps {
   showTrackingButton?: boolean; // default true
 }
 
-
-
-const FALLBACK_CENTER: LatLng = [43.075915779364294, -87.88550589992784]; // <--Fall back is now UWM rendering the fallback should be removed later on
+const FALLBACK_CENTER: LatLng = [43.075915779364294, -87.88550589992784];
 const DEFAULT_ZOOM = 13;
 
 const LeafletMap: React.FC<LeafletMapProps> = ({
-  coordinates,
+  tracks = [],
   center = FALLBACK_CENTER,
   zoom = DEFAULT_ZOOM,
   userLocation = null,
@@ -53,38 +58,39 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   const [isReady, setIsReady] = useState(false);
   const didSetInitialView = useRef(false);
 
-  // Follow-me state 
-  const [tracking, setTracking] = useState<boolean>(true); //<--- Detects noable changes in postion
+  // Follow-me pill state
+  const [tracking, setTracking] = useState<boolean>(true);
 
   const lastLocationRef = useRef<LatLng | null>(null);
 
+  // React Native image requires (used for popup icons in RN)
+  const rnIcons = {
+    generic: require("../../assets/icons/waypoints/generic.png"),
+    water: require("../../assets/icons/waypoints/water.png"),
+    campsite: require("../../assets/icons/waypoints/campsite.png"),
+    roadAccess: require("../../assets/icons/waypoints/road-access-point.png"),
+    intersection: require("../../assets/icons/waypoints/intersection.png"),
+    navigation: require("../../assets/icons/waypoints/navigation.png"),
+    hazard: require("../../assets/icons/waypoints/hazard.png"),
+    landmark: require("../../assets/icons/waypoints/landmark.png"),
+    parkingTrailhead: require("../../assets/icons/waypoints/parking-trailhead.png"),
+  };
 
-  // React Native image requires (used for popup)
-    const rnIcons = {
-      generic: require("../../assets/icons/waypoints/generic.png"),
-      water: require("../../assets/icons/waypoints/water.png"),
-      campsite: require("../../assets/icons/waypoints/campsite.png"),
-      roadAccess: require("../../assets/icons/waypoints/road-access-point.png"),
-      intersection: require("../../assets/icons/waypoints/intersection.png"),
-      hazard: require("../../assets/icons/waypoints/hazard.png"),
-      landmark: require("../../assets/icons/waypoints/landmark.png"),
-      parkingTrailhead: require("../../assets/icons/waypoints/parking-trailhead.png"),
-    };
-
-    // Leaflet (WebView) image URIs — needs .uri resolved
-    const iconUrls = useMemo(
-      () => ({
-        generic: Image.resolveAssetSource(rnIcons.generic).uri,
-        water: Image.resolveAssetSource(rnIcons.water).uri,
-        campsite: Image.resolveAssetSource(rnIcons.campsite).uri,
-        roadAccess: Image.resolveAssetSource(rnIcons.roadAccess).uri,
-        intersection: Image.resolveAssetSource(rnIcons.intersection).uri,
-        hazard: Image.resolveAssetSource(rnIcons.hazard).uri,
-        landmark: Image.resolveAssetSource(rnIcons.landmark).uri,
-        parkingTrailhead: Image.resolveAssetSource(rnIcons.parkingTrailhead).uri,
-      }),
-      []
-    );
+  // Leaflet (WebView) image URIs — needs .uri resolved
+  const iconUrls = useMemo(
+    () => ({
+      generic: Image.resolveAssetSource(rnIcons.generic).uri,
+      water: Image.resolveAssetSource(rnIcons.water).uri,
+      campsite: Image.resolveAssetSource(rnIcons.campsite).uri,
+      roadAccess: Image.resolveAssetSource(rnIcons.roadAccess).uri,
+      intersection: Image.resolveAssetSource(rnIcons.intersection).uri,
+      navigation: Image.resolveAssetSource(rnIcons.navigation).uri,
+      hazard: Image.resolveAssetSource(rnIcons.hazard).uri,
+      landmark: Image.resolveAssetSource(rnIcons.landmark).uri,
+      parkingTrailhead: Image.resolveAssetSource(rnIcons.parkingTrailhead).uri,
+    }),
+    []
+  );
 
   // --- messages from HTML ---
   const handleMessage = useCallback(
@@ -95,7 +101,6 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         if (!data) return;
 
         switch (data.type) {
-
           case "MAP_READY":
             setIsReady(true);
             onMapReady?.();
@@ -104,7 +109,11 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
           case "LONG_PRESS": {
             const { lat, lon } = data;
 
-            const wp = {
+            // Pass through to consumer if they want raw coords:
+            onMapLongPress?.(lat, lon);
+
+            // Also provide a synthetic "Marked Location" waypoint for the popup flow:
+            const wp: any = {
               id: null,
               name: "Marked Location",
               description: "",
@@ -116,38 +125,33 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
             };
 
             if (userLocation) {
-              const meters = getDistanceMeters(userLocation, [lat, lon]);
-              wp.distance = meters;
+              wp.distance = getDistanceMeters(userLocation, [lat, lon]);
             }
-
             wp.iconRequire = rnIcons.generic;
 
             onWaypointPress?.(wp);
             break;
           }
 
-
           case "WAYPOINT_CLICK":
             if (data.waypoint) {
               const wp = data.waypoint;
               const typeKey = wp.type || "generic";
 
-              //For popup display in React Native
+              // For popup display in React Native
               wp.iconRequire = rnIcons[typeKey] || rnIcons.generic;
 
-              //For distance
+              // For distance
               if (userLocation) {
-                const meters = getDistanceMeters(
+                wp.distance = getDistanceMeters(
                   [userLocation[0], userLocation[1]],
                   [wp.lat, wp.lon]
                 );
-                wp.distance = meters;
               }
 
               onWaypointPress?.(wp);
             }
             break;
-
 
           case "MAP_TAP":
             onWaypointPress?.(null);
@@ -157,6 +161,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
             // user dragged/zoomed → stop following
             setTracking(false);
             break;
+
           default:
             break;
         }
@@ -167,7 +172,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     [onMapLongPress, onMapReady, onWaypointPress, userLocation]
   );
 
-  // set initial camera ONCE
+  // Set initial camera ONCE
   useEffect(() => {
     if (!isReady || didSetInitialView.current) return;
     didSetInitialView.current = true;
@@ -178,50 +183,52 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady]);
 
-  // draw route (fits once) and stop following so user can explore
+  // Draw/refresh multi-routes; fit bounds once per update
   useEffect(() => {
     if (!isReady) return;
-    if (coordinates && coordinates.length) {
-      const payload: MapPayload = { coords: coordinates };
+
+    if (tracks && tracks.length > 0) {
+      const payload = { tracks, fit: true };
       webRef.current?.injectJavaScript(`
-        window.__clearMap();
-        window.__setCoords(${JSON.stringify(payload)});
-        true;
+        try { window.__setTracks(${JSON.stringify(payload)}); true; }
+        catch (err) { console.log('Error injecting tracks', err); false; }
       `);
+      // User likely wants to explore after we fit to routes:
       setTracking(false);
     } else {
-      webRef.current?.injectJavaScript(`window.__clearMap(); true;`);
+      webRef.current?.injectJavaScript(`
+        try { window.__clearRoutes(); true; }
+        catch (err) { console.log('Error clearing routes', err); false; }
+      `);
     }
-  }, [isReady, coordinates]);
+  }, [isReady, tracks]);
 
-  // Blue location dot should NEVER pan now
+  // Blue location dot should NOT auto-pan (we only pan on pill)
   useEffect(() => {
     if (!isReady) return;
     if (userLocation) {
       const [lat, lng] = userLocation;
       const lastLoc = lastLocationRef.current;
 
-      //Check if there is a noteworthy change in positon
-      const hasChanged = !lastLoc || 
+      // Only forward meaningful changes
+      const hasChanged =
+        !lastLoc ||
         Math.abs(lastLoc[0] - lat) > 0.00001 ||
         Math.abs(lastLoc[1] - lng) > 0.00001;
 
-      //Update the users postion
       if (hasChanged) {
         lastLocationRef.current = [lat, lng];
         webRef.current?.injectJavaScript(`
           window.__setUserLocation(${lat}, ${lng});
           true;
-      `);
-
+        `);
       }
     } else {
       webRef.current?.injectJavaScript(`window.__removeUserLocation(); true;`);
     }
   }, [isReady, userLocation, tracking]);
 
-
-
+  // Push waypoint icons to WebView
   useEffect(() => {
     if (!isReady) return;
     const payload = { waypoints: waypoints || [], iconUrls };
@@ -231,15 +238,16 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     `);
   }, [isReady, waypoints, iconUrls]);
 
-  // pill action
+  // Tracking pill action
   const enableTracking = () => {
     setTracking(true);
     if (isReady && userLocation) {
       const [lat, lng] = userLocation;
-      webRef.current?.injectJavaScript(`window.__panTo(${lat}, ${lng}); true;`);
+      // Requires a tiny helper in HTML:
+      //   window.__panTo = (lat, lng) => map.panTo([lat, lng]);
+      webRef.current?.injectJavaScript(`window.__panTo && window.__panTo(${lat}, ${lng}); true;`);
     }
   };
-
 
   return (
     <View style={styles.container}>

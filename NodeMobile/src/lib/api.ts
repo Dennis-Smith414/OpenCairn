@@ -8,6 +8,11 @@ if (!API_BASE) {
   throw new Error("Missing API_BASE");
 }
 
+
+function safeJson(text: string) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 //export const API_BASE = ENV_API_BASE;
 
 export async function fetchRouteList() {

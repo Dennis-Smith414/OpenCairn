@@ -65,3 +65,27 @@ export async function deleteComment(commentId: number, token: string) {
     throw new Error("Failed to delete comment");
   }
 }
+
+
+// UPDATE / PATCH a comment (author only)
+export async function updateComment(commentId: number, content: string, token: string) {
+  const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
+    method: "PATCH", // if your server expects PUT, change to PUT
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    if (!json.ok) throw new Error(json.error || "Failed to update comment");
+    // Expect json.comment (updated)
+    return json.comment;
+  } catch (err) {
+    console.error("Error updating comment:", err, text);
+    throw new Error("Failed to update comment");
+  }
+}

@@ -16,7 +16,7 @@ import FileManagerScreen from "../screens/FileManagerScreen";
 import RouteCreateScreen from "../screens/RouteCreateScreen";
 import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 import SettingsScreen from "../screens/SettingsScreen";
-
+import WaypointEditScreen from "../screens/WaypointEditScreen";
 // Navigators
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -205,6 +205,11 @@ export default function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen
+              name="WaypointEdit"
+              component={WaypointEditScreen}
+              options={{ title: "Edit Waypoint", headerShown: false }} // or true if you want RN header
+            />
           </>
         )}
       </Stack.Navigator>
