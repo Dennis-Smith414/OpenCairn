@@ -12,10 +12,11 @@ import {
   Alert,
 } from "react-native";
 import { colors } from "../../styles/theme";
-import { fetchComments, postComment, deleteComment } from "../../lib/comments";
+import { fetchComments, postComment, deleteComment, updateComment } from "../../lib/comments";
 import { fetchCommentRating, submitCommentVote } from "../../lib/ratings";
 import { useAuth } from "../../context/AuthContext";
 import { fetchCurrentUser } from "../../lib/api";
+import { CommentEditBox } from "../comments/CommentEditBox";
 
 interface Comment {
   id: number;
@@ -39,6 +40,8 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   const [submitting, setSubmitting] = useState(false);
   const { userToken } = useAuth();
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
 
   //Load comments & ratings
   const loadComments = useCallback(async () => {
@@ -153,61 +156,69 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     const rating = ratings[item.id] || { total: 0, user_rating: null };
     const isOwner =
       currentUser && Number(item.user_id) === Number(currentUser.id);
-
-    //console.log("currentUser", currentUser, "comment user_id", item.user_id);
+    const isEditing = editingId === item.id;
 
     return (
-      <View
-        style={[
-          styles.commentBox,
-          isOwner && { backgroundColor: colors.primary + "22" },
-        ]}
-      >
+      <View style={[styles.commentBox, isOwner && { backgroundColor: colors.primary + "22" }]}>
         <View style={styles.commentHeader}>
-          <Text style={styles.username}>
-            {isOwner ? "You" : item.username}
-          </Text>
-          <Text style={styles.time}>
-            {formatRelativeTime(item.create_time)}
-          </Text>
+          <Text style={styles.username}>{isOwner ? "You" : item.username}</Text>
+          <Text style={styles.time}>{formatRelativeTime(item.create_time)}</Text>
         </View>
 
-        <Text style={styles.content}>{item.content}</Text>
+        {isEditing ? (
+          <CommentEditBox
+            initialText={item.content}
+            saving={!!savingMap[item.id]}
+            onCancel={() => setEditingId(null)}
+            onSave={async (newText) => {
+              if (!userToken) {
+                alert("You must be logged in to edit.");
+                return;
+              }
+              try {
+                setSavingMap((m) => ({ ...m, [item.id]: true }));
+                // optimistic UI
+                setComments((prev) => prev.map(c => c.id === item.id ? { ...c, content: newText } : c));
+                await updateComment(item.id, newText, userToken);
+                setEditingId(null);
+                // or, to be strict, reload from server:
+                // await loadComments();
+              } catch (e) {
+                alert("Failed to save changes.");
+              } finally {
+                setSavingMap((m) => ({ ...m, [item.id]: false }));
+              }
+            }}
+          />
+        ) : (
+          <>
+            <Text style={styles.content}>{item.content}</Text>
 
-        <View style={styles.voteRow}>
-          <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
-            <Text
-              style={[
-                styles.voteButton,
-                rating.user_rating === 1 && { color: colors.accent },
-              ]}
-            >
-              ⬆️
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.voteRow}>
+              {/* up/downvote UI unchanged */}
+              <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
+                <Text style={[styles.voteButton, rating.user_rating === 1 && { color: colors.accent }]}>⬆️</Text>
+              </TouchableOpacity>
+              <Text style={styles.voteCount}>{rating.total}</Text>
+              <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
+                <Text style={[styles.voteButton, rating.user_rating === -1 && { color: colors.error || "#d33" }]}>⬇️</Text>
+              </TouchableOpacity>
+            </View>
 
-          <Text style={styles.voteCount}>{rating.total}</Text>
-
-          <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
-            <Text
-              style={[
-                styles.voteButton,
-                rating.user_rating === -1 && { color: colors.error || "#d33" },
-              ]}
-            >
-              ⬇️
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Delete button for comment owner */}
-        {isOwner && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => confirmDelete(item.id)}
-          >
-            <Text style={styles.deleteButtonText}>Delete</Text>
-          </TouchableOpacity>
+            {isOwner && (
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { backgroundColor: colors.backgroundSecondary }]}
+                  onPress={() => setEditingId(item.id)}
+                >
+                  <Text style={[styles.smallBtnText, { color: colors.textPrimary }]}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.deleteButton]} onPress={() => confirmDelete(item.id)}>
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
       </View>
     );
@@ -362,4 +373,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 10,
   },
+  smallBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  smallBtnText: { fontSize: 13, fontWeight: "600" },
 });

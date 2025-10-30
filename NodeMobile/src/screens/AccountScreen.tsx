@@ -25,9 +25,9 @@ import {
     fetchUserWaypoints,
     } from "../lib/api";
 import { deleteWaypoint } from "../lib/waypoints";
-import { deleteComment } from "../lib/comments";
+import { updateComment, deleteComment } from "../lib/comments";
 import { deleteRoute } from "../lib/routes";
-
+import { CommentEditBox } from "../components/comments/CommentEditBox";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -53,6 +53,9 @@ export default function AccountScreen({ navigation }: any) {
   const [routesPreset, setRoutesPreset] = useState<DatePreset>("all");
   const [waypointsPreset, setWaypointsPreset] = useState<DatePreset>("all");
   const [commentsPreset, setCommentsPreset] = useState<DatePreset>("all");
+
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [savingCommentId, setSavingCommentId] = useState<number | null>(null);
 
     //this fetches pretty much everything,
     //not just profile and routes
@@ -308,7 +311,7 @@ return (
             <UserItemRow
               key={w.id}
               title={w.name}
-              subtitle={`${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
+              subtitle={`${w.route_name} • ${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
               onEdit={() => handleEditWaypoint(w.id)}
               onDelete={() => confirmDeleteWaypoint(w.id)}
             />
@@ -332,18 +335,45 @@ return (
         onDatePresetChange={setCommentsPreset}
       >
         {filteredComments.length > 0 ? (
-          filteredComments.map((c) => (
-            <UserItemRow
-              key={c.id}
-              title={c.waypoint_name || c.route_name || "Unknown"}
-              subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
-              onEdit={() => handleEditComment(c.id)}
-              onDelete={() => confirmDeleteComment(c.id)}
-            />
-          ))
+          filteredComments.map((c) => {
+            const isEditing = editingCommentId === c.id;
+            return (
+              <View key={c.id} style={{ marginBottom: 10 }}>
+                {isEditing ? (
+                  <CommentEditBox
+                    initialText={c.content}
+                    saving={savingCommentId === c.id}
+                    onCancel={() => setEditingCommentId(null)}
+                    onSave={async (text) => {
+                      if (!userToken) return;
+                      try {
+                        setSavingCommentId(c.id);
+                        // optimistic update
+                        setUserComments((prev) => prev.map(cc => cc.id === c.id ? { ...cc, content: text } : cc));
+                        await updateComment(c.id, text, userToken);
+                        setEditingCommentId(null);
+                      } catch (e) {
+                        Alert.alert("Error", "Failed to update comment.");
+                      } finally {
+                        setSavingCommentId(null);
+                      }
+                    }}
+                  />
+                ) : (
+                  <UserItemRow
+                    title={c.waypoint_name || c.route_name || "Unknown"}
+                    subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
+                    onEdit={() => setEditingCommentId(c.id)}
+                    onDelete={() => confirmDeleteComment(c.id)}
+                  />
+                )}
+              </View>
+            );
+          })
         ) : (
           <EmptyState title="No comments" subtitle="Nothing matches your search." />
         )}
+
       </AccountSection>
 
       <TouchableOpacity

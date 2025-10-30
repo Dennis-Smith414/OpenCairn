@@ -12,7 +12,7 @@ import { colors } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
-import { CommentList } from "./CommentList";
+import { CommentList } from "../comments/CommentList";
 import { fetchCurrentUser } from "../../lib/api";
 import { deleteWaypoint } from "../../lib/waypoints";
 
