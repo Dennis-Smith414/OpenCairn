@@ -8,6 +8,11 @@ if (!API_BASE) {
   throw new Error("Missing API_BASE");
 }
 
+
+function safeJson(text: string) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 //export const API_BASE = ENV_API_BASE;
 
 export async function fetchRouteList() {
@@ -81,45 +86,4 @@ export async function fetchCurrentUser(token: string) {
   return json.user;
 }
 
-export async function deleteRoute(id: number, token: string) {
-  const res = await fetch(`${API_BASE}/api/routes/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const text = await res.text();
-  try {
-    const json = JSON.parse(text);
-    return json; // expect {ok: true}
-  } catch {
-    throw new Error(`Bad JSON from DELETE /routes/${id}: ${text.slice(0,200)}`);
-  }
-}
-
-export async function deleteWaypoint(id: number, token: string) {
-  const res = await fetch(`${API_BASE}/api/waypoints/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const text = await res.text();
-  try {
-    const json = JSON.parse(text);
-    return json;
-  } catch {
-    throw new Error(`Bad JSON from DELETE /waypoints/${id}: ${text.slice(0,200)}`);
-  }
-}
-
-export async function deleteComment(id: number, token: string) {
-  const res = await fetch(`${API_BASE}/api/comments/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const text = await res.text();
-  try {
-    const json = JSON.parse(text);
-    return json;
-  } catch {
-    throw new Error(`Bad JSON from DELETE /comments/${id}: ${text.slice(0,200)}`);
-  }
-}
 

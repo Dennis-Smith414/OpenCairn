@@ -40,7 +40,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   const { userToken } = useAuth();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // 🔁 Load comments & ratings
+  //Load comments & ratings
   const loadComments = useCallback(async () => {
     try {
       const data = await fetchComments(waypointId);
@@ -65,7 +65,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   }, [waypointId, userToken]);
 
-  // 👤 Fetch the current user from /me
+  // Fetch the current user from /me
   useEffect(() => {
     const loadUser = async () => {
       if (!userToken) return;
@@ -85,7 +85,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     loadComments();
   }, [loadComments]);
 
-  // 📝 Post new comment
+  //Post new comment
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
     if (!userToken) {
@@ -106,7 +106,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   };
 
-  // ❌ Delete comment (with confirmation popup)
+  //Delete comment (with confirmation popup)
   const confirmDelete = (id: number) => {
     Alert.alert(
       "Delete Comment",
@@ -134,7 +134,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   };
 
-  // ⬆️⬇️ Vote handler
+  //Vote handler
   const handleVote = async (commentId: number, val: 1 | -1) => {
     if (!userToken) {
       alert("You must be logged in to vote.");
@@ -148,7 +148,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   };
 
-  // 💬 Individual comment render
+  // Individual comment render
   const renderComment = ({ item }: { item: Comment }) => {
     const rating = ratings[item.id] || { total: 0, user_rating: null };
     const isOwner =
@@ -200,7 +200,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 🗑️ Delete button for comment owner */}
+        {/* Delete button for comment owner */}
         {isOwner && (
           <TouchableOpacity
             style={styles.deleteButton}
@@ -213,7 +213,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     );
   };
 
-  // ⏳ Loading state
+  // Loading state
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -227,7 +227,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
     >
-      {/* 💬 Input */}
+      {/* Input */}
       <View style={styles.inputRow}>
         <TextInput
           value={newComment}
@@ -246,7 +246,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
         </TouchableOpacity>
       </View>
 
-      {/* 🧾 Comments list */}
+      {/*Comments list */}
       <View style={{ flexGrow: 1 }}>
         <FlatList
           data={comments}
@@ -263,7 +263,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   );
 };
 
-// ⏰ Relative time helper
+// Relative time helper
 function formatRelativeTime(timestamp: string): string {
   const diff = (Date.now() - new Date(timestamp).getTime()) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;
@@ -272,7 +272,7 @@ function formatRelativeTime(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-// 💅 Styles
+//Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

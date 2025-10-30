@@ -8,6 +8,7 @@ import {
   LayoutAnimation,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
 import { useAuth } from "../context/AuthContext";
@@ -22,10 +23,11 @@ import {
     fetchUserComments,
     fetchUserRoutes,
     fetchUserWaypoints,
-    deleteRoute,
-    deleteWaypoint,
-    deleteComment,
     } from "../lib/api";
+import { deleteWaypoint } from "../lib/waypoints";
+import { deleteComment } from "../lib/comments";
+import { deleteRoute } from "../lib/routes";
+
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -137,38 +139,79 @@ export default function AccountScreen({ navigation }: any) {
   }, [userComments, commentsPreset, commentsQuery]);
 
   // ---- Delete handlers ----
-  const handleDeleteRoute = async (id: number) => {
-    if (!userToken) return;
-    try {
-      const res = await deleteRoute(id, userToken);
-      if (res.ok) setUserRoutes((prev) => prev.filter((r) => r.id !== id));
-      else console.warn("Delete route failed:", res.error || res);
-    } catch (e) {
-      console.error("Delete route error:", e);
-    }
+const handleDeleteRoute = async (id: number) => {
+  if (!id || !userToken) return;
+  try {
+    await deleteRoute(id, userToken);
+    setUserRoutes((prev) => prev.filter((r) => r.id !== id));
+  } catch (err) {
+    console.error("Failed to delete route:", err);
+    Alert.alert("Error", "Failed to delete route.");
+  }
+};
+
+const handleDeleteWaypoint = async (id: number) => {
+  if (!id || !userToken) return;
+  try {
+    await deleteWaypoint(id, userToken);
+    // remove from UI
+    setUserWaypoints((prev) => prev.filter((w) => w.id !== id));
+  } catch (err) {
+    console.error("Failed to delete waypoint:", err);
+    Alert.alert("Error", "Failed to delete waypoint.");
+  }
+};
+
+const handleDeleteComment = async (id: number) => {
+  if (!id || !userToken) return;
+  try {
+    await deleteComment(id, userToken); // returns deleted_id (ignored here)
+    setUserComments((prev) => prev.filter((c) => c.id !== id));
+  } catch (err) {
+    console.error("Failed to delete comment:", err);
+    Alert.alert("Error", "Failed to delete comment.");
+  }
+};
+
+
+
+  // --- delete confirms (popup only) ---
+  const confirmDeleteRoute = (id: number) => {
+    Alert.alert(
+      "Delete Route",
+      "Are you sure you want to delete this route?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteRoute(id) },
+      ],
+      { cancelable: true }
+    );
   };
 
-  const handleDeleteWaypoint = async (id: number) => {
-    if (!userToken) return;
-    try {
-      const res = await deleteWaypoint(id, userToken);
-      if (res.ok) setUserWaypoints((prev) => prev.filter((w) => w.id !== id));
-      else console.warn("Delete waypoint failed:", res.error || res);
-    } catch (e) {
-      console.error("Delete waypoint error:", e);
-    }
+  const confirmDeleteWaypoint = (id: number) => {
+    Alert.alert(
+      "Delete Waypoint",
+      "Are you sure you want to delete this waypoint?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteWaypoint(id) },
+      ],
+      { cancelable: true }
+    );
   };
 
-  const handleDeleteComment = async (id: number) => {
-    if (!userToken) return;
-    try {
-      const res = await deleteComment(id, userToken);
-      if (res.ok) setUserComments((prev) => prev.filter((c) => c.id !== id));
-      else console.warn("Delete comment failed:", res.error || res);
-    } catch (e) {
-      console.error("Delete comment error:", e);
-    }
+  const confirmDeleteComment = (id: number) => {
+    Alert.alert(
+      "Delete Comment",
+      "Are you sure you want to delete this comment?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteComment(id) },
+      ],
+      { cancelable: true }
+    );
   };
+
 
   // ---- Edit handlers (adjust to your navigator screen names) ----
   const handleEditRoute = (id: number) => navigation.navigate("RouteEdit", { id });
@@ -195,10 +238,26 @@ return (
         label="Member Since"
         value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
       />
-      <StatRow label="Routes Created" value={profile?.stats?.routes_created ?? "—"} />
+      <StatRow
+        label="Routes Created"
+        value={profile?.stats?.routes_created ?? "—"} />
       <StatRow
         label="Waypoints Created"
         value={profile?.stats?.waypoints_created ?? "—"}
+        //showBorder={false}
+      />
+      <StatRow
+        label="Comments Written"
+        value={profile?.stats?.comments_created ?? "—"}
+        //showBorder={false}
+      />
+      <StatRow
+        label="Total Upvote / Downvote Contributions"
+        value={
+          (Number(profile?.stats?.route_ratings) ?? 0) +
+          (Number(profile?.stats?.comment_ratings) ?? 0) +
+          (Number(profile?.stats?.waypoint_ratings) ?? 0)
+        }
         showBorder={false}
       />
     </Card>
@@ -223,7 +282,7 @@ return (
               title={r.name}
               subtitle={`${r.region || "—"} • ${new Date(r.created_at).toLocaleDateString()}`}
               onEdit={() => handleEditRoute(r.id)}
-              onDelete={() => handleDeleteRoute(r.id)}
+              onDelete={() => confirmDeleteRoute(r.id)}
             />
           ))
         ) : (
@@ -251,7 +310,7 @@ return (
               title={w.name}
               subtitle={`${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
               onEdit={() => handleEditWaypoint(w.id)}
-              onDelete={() => handleDeleteWaypoint(w.id)}
+              onDelete={() => confirmDeleteWaypoint(w.id)}
             />
           ))
         ) : (
@@ -279,7 +338,7 @@ return (
               title={c.waypoint_name || c.route_name || "Unknown"}
               subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
               onEdit={() => handleEditComment(c.id)}
-              onDelete={() => handleDeleteComment(c.id)}
+              onDelete={() => confirmDeleteComment(c.id)}
             />
           ))
         ) : (

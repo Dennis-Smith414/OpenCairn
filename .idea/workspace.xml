@@ -5,11 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/NodeMobile/src/lib/routes.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/account/AccountSection.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/account/AccountSection.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/CommentList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/CommentList.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/uploadGpx.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/uploadGpx.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Server/routes/users.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/routes/users.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
