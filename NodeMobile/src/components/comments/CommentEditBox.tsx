@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtn: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.secondary,
   },
   saveBtn: {
     backgroundColor: colors.primary,

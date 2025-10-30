@@ -6,14 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/WaypointDetail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/LeafletMap/WaypointDetail.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/waypoints.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/navigation/AppNavigator.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/AccountScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/MapScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/WaypointEditScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/WaypointEditScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Server/routes/waypoints.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/routes/waypoints.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentEditBox.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentEditBox.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
