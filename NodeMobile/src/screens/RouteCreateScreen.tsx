@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { pick } from "@react-native-documents/picker";
 import RNFS from "react-native-fs";
-import { baseStyles, colors } from "../styles/theme";
+import { globalStyles, theme } from "../styles/globalStyles";
 import { uploadGpxFile } from "../lib/uploadGpx";
 import { useAuth } from "../context/AuthContext";
 import {API_BASE as BASE} from "../lib/api";
@@ -69,42 +69,42 @@ export default function RouteCreateScreen({ navigation }: any) {
     };
 
     return (
-        <View style={[baseStyles.container, styles.container]}>
-            <Text style={baseStyles.headerText}>Create New Route</Text>
-            <View style={styles.form}>
-                <Text style={styles.label}>Route Name *</Text>
+        <View style={[globalStyles.container]}>
+            <Text style={globalStyles.headerText}>Create New Route</Text>
+            <View style={globalStyles.form}>
+                <Text style={globalStyles.label}>Route Name *</Text>
                 <TextInput
-                    style={styles.input}
+                    style={globalStyles.input}
                     placeholder="Enter route name"
-                    placeholderTextColor={colors.textSecondary}
+                    placeholderTextColor={theme.colors.textSecondary}
                     value={name}
                     onChangeText={setName}
                     editable={!uploading}
                 />
-                <Text style={styles.label}>Region (Optional)</Text>
+                <Text style={globalStyles.label}>Region (Optional)</Text>
                 <TextInput
-                    style={styles.input}
+                    style={globalStyles.input}
                     placeholder="Enter region"
-                    placeholderTextColor={colors.textSecondary}
+                    placeholderTextColor={theme.colors.textSecondary}
                     value={region}
                     onChangeText={setRegion}
                     editable={!uploading}
                 />
                 <TouchableOpacity
-                    style={[styles.fileButton, fileUri && styles.fileButtonSelected]}
+                    style={[globalStyles.fileButton, fileUri && globalStyles.fileButtonSelected]}
                     onPress={pickFile}
                     disabled={uploading}
                 >
-                    <Text style={styles.fileButtonText}>
+                    <Text style={globalStyles.fileButtonText}>
                         {fileUri ? `✓ ${fileName}` : "📎 Select GPX File"}
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[
-                        baseStyles.button,
-                        baseStyles.buttonPrimary,
-                        styles.submitButton,
-                        uploading && styles.submitButtonDisabled,
+                        globalStyles.button,
+                        globalStyles.buttonPrimary,
+                        globalStyles.submitButton,
+                        uploading && globalStyles.submitButtonDisabled,
                     ]}
                     onPress={handleSubmit}
                     disabled={uploading}
@@ -112,7 +112,7 @@ export default function RouteCreateScreen({ navigation }: any) {
                     {uploading ? (
                         <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                        <Text style={baseStyles.buttonText}>Create Route</Text>
+                        <Text style={globalStyles.buttonText}>Create Route</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -120,52 +120,52 @@ export default function RouteCreateScreen({ navigation }: any) {
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        padding: 20,
-    },
-    form: {
-        marginTop: 24,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: colors.text,
-        marginBottom: 8,
-        marginTop: 16,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        color: colors.text,
-        backgroundColor: colors.backgroundAlt,
-    },
-    fileButton: {
-        borderWidth: 2,
-        borderColor: colors.accent,
-        borderRadius: 8,
-        borderStyle: "dashed",
-        padding: 20,
-        alignItems: "center",
-        marginTop: 24,
-        backgroundColor: colors.backgroundAlt,
-    },
-    fileButtonSelected: {
-        backgroundColor: colors.primary,
-        borderStyle: "solid",
-    },
-    fileButtonText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.text,
-    },
-    submitButton: {
-        marginTop: 32,
-    },
-    submitButtonDisabled: {
-        opacity: 0.6,
-    },
-});
+// const styles = StyleSheet.create({
+//     container: {
+//         padding: 20,
+//     },
+//     form: {
+//         marginTop: 24,
+//     },
+//     label: {
+//         fontSize: 14,
+//         fontWeight: "600",
+//         color: colors.text,
+//         marginBottom: 8,
+//         marginTop: 16,
+//     },
+//     input: {
+//         borderWidth: 1,
+//         borderColor: colors.border,
+//         borderRadius: 8,
+//         padding: 12,
+//         fontSize: 16,
+//         color: colors.text,
+//         backgroundColor: colors.backgroundAlt,
+//     },
+//     fileButton: {
+//         borderWidth: 2,
+//         borderColor: colors.accent,
+//         borderRadius: 8,
+//         borderStyle: "dashed",
+//         padding: 20,
+//         alignItems: "center",
+//         marginTop: 24,
+//         backgroundColor: colors.backgroundAlt,
+//     },
+//     fileButtonSelected: {
+//         backgroundColor: colors.primary,
+//         borderStyle: "solid",
+//     },
+//     fileButtonText: {
+//         fontSize: 16,
+//         fontWeight: "600",
+//         color: colors.text,
+//     },
+//     submitButton: {
+//         marginTop: 32,
+//     },
+//     submitButtonDisabled: {
+//         opacity: 0.6,
+//     },
+// });

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { globalStyles, theme } from "../styles/globalStyles";
 
 export default function FileManagerScreen() {
     return (
