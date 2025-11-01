@@ -206,6 +206,14 @@ export const globalStyles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 1,
     },
+    picker: {
+        width: "80%",
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        borderRadius: 12,
+        marginVertical: 8,
+        backgroundColor: theme.colors.backgroundAlt,
+    },
 
 });
 

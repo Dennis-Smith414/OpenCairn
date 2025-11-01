@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { Picker } from "@react-native-picker/picker";
-import { baseStyles, colors } from "../styles/theme";
+import { globalStyles, theme } from "../styles/globalStyles";
 import { createWaypoint } from "../lib/waypoints";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useAuth } from "../context/AuthContext";
@@ -92,23 +92,19 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
   return (
     <ScrollView
-      contentContainerStyle={{
-        ...baseStyles.container,
-        alignItems: "center",
-        paddingVertical: 20,
-      }}
+      contentContainerStyle={ globalStyles.filesContainer }
     >
       {/* Back Button */}
             <TouchableOpacity onPress={() => navigation.goBack()} style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}>
-              <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
+              <Text style={{ fontSize: 16, color: theme.colors.accent }}>← Back</Text>
             </TouchableOpacity>
-      <Text style={baseStyles.headerText}>Create Waypoint</Text>
+      <Text style={globalStyles.headerText}>Create Waypoint</Text>
 
       {/* Name (required) */}
       <TextInput
         placeholder="Name (required)"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={theme.colors.textSecondary}
+        style={globalStyles.input}
         value={name}
         onChangeText={setName}
       />
@@ -116,8 +112,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Description */}
       <TextInput
         placeholder="Description"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={theme.colors.textSecondary}
+        style={globalStyles.input}
         value={desc}
         onChangeText={setDesc}
         multiline
@@ -126,8 +122,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Latitude */}
       <TextInput
         placeholder="Latitude"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={theme.colors.textSecondary}
+        style={globalStyles.input}
         value={lat}
         onChangeText={setLat}
         keyboardType="numeric"
@@ -136,8 +132,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Longitude */}
       <TextInput
         placeholder="Longitude"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={theme.colors.textSecondary}
+        style={globalStyles.input}
         value={lon}
         onChangeText={setLon}
         keyboardType="numeric"
@@ -145,19 +141,12 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
       {/* Route Picker */}
       <View
-        style={{
-          width: "80%",
-          borderWidth: 1,
-          borderColor: colors.accent,
-          borderRadius: 12,
-          marginVertical: 8,
-          backgroundColor: colors.backgroundAlt,
-        }}
+        style={ globalStyles.picker }
       >
         <Picker
           selectedValue={routeId}
           onValueChange={(value) => setRouteId(value)}
-          style={{ color: colors.textPrimary }}
+          style={{ color: theme.colors.textPrimary }}
         >
           {selectedRoutes.length > 0 ? (
             selectedRoutes.map((r) => (
@@ -172,19 +161,12 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
       {/* Type Picker */}
       <View
-        style={{
-          width: "80%",
-          borderWidth: 1,
-          borderColor: colors.accent,
-          borderRadius: 12,
-          marginVertical: 8,
-          backgroundColor: colors.backgroundAlt,
-        }}
+        style={ globalStyles.picker }
       >
         <Picker
           selectedValue={type}
           onValueChange={(value) => setType(value)}
-          style={{ color: colors.textPrimary }}
+          style={{ color: theme.colors.textPrimary }}
         >
           {waypointTypes.map((item) => (
             <Picker.Item
@@ -198,10 +180,10 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
       {/* Submit Button */}
       <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonPrimary]}
+        style={[globalStyles.button, globalStyles.buttonPrimary]}
         onPress={handleSubmit}
       >
-        <Text style={baseStyles.buttonText}>Save Waypoint</Text>
+        <Text style={globalStyles.buttonText}>Save Waypoint</Text>
       </TouchableOpacity>
     </ScrollView>
   );

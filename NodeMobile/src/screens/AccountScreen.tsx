@@ -231,11 +231,11 @@ const handleDeleteComment = async (id: number) => {
 
 return (
   <ScrollView
-    style={{ flex: 1, backgroundColor: colors.background }}
+    style={{ flex: 1, backgroundColor: theme.colors.background }}
     contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
     showsVerticalScrollIndicator={false}
   >
-    <Text style={[baseStyles.headerText, styles.pageTitle]}>My Account</Text>
+    <Text style={[globalStyles.headerText, globalStyles.pageTitle]}>My Account</Text>
 
     {/* Basic Info */}
     <Card>
