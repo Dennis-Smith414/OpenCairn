@@ -15,6 +15,11 @@ export const globalStyles = StyleSheet.create({
         flex: 1,
         backgroundColor: theme.colors.background,
     },
+    filesContainer: {
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 24,
+    },
     placeholderContainer: {
         alignItems: "center",
         maxWidth: 300,
@@ -94,6 +99,7 @@ export const globalStyles = StyleSheet.create({
         fontSize: 16,
         color: theme.colors.textSecondary,
         marginBottom: 32,
+        textAlign: "center",
     },
     form: {
         width: "100%",
@@ -192,6 +198,13 @@ export const globalStyles = StyleSheet.create({
     icon: {
         fontSize: 64,
         marginBottom: 16,
+    },
+    comingSoon: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: theme.colors.accent,
+        textTransform: "uppercase",
+        letterSpacing: 1,
     },
 
 });
