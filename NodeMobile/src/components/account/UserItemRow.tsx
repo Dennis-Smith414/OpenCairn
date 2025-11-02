@@ -1,73 +1,86 @@
-// src/components/account/UserItemRow.tsx
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors } from "../../styles/theme";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useThemeStyles, fonts } from "../../styles/theme";
 
-interface UserItemRowProps {
+type Props = {
   title: string;
   subtitle?: string;
   onEdit?: () => void;
   onDelete?: () => void;
-}
+  showDivider?: boolean;
+};
 
-export const UserItemRow: React.FC<UserItemRowProps> = ({
+export const UserItemRow: React.FC<Props> = ({
   title,
   subtitle,
   onEdit,
   onDelete,
-}) => (
-  <View style={styles.row}>
-    <View style={styles.info}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-    </View>
-    <View style={styles.actions}>
-      {onEdit && (
-        <TouchableOpacity onPress={onEdit}>
-          <Text style={styles.edit}>Edit</Text>
-        </TouchableOpacity>
-      )}
-      {onDelete && (
-        <TouchableOpacity onPress={onDelete}>
-          <Text style={styles.delete}>Delete</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  </View>
-);
+  showDivider = true,
+}) => {
+  const { colors } = useThemeStyles();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border || "#ddd",
-  },
-  info: {
-    flex: 1,
-    marginRight: 8,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  edit: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
-  delete: {
-    color: "#d9534f",
-    fontWeight: "700",
-  },
-});
+  return (
+    <View style={[styles.row, !showDivider && { borderBottomWidth: 0 }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+
+      <View style={styles.actions}>
+        {onEdit ? (
+          <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.edit}>Edit</Text>
+          </TouchableOpacity>
+        ) : null}
+        {onDelete ? (
+          <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.delete}>Delete</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+};
+
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,              // ✅ visible divider on dark cards
+    },
+    title: {
+      ...fonts.body,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,                     // ✅ bright title
+    },
+    subtitle: {
+      ...fonts.body,
+      marginTop: 2,
+      fontSize: 13,
+      color: colors.textSecondary,                   // ✅ softer subtitle
+    },
+    actions: {
+      flexDirection: "row",
+      gap: 14,
+      marginLeft: 12,
+      alignItems: "center",
+    },
+    edit: {
+      ...fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.accent,                          // ✅ themed accent
+    },
+    delete: {
+      ...fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: "#E06767",                              // ✅ accessible red on dark bg
+    },
+  });

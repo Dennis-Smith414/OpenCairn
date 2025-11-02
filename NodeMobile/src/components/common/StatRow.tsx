@@ -1,42 +1,48 @@
 // src/components/common/StatRow.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme";
 
 interface StatRowProps {
-    label: string;
-    value: string | number;
-    showBorder?: boolean;
+  label: string;
+  value: string | number;
+  showBorder?: boolean;
 }
 
 export const StatRow: React.FC<StatRowProps> = ({
-                                                    label,
-                                                    value,
-                                                    showBorder = true
-                                                }) => (
-    <View style={[styles.container, showBorder && styles.bordered]}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.value}>{value}</Text>
-    </View>
-);
+  label,
+  value,
+  showBorder = true,
+}) => {
+  const { colors } = useThemeStyles();                         
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
-const styles = StyleSheet.create({
+  return (
+    <View style={[styles.container, showBorder && styles.bordered]}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.value}>{String(value)}</Text>
+    </View>
+  );
+};
+
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
     container: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        paddingVertical: 8,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 8,
     },
     bordered: {
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,     
     },
     label: {
-        fontSize: 15,
-        color: colors.textSecondary,
+      fontSize: 15,
+      color: colors.textSecondary,         
     },
     value: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: colors.text,
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.textPrimary,          
     },
-});
+  });

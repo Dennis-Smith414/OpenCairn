@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { useThemeStyles } from "../styles/theme";
 import { fetchRouteList } from "../lib/api";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
@@ -20,6 +20,7 @@ type RouteItem = {
 };
 
 export default function RouteSelectScreen({ navigation }: any) {
+  const { colors, styles: baseStyles } = useThemeStyles();
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -8,7 +8,7 @@ import {
   LayoutAnimation,
   TextInput,
 } from "react-native";
-import { colors } from "../../styles/theme";
+import { useThemeStyles, fonts } from "../../styles/theme";
 import { Card } from "../common/Card";
 
 export type DatePreset = "all" | "7" | "30" | "365";
@@ -42,6 +42,68 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
   datePreset = "all",
   onDatePresetChange,
 }) => {
+  const { colors: c } = useThemeStyles();
+
+  const styles = React.useMemo(
+    () =>
+      StyleSheet.create({
+        header: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingVertical: 4,
+        },
+        title: {
+          ...fonts.header,
+          fontSize: 18,
+          fontWeight: "700",
+          color: c.textPrimary, // high contrast in dark mode
+        },
+        arrow: {
+          fontSize: 18,
+          fontWeight: "700",
+          color: c.textSecondary, // subtle but readable
+        },
+        content: { marginTop: 8 },
+        filtersRow: { gap: 8 },
+        search: {
+          borderWidth: 1,
+          borderColor: c.border,
+          borderRadius: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          color: c.textPrimary,
+          backgroundColor: c.background, // keeps input readable on dark
+        },
+        presetRow: {
+          flexDirection: "row",
+          gap: 8,
+          marginTop: 6,
+        },
+        presetChip: {
+          borderWidth: 1,
+          borderColor: c.border,
+          borderRadius: 14,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          backgroundColor: "transparent",
+        },
+        presetChipActive: {
+          backgroundColor: c.accent,
+          borderColor: c.accent,
+        },
+        presetText: {
+          color: c.textSecondary,
+          fontWeight: "600",
+        },
+        presetTextActive: {
+          color: c.background,
+          fontWeight: "700",
+        },
+      }),
+    [c]
+  );
+
   return (
     <Card>
       <TouchableOpacity
@@ -65,7 +127,7 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
                   value={query}
                   onChangeText={(t) => onQueryChange?.(t)}
                   placeholder={searchPlaceholder}
-                  placeholderTextColor={colors.textSecondary}
+                  placeholderTextColor={c.textSecondary}
                   style={styles.search}
                   returnKeyType="search"
                 />
@@ -81,17 +143,9 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
                       <TouchableOpacity
                         key={p}
                         onPress={() => onDatePresetChange?.(p)}
-                        style={[
-                          styles.presetChip,
-                          active && styles.presetChipActive,
-                        ]}
+                        style={[styles.presetChip, active && styles.presetChipActive]}
                       >
-                        <Text
-                          style={[
-                            styles.presetText,
-                            active && styles.presetTextActive,
-                          ]}
-                        >
+                        <Text style={[styles.presetText, active && styles.presetTextActive]}>
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -102,7 +156,7 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
             </View>
           )}
 
-          <View style={{ marginTop: (showSearch || showDatePresets) ? 8 : 0 }}>
+          <View style={{ marginTop: showSearch || showDatePresets ? 8 : 0 }}>
             {children}
           </View>
         </View>
@@ -110,59 +164,3 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
     </Card>
   );
 };
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  arrow: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.accent,
-  },
-  content: {
-    marginTop: 8,
-  },
-  filtersRow: {
-    gap: 8,
-  },
-  search: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: colors.textPrimary,
-  },
-  presetRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 6,
-  },
-  presetChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  presetChipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  presetText: {
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  presetTextActive: {
-    color: colors.background,
-  },
-});
