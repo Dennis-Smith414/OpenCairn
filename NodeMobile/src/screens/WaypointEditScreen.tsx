@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { Picker } from "@react-native-picker/picker";
-import { baseStyles, useThemeStyles } from "../styles/theme"; // ⬅️ use theme hook
+import { baseStyles, useThemeStyles } from "../styles/theme"; 
 import { useAuth } from "../context/AuthContext";
 import { fetchWaypoint, updateWaypoint, Waypoint } from "../lib/waypoints";
 
