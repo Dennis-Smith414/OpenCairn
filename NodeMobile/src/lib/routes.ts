@@ -5,42 +5,11 @@ export interface Route {
   id?: number;
   name: string;
   description?: string;
-  region?: string | null; // <- nullable to match server
+  region?: string;
   user_id?: number;
   distance_km?: number;
   created_at?: string;
   updated_at?: string;
-}
-
-export type RouteMeta = {
-  id: number;
-  slug: string;
-  name: string;
-  region: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-/** List routes (metadata only). Mirrors GET /api/routes */
-export async function listRoutes(opts?: { q?: string; offset?: number; limit?: number }) {
-  const params = new URLSearchParams();
-  if (opts?.q) params.set("q", opts.q);
-  if (opts?.offset != null) params.set("offset", String(opts.offset));
-  if (opts?.limit != null) params.set("limit", String(opts.limit));
-
-  const url = `${API_BASE}/api/routes${params.toString() ? `?${params.toString()}` : ""}`;
-  const res = await fetch(url);
-  const text = await res.text();
-
-  let json: any;
-  try { json = JSON.parse(text); } catch { throw new Error(`Bad response: ${text}`); }
-
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error || `Failed to load routes (${res.status})`);
-  }
-
-  const items: RouteMeta[] = json.items ?? [];
-  return items;
 }
 
 /**
@@ -50,12 +19,18 @@ export async function listRoutes(opts?: { q?: string; offset?: number; limit?: n
 export async function deleteRoute(routeId: number, token: string) {
   const res = await fetch(`${API_BASE}/api/routes/${routeId}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   const text = await res.text();
   let json: any = {};
-  try { json = JSON.parse(text); } catch {}
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // ignore parse errors; we'll still check res.ok
+  }
 
   if (!res.ok || json?.ok === false) {
     throw new Error(json?.error || `Failed to delete route ${routeId}`);
@@ -63,34 +38,21 @@ export async function deleteRoute(routeId: number, token: string) {
   return json; // { ok: true }
 }
 
-/* (optional) keep these handy as you build out edit screens
+/*
+// Optional: add as you migrate other calls here for consistency
 
-export async function createRoute(
-  token: string,
-  payload: { name: string; region?: string | null }
-) {
+export async function createRoute(token: string, payload: Omit<Route, "id" | "created_at" | "updated_at" | "user_id">) {
   const res = await fetch(`${API_BASE}/api/routes`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name: payload.name, region: payload.region ?? null }),
-  });
-  const text = await res.text(); const json = JSON.parse(text);
-  if (!res.ok || json?.ok === false) throw new Error(json?.error || "Failed to create route");
-  return json.route as RouteMeta;
-}
-
-export async function updateRouteMeta(
-  routeId: number,
-  token: string,
-  payload: { name?: string; region?: string | null }
-) {
-  const res = await fetch(`${API_BASE}/api/routes/${routeId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(payload),
   });
-  const text = await res.text(); const json = JSON.parse(text);
-  if (!res.ok || json?.ok === false) throw new Error(json?.error || "Failed to update route");
-  return json.route as RouteMeta;
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Failed to create route");
+  return data.route as Route;
 }
+
 */

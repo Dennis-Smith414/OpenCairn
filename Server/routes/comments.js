@@ -168,7 +168,7 @@ router.patch("/routes/:commentId", authorize, async (req, res) => {
       // Figure out why: not found vs not yours vs no change
       // Check existence quickly:
       const exists = await db.get(
-        "SELECT id, user_id FROM route_comments WHERE id = $1",
+        "SELECT id, user_id FROM waypoint_comments WHERE id = $1",
         [commentId]
       );
       if (!exists) {
@@ -218,14 +218,14 @@ router.delete("/routes/:commentId", authorize, async (req, res) => {
     const userId = req.user.id;
 
     const existing = await db.get(
-      "SELECT id, user_id FROM route_comments WHERE id = $1 AND user_id = $2",
+      "SELECT id, user_id FROM waypoint_comments WHERE id = $1 AND user_id = $2",
       [commentId, userId]
     );
     if (!existing) {
       return res.status(403).json({ ok: false, error: "Not your comment" });
     }
 
-    await db.run("DELETE FROM route_comments WHERE id = $1", [commentId]);
+    await db.run("DELETE FROM waypoint_comments WHERE id = $1", [commentId]);
     res.json({ ok: true, deleted_id: Number(commentId) }); // <- added deleted_id
   } catch (err) {
     console.error("Error deleting comment:", err);

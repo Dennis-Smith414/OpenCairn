@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { baseStyles, colors } from "../styles/theme";
-import { listRoutes } from "../lib/routes";
+import { fetchRouteList } from "../lib/api";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
 type RouteItem = {
@@ -30,7 +30,7 @@ export default function RouteSelectScreen({ navigation }: any) {
   const loadRoutes = useCallback(async () => {
     try {
       setRefreshing(true);
-      const list = await listRoutes({limit: 10});
+      const list = await fetchRouteList();
       setRoutes(list);
     } catch (e: any) {
       console.error("Failed to fetch routes:", e);

@@ -15,7 +15,6 @@ const strongPwd = (s) =>
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
 // Ensure users table exists
-/*
 (async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -39,7 +38,6 @@ const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     FOR EACH ROW EXECUTE FUNCTION users_touch_updated_at();
   `);
 })().catch((e) => console.error("users table init failed:", e));
-*/
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {

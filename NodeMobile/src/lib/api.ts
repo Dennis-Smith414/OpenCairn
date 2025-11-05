@@ -15,7 +15,7 @@ function safeJson(text: string) {
 
 //export const API_BASE = ENV_API_BASE;
 
-/* export async function fetchRouteList() {
+export async function fetchRouteList() {
   const res = await fetch(`${API_BASE}/api/routes/list`);
   const text = await res.text();
   try {
@@ -24,7 +24,7 @@ function safeJson(text: string) {
   } catch {
     throw new Error(`Bad JSON from /routes/list: ${text.slice(0,200)}`);
   }
-} */
+}
 
 export async function fetchRouteGeo(id: number) {
   const r = await fetch(`${API_BASE}/api/routes/${id}.geojson`);

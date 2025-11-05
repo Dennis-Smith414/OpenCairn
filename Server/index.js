@@ -1,6 +1,5 @@
 // Server/index.js
 require("dotenv").config({ path: __dirname + "/.env", override: true });
-const { init } = require("./Postgres");
 
 // 1. Add a clear boot-time check for DATABASE_URL
 if (!process.env.DATABASE_URL) {
@@ -39,8 +38,6 @@ const waypointRoutes = require("./routes/waypoints");
 const userRoutes = require("./routes/users");
 const ratingRoutes = require("./routes/ratings");
 const commentsRoutes = require("./routes/comments");
-const routeRoutes = require("./routes/routes");
-
 
 // mount the routes under /api
 app.use("/api/auth", authRoutes);
@@ -48,32 +45,12 @@ app.use("/api/users", userRoutes);
 app.use("/api/waypoints", waypointRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api", gpxRoutes);
-app.use("/api/routes", routeRoutes);
 app.use("/api/comments", commentsRoutes);
 
 // health
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, db: true, startedAt: new Date().toISOString() });
 });
-
-
-
-(async () => {
-  try {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const r = await pool.query("SELECT NOW()");
-    console.log("[boot] ✅ DB connection OK, time:", r.rows[0].now);
-    await pool.end();
-
-    console.log("[boot] Running init() to ensure tables exist...");
-    await init();
-    console.log("[boot] ✅ Database schema ensured");
-  } catch (err) {
-    console.error("[boot] ❌ DB connection failed:", err);
-    process.exit(1);
-  }
-})();
-
 
 app.listen(PORT, () => console.log(`Backend listening on http://10.0.2.2:${PORT}`));
 //app.listen(PORT, () => console.log(`Backend listening on http://YOUR_IP_HERE:${PORT}`));
