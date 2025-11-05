@@ -189,4 +189,3 @@ export async function updateRouteComment(commentId: number, content: string, tok
     throw new Error("Failed to update comment");
   }
 }
-

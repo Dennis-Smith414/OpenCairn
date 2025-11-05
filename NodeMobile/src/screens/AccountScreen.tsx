@@ -25,8 +25,8 @@ import {
     fetchUserWaypoints,
     } from "../lib/api";
 import { deleteWaypoint } from "../lib/waypoints";
-import { updateComment, deleteComment } from "../lib/comments";
 import { deleteRoute } from "../lib/routes";
+import { updateWaypointComment, deleteWaypointComment } from "../lib/comments";
 import { CommentEditBox } from "../components/comments/CommentEditBox";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {

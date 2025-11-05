@@ -1,15 +1,15 @@
-// Server/routes/gpx.js
-require('dotenv').config();
+// server/routes/gpx.js
+require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
 const { Pool } = require("pg");
 const gpxParse = require("gpx-parse");
-const { featureCollection, lineString } = require("@turf/helpers");
 const authorize = require("../middleware/authorize");
 
-console.log('[gpx] Loaded DATABASE_URL =', JSON.stringify(process.env.DATABASE_URL));
+console.log("[gpx] Loaded DATABASE_URL =", JSON.stringify(process.env.DATABASE_URL));
 
+/** @type {import('pg').Pool} */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
@@ -17,167 +17,226 @@ const pool = new Pool({
 
 const router = express.Router();
 
-// Multer → in-memory GPX upload
+/** Multer → in-memory GPX upload */
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-// Health check
 router.get("/routes/ping", (_req, res) => res.json({ ok: true, where: "gpx-router" }));
 
-//Route list
-router.get("/routes/list", async (req, res) => {
-  try {
-    const { offset = 0, limit = 20, q = "" } = req.query;
-    const lim = Math.min(parseInt(limit, 10) || 20, 100);
-    const off = parseInt(offset, 10) || 0;
-    const where = q ? `WHERE name ILIKE $1` : ``;
-    const params = q ? [`%${q}%`, lim, off] : [lim, off];
+/**
+ * Parse GPX XML buffer → { name, coords:[[lon,lat],...], checksum }
+ * @param {Buffer} buf
+ * @returns {Promise<{name: string, coords: [number, number][], checksum: string}>}
+ */
+async function parseGpxBuffer(buf) {
+  const xml = buf.toString("utf8");
+  const checksum = crypto.createHash("sha256").update(xml).digest("hex");
 
-    const sql = `
-      SELECT id, slug, name, region, created_at, updated_at
-      FROM routes
-      ${where}
-      ORDER BY updated_at DESC
-      LIMIT $${q ? 2 : 1} OFFSET $${q ? 3 : 2}
-    `;
-    const { rows } = await pool.query(sql, params);
-    res.json({ items: rows, nextOffset: off + rows.length });
-  } catch (e) {
-    console.error("list failed:", e);
-    res.status(500).json({ error: "list-failed" });
-  }
-});
-
-// Route metadata (no geometry)
-router.get("/routes/:id.meta", async (req, res) => {
-  const { id } = req.params;
-  const q = await pool.query(
-    `SELECT id, slug, name, region, created_at, updated_at FROM routes WHERE id = $1`,
-    [id]
+  const gpx = await new Promise((resolve, reject) =>
+    gpxParse.parseGpx(xml, (err, data) => (err ? reject(err) : resolve(data)))
   );
-  if (!q.rowCount) return res.sendStatus(404);
-  res.json(q.rows[0]);
-});
 
-// GeoJSON for *all GPX entries* of a route
+  /** @type {[number, number][]} */
+  const coords = [];
+  for (const trk of gpx.tracks || []) {
+    for (const seg of trk.segments || []) {
+      for (const p of seg) {
+        if (Number.isFinite(p.lon) && Number.isFinite(p.lat)) {
+          coords.push([p.lon, p.lat]);
+        }
+      }
+    }
+  }
+
+  const name =
+    (gpx && gpx.metadata && gpx.metadata.name) ||
+    (gpx && gpx.tracks && gpx.tracks[0] && gpx.tracks[0].name) ||
+    "Uploaded Track";
+
+  return { name, coords, checksum };
+}
+
+/**
+ * GET /api/routes/:id.geojson
+ * Return a FeatureCollection for ALL GPX geometries of a route (empty collection if none).
+ * @typedef {{type:'Feature',properties:Record<string,any>,geometry:any}} GeoJSONFeature
+ * @typedef {{type:'FeatureCollection',features:GeoJSONFeature[]}} FeatureCollection
+ */
 router.get("/routes/:id.geojson", async (req, res) => {
   try {
-    const { id } = req.params;
+    const routeId = Number(req.params.id);
+    if (!Number.isInteger(routeId) || routeId <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid-route-id" });
+    }
 
     const result = await pool.query(
-      `SELECT ST_AsGeoJSON(geometry)::json AS geometry
+      `SELECT id, name, ST_AsGeoJSON(geometry)::json AS geometry
          FROM gpx
-        WHERE route_id = $1`,
-      [id]
+        WHERE route_id = $1
+        ORDER BY id ASC`,
+      [routeId]
     );
 
-    if (!result.rowCount) return res.sendStatus(404);
-
-    // Build a FeatureCollection of all geometries for this route
+    /** @type {GeoJSONFeature[]} */
     const features = result.rows.map((row, idx) => ({
       type: "Feature",
-      properties: { route_id: id, segment: idx },
+      properties: { route_id: routeId, gpx_id: row.id, name: row.name, segment: idx },
       geometry: row.geometry,
     }));
 
-    res.json({
-      type: "FeatureCollection",
-      features,
-    });
+    /** @type {FeatureCollection} */
+    const fc = { type: "FeatureCollection", features };
+    res.json(fc);
   } catch (e) {
     console.error("geojson failed:", e);
-    res.status(500).json({ error: "geojson-failed" });
+    res.status(500).json({ ok: false, error: "geojson-failed" });
   }
 });
 
-router.use((req, res, next) => {
-  console.log("[gpx router] hit path:", req.path);
-  next();
+/**
+ * GET /api/routes/:id/gpx
+ * List GPX rows (metadata) for a route.
+ */
+router.get("/routes/:id/gpx", async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    if (!Number.isInteger(routeId) || routeId <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid-route-id" });
+    }
+
+    const q = await pool.query(
+      `SELECT id, route_id, name, created_at
+         FROM gpx
+        WHERE route_id = $1
+        ORDER BY id ASC`,
+      [routeId]
+    );
+    res.json({ ok: true, items: q.rows });
+  } catch (e) {
+    console.error("list gpx failed:", e);
+    res.status(500).json({ ok: false, error: "list-gpx-failed" });
+  }
 });
 
-// GPX Upload
-router.post("/routes/upload", authorize, upload.single("file"), async (req, res) => {
+/**
+ * POST /api/routes/:id/gpx   (multipart/form-data with "file")
+ * Attach a new GPX file to an existing route.
+ * Security: only the route owner may upload (adjust if you support collaborators).
+ */
+router.post("/routes/:id/gpx", authorize, upload.single("file"), async (req, res) => {
+  /** @type {import('pg').PoolClient | null} */
+  let client = null;
+
   try {
-    if (!req.file) return res.status(400).json({ error: "no-file" });
-    const xml = req.file.buffer.toString("utf8");
-    const checksum = crypto.createHash("sha256").update(xml).digest("hex");
-
-    // Parse GPX → coords
-    const gpx = await new Promise((resolve, reject) =>
-      gpxParse.parseGpx(xml, (err, data) => (err ? reject(err) : resolve(data)))
-    );
-
-    const coords = [];
-    for (const trk of gpx.tracks || []) {
-      for (const seg of trk.segments || []) {
-        seg.forEach((p) => {
-          if (Number.isFinite(p.lon) && Number.isFinite(p.lat)) {
-            coords.push([p.lon, p.lat]);
-          }
-        });
-      }
+    const routeId = Number(req.params.id);
+    if (!Number.isInteger(routeId) || routeId <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid-route-id" });
     }
-    if (coords.length < 2) return res.status(400).json({ error: "no-track-points" });
+    if (!req.file) return res.status(400).json({ ok: false, error: "no-file" });
 
-    const slug = "route-" + checksum.slice(0, 8);
-    const name = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded Route";
-    const userId = req.user?.id || null;
+    client = await pool.connect();
 
-    const routeRes = await pool.query(
-      `INSERT INTO routes (slug, name, user_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (slug) DO UPDATE
-         SET name = EXCLUDED.name,
-             user_id = COALESCE(routes.user_id, EXCLUDED.user_id)
-       RETURNING id`,
-      [slug, name, userId]
+    // Ownership check (change/remove if you want collaborators)
+    const ownerCheck = await client.query(
+      `SELECT id FROM routes WHERE id = $1 AND user_id = $2`,
+      [routeId, req.user.id]
     );
-    const routeId = routeRes.rows[0].id;
+    if (!ownerCheck.rowCount) {
+      return res.status(403).json({ ok: false, error: "not-owner-or-not-found" });
+    }
 
-    const lineWkt = `LINESTRING(${coords.map(([x, y]) => `${x} ${y}`).join(",")})`;
-    await pool.query(
+    const { name, coords /*, checksum*/ } = await parseGpxBuffer(req.file.buffer);
+    if (coords.length < 2) {
+      return res.status(400).json({ ok: false, error: "no-track-points" });
+    }
+
+    // WKT LINESTRING
+    const wkt = `LINESTRING(${coords.map(([lon, lat]) => `${lon} ${lat}`).join(",")})`;
+
+    await client.query("BEGIN");
+
+    const ins = await client.query(
       `INSERT INTO gpx (route_id, name, geometry, file)
        VALUES ($1, $2, ST_GeomFromText($3, 4326), $4)
-       ON CONFLICT (route_id) DO UPDATE
-         SET name = EXCLUDED.name,
-             geometry = EXCLUDED.geometry,
-             file = EXCLUDED.file`,
-      [routeId, name, lineWkt, req.file.buffer]
+       RETURNING id, route_id, name, created_at`,
+      [routeId, name, wkt, req.file.buffer]
     );
 
-    res.json({ ok: true, id: routeId, slug, name });
+    // bump route updated_at so lists sort by recent activity
+    await client.query(`UPDATE routes SET updated_at = NOW() WHERE id = $1`, [routeId]);
+
+    await client.query("COMMIT");
+
+    res.json({ ok: true, gpx: ins.rows[0] });
   } catch (err) {
-    console.error("upload failed:", err);
-    res.status(500).json({ error: "upload-failed" });
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch {}
+    }
+    console.error("upload gpx failed:", err);
+    res.status(500).json({ ok: false, error: "upload-gpx-failed" });
+  } finally {
+    if (client) client.release();
   }
 });
 
-// Update route metadata
-router.patch("/routes/:id", async (req, res) => {
-  const { id } = req.params;
-  const { name, region } = req.body;
+/**
+ * DELETE /api/gpx/:gpxId
+ * Remove a single GPX row.
+ * Security: only route owner can delete a GPX row.
+ */
+router.delete("/gpx/:gpxId", authorize, async (req, res) => {
+  /** @type {import('pg').PoolClient | null} */
+  let client = null;
 
   try {
-    const result = await pool.query(
-      `UPDATE routes
-       SET name = COALESCE($1, name),
-           region = COALESCE($2, region),
-           updated_at = NOW()
-       WHERE id = $3
-       RETURNING id, slug, name, region, updated_at`,
-      [name, region, id]
-    );
-
-    if (!result.rowCount) {
-      return res.status(404).json({ error: "not-found" });
+    const gpxId = Number(req.params.gpxId);
+    if (!Number.isInteger(gpxId) || gpxId <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid-gpx-id" });
     }
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("update route failed:", err);
-    res.status(500).json({ error: "update-failed" });
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    // Find the route for this GPX row and ensure ownership
+    const found = await client.query(
+      `SELECT g.id AS gpx_id, r.id AS route_id, r.user_id
+         FROM gpx g
+         JOIN routes r ON r.id = g.route_id
+        WHERE g.id = $1`,
+      [gpxId]
+    );
+    if (!found.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ ok: false, error: "not-found" });
+    }
+    if (Number(found.rows[0].user_id) !== Number(req.user.id)) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ ok: false, error: "not-owner" });
+    }
+
+    const del = await client.query(
+      `DELETE FROM gpx WHERE id = $1 RETURNING id, route_id`,
+      [gpxId]
+    );
+
+    // bump route updated_at after deletion as well
+    await client.query(`UPDATE routes SET updated_at = NOW() WHERE id = $1`, [
+      del.rows[0].route_id,
+    ]);
+
+    await client.query("COMMIT");
+
+    res.json({ ok: true, deleted_id: del.rows[0].id });
+  } catch (e) {
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch {}
+    }
+    console.error("delete gpx failed:", e);
+    res.status(500).json({ ok: false, error: "delete-gpx-failed" });
+  } finally {
+    if (client) client.release();
   }
 });
 
