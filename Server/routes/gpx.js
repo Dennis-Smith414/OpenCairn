@@ -154,7 +154,7 @@ router.post("/routes/upload", authorize, upload.single("file"), async (req, res)
   }
 });
 
-// ✏️ Update route metadata
+// Update route metadata
 router.patch("/routes/:id", async (req, res) => {
   const { id } = req.params;
   const { name, region } = req.body;
