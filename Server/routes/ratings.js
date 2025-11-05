@@ -164,7 +164,7 @@ router.post("/comment/:id", authorize, async (req, res) => {
       ),
       tot AS (
         SELECT COALESCE(SUM(val), 0) AS total
-          FROM omment_ratings
+          FROM comment_ratings
          WHERE comment_id = $1
       ),
       final_user AS (
