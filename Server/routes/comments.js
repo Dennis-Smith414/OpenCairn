@@ -2,19 +2,25 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../Postgres");
-const authorize = require("../middleware/authorize"); // optional if you use JWT
+const authorize = require("../middleware/authorize");
 
-//GET comments for a waypoint
+// -------------------------
+// GET: comments for a waypoint
+// -------------------------
 router.get("/waypoints/:waypointId", async (req, res) => {
   try {
     const { waypointId } = req.params;
     const rows = await db.all(
-      `SELECT c.id, c.user_id, u.username, c.content, c.created_at, c.updated_at, c.edited
-       FROM waypoint_comments c
-       JOIN users u ON c.user_id = u.id
-       WHERE c.waypoint_id = $1
-       ORDER BY c.created_at DESC`,
-      [waypointId]
+      `
+      SELECT c.id, c.user_id, u.username, c.content,
+             c.created_at, c.updated_at, c.edited,
+             c.kind, c.waypoint_id, c.route_id
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.kind = 'waypoint' AND c.waypoint_id = $1
+      ORDER BY c.created_at DESC
+      `,
+      [Number(waypointId)]
     );
     res.json({ ok: true, comments: rows });
   } catch (err) {
@@ -22,17 +28,24 @@ router.get("/waypoints/:waypointId", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to fetch comments" });
   }
 });
-//GET comments for a route
+
+// -------------------------
+// GET: comments for a route
+// -------------------------
 router.get("/routes/:routeId", async (req, res) => {
   try {
     const { routeId } = req.params;
     const rows = await db.all(
-      `SELECT c.id, c.user_id, u.username, c.content, c.created_at, c.updated_at, c.edited
-       FROM route_comments c
-       JOIN users u ON c.user_id = u.id
-       WHERE c.route_id = $1
-       ORDER BY c.created_at DESC`,
-      [routeId]
+      `
+      SELECT c.id, c.user_id, u.username, c.content,
+             c.created_at, c.updated_at, c.edited,
+             c.kind, c.waypoint_id, c.route_id
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.kind = 'route' AND c.route_id = $1
+      ORDER BY c.created_at DESC
+      `,
+      [Number(routeId)]
     );
     res.json({ ok: true, comments: rows });
   } catch (err) {
@@ -41,18 +54,24 @@ router.get("/routes/:routeId", async (req, res) => {
   }
 });
 
-// POST a WAYPOINT comment (authenticated)
+// -------------------------
+// POST: add a WAYPOINT comment (auth)
+// -------------------------
 router.post("/waypoints/:waypointId", authorize, async (req, res) => {
   try {
     const { waypointId } = req.params;
-    const { content } = req.body;
     const userId = req.user.id;
+    const content = (req.body.content ?? "").trim();
+
+    if (!content) return res.status(400).json({ ok: false, error: "Content required." });
 
     const comment = await db.get(
-      `INSERT INTO waypoint_comments (user_id, waypoint_id, content)
-       VALUES ($1, $2, $3)
-       RETURNING id, user_id, content, created_at`,
-      [userId, waypointId, content]
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'waypoint', $2, NULL, $3)
+      RETURNING id, user_id, content, created_at, updated_at, edited, kind, waypoint_id, route_id
+      `,
+      [userId, Number(waypointId), content]
     );
     res.json({ ok: true, comment });
   } catch (err) {
@@ -61,18 +80,24 @@ router.post("/waypoints/:waypointId", authorize, async (req, res) => {
   }
 });
 
-// POST a ROUTE comment (authenticated)
+// -------------------------
+// POST: add a ROUTE comment (auth)
+// -------------------------
 router.post("/routes/:routeId", authorize, async (req, res) => {
   try {
     const { routeId } = req.params;
-    const { content } = req.body;
     const userId = req.user.id;
+    const content = (req.body.content ?? "").trim();
+
+    if (!content) return res.status(400).json({ ok: false, error: "Content required." });
 
     const comment = await db.get(
-      `INSERT INTO route_comments (user_id, route_id, content)
-       VALUES ($1, $2, $3)
-       RETURNING id, user_id, content, created_at`,
-      [userId, routeId, content]
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'route', NULL, $2, $3)
+      RETURNING id, user_id, content, created_at, updated_at, edited, kind, waypoint_id, route_id
+      `,
+      [userId, Number(routeId), content]
     );
     res.json({ ok: true, comment });
   } catch (err) {
@@ -81,49 +106,41 @@ router.post("/routes/:routeId", authorize, async (req, res) => {
   }
 });
 
-// PATCH update a WAYPOINT comment (author only)
-router.patch("/waypoints/:commentId", authorize, async (req, res) => {
+// -------------------------
+// PATCH: update ANY comment (author only)
+// -------------------------
+router.patch("/:commentId", authorize, async (req, res) => {
   try {
     const { commentId } = req.params;
     const userId = req.user.id;
     const trimmed = (req.body.content ?? "").trim();
 
-    if (!trimmed) {
-      return res.status(400).json({ ok: false, error: "Content cannot be empty." });
-    }
-    if (trimmed.length > 5000) {
-      return res.status(400).json({ ok: false, error: "Content too long." });
-    }
+    if (!trimmed) return res.status(400).json({ ok: false, error: "Content cannot be empty." });
+    if (trimmed.length > 5000) return res.status(400).json({ ok: false, error: "Content too long." });
 
-    // Update only if the row exists AND belongs to the user AND content actually changes
     const updated = await db.get(
       `
-      UPDATE waypoint_comments
-         SET content = $1,
+      UPDATE comments
+         SET content   = $1,
              updated_at = NOW(),
-             edited = CASE WHEN content <> $1 THEN TRUE ELSE edited END
+             edited     = edited OR (content <> $1)
        WHERE id = $2
          AND user_id = $3
          AND content <> $1
-       RETURNING id, user_id, content, created_at, updated_at, edited
+       RETURNING id, user_id, content, created_at, updated_at, edited, kind, waypoint_id, route_id
       `,
-      [trimmed, commentId, userId]
+      [trimmed, Number(commentId), userId]
     );
 
     if (!updated) {
-      // Figure out why: not found vs not yours vs no change
-      // Check existence quickly:
       const exists = await db.get(
-        "SELECT id, user_id FROM waypoint_comments WHERE id = $1",
-        [commentId]
+        "SELECT id, user_id FROM comments WHERE id = $1",
+        [Number(commentId)]
       );
-      if (!exists) {
-        return res.status(404).json({ ok: false, error: "Comment not found." });
-      }
+      if (!exists) return res.status(404).json({ ok: false, error: "Comment not found." });
       if (Number(exists.user_id) !== Number(userId)) {
         return res.status(403).json({ ok: false, error: "Not your comment." });
       }
-      // Same content (no change)
       return res.status(200).json({ ok: true, unchanged: true });
     }
 
@@ -134,103 +151,27 @@ router.patch("/waypoints/:commentId", authorize, async (req, res) => {
   }
 });
 
-
-// PATCH update a ROUTE comment (author only)
-router.patch("/routes/:commentId", authorize, async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const userId = req.user.id;
-    const trimmed = (req.body.content ?? "").trim();
-
-    if (!trimmed) {
-      return res.status(400).json({ ok: false, error: "Content cannot be empty." });
-    }
-    if (trimmed.length > 5000) {
-      return res.status(400).json({ ok: false, error: "Content too long." });
-    }
-
-    // Update only if the row exists AND belongs to the user AND content actually changes
-    const updated = await db.get(
-      `
-      UPDATE route_comments
-         SET content = $1,
-             updated_at = NOW(),
-             edited = CASE WHEN content <> $1 THEN TRUE ELSE edited END
-       WHERE id = $2
-         AND user_id = $3
-         AND content <> $1
-       RETURNING id, user_id, content, created_at, updated_at, edited
-      `,
-      [trimmed, commentId, userId]
-    );
-
-    if (!updated) {
-      // Figure out why: not found vs not yours vs no change
-      // Check existence quickly:
-      const exists = await db.get(
-        "SELECT id, user_id FROM waypoint_comments WHERE id = $1",
-        [commentId]
-      );
-      if (!exists) {
-        return res.status(404).json({ ok: false, error: "Comment not found." });
-      }
-      if (Number(exists.user_id) !== Number(userId)) {
-        return res.status(403).json({ ok: false, error: "Not your comment." });
-      }
-      // Same content (no change)
-      return res.status(200).json({ ok: true, unchanged: true });
-    }
-
-    res.json({ ok: true, comment: updated });
-  } catch (err) {
-    console.error("Error updating comment:", err);
-    res.status(500).json({ ok: false, error: "Failed to update comment" });
-  }
-});
-
-// DELETE a WAYPOINT comment
-router.delete("/waypoints/:commentId", authorize, async (req, res) => {
+// -------------------------
+// DELETE: ANY comment (author only)
+// -------------------------
+router.delete("/:commentId", authorize, async (req, res) => {
   try {
     const { commentId } = req.params;
     const userId = req.user.id;
 
     const existing = await db.get(
-      "SELECT id, user_id FROM waypoint_comments WHERE id = $1 AND user_id = $2",
-      [commentId, userId]
+      "SELECT id FROM comments WHERE id = $1 AND user_id = $2",
+      [Number(commentId), userId]
     );
-    if (!existing) {
-      return res.status(403).json({ ok: false, error: "Not your comment" });
-    }
+    if (!existing) return res.status(403).json({ ok: false, error: "Not your comment" });
 
-    await db.run("DELETE FROM waypoint_comments WHERE id = $1", [commentId]);
-    res.json({ ok: true, deleted_id: Number(commentId) }); // <- added deleted_id
+    await db.run("DELETE FROM comments WHERE id = $1", [Number(commentId)]);
+    res.json({ ok: true, deleted_id: Number(commentId) });
   } catch (err) {
     console.error("Error deleting comment:", err);
     res.status(500).json({ ok: false, error: "Failed to delete comment" });
   }
 });
 
-
-// DELETE a ROUTE comment
-router.delete("/routes/:commentId", authorize, async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const userId = req.user.id;
-
-    const existing = await db.get(
-      "SELECT id, user_id FROM waypoint_comments WHERE id = $1 AND user_id = $2",
-      [commentId, userId]
-    );
-    if (!existing) {
-      return res.status(403).json({ ok: false, error: "Not your comment" });
-    }
-
-    await db.run("DELETE FROM waypoint_comments WHERE id = $1", [commentId]);
-    res.json({ ok: true, deleted_id: Number(commentId) }); // <- added deleted_id
-  } catch (err) {
-    console.error("Error deleting comment:", err);
-    res.status(500).json({ ok: false, error: "Failed to delete comment" });
-  }
-});
 
 module.exports = router;

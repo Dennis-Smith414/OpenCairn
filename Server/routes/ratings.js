@@ -96,28 +96,28 @@ router.post("/waypoint/:id", authorize, async (req, res) => {
 
 
 // =======================
-// GET Waypoint Comment Rating
+// GET Comment Rating
 // =======================
-router.get("/waypoint_comment/:id", authorize, async (req, res) => {
-  const waypoint_comment_id = req.params.id;
+router.get("/comment/:id", authorize, async (req, res) => {
+  const comment_id = req.params.id;
   const userId = req.user?.id;
 
   try {
-    if (!waypoint_comment_id) throw new Error("Missing comment id");
+    if (!comment_id) throw new Error("Missing comment id");
     if (!userId) throw new Error("Missing user id from token");
 
     const totalRows = await db.all(
       `SELECT COALESCE(SUM(val), 0) AS total
-       FROM waypoint_comment_ratings
-       WHERE waypoint_comment_id = $1`,
-      [waypoint_comment_id]
+       FROM comment_ratings
+       WHERE comment_id = $1`,
+      [comment_id]
     );
 
     const userRow = await db.get(
       `SELECT val
-       FROM waypoint_comment_ratings
-       WHERE waypoint_comment_id = $1 AND user_id = $2`,
-      [waypoint_comment_id, userId]
+       FROM comment_ratings
+       WHERE comment_id = $1 AND user_id = $2`,
+      [comment_id, userId]
     );
 
     const total = totalRows[0]?.total || 0;
@@ -125,16 +125,16 @@ router.get("/waypoint_comment/:id", authorize, async (req, res) => {
 
     res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[GET waypoint comment rating] Error:", err);
+    console.error("[GET comment rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to fetch comment rating" });
   }
 });
 
 // =======================
-// POST WAYPOINT Comment Rating
+// POST Comment Rating
 // =======================
-router.post("/waypoint_comment/:id", authorize, async (req, res) => {
-  const waypoint_comment_id = req.params.id;
+router.post("/comment/:id", authorize, async (req, res) => {
+  const comment_id = req.params.id;
   const userId = req.user?.id;
   const { val } = req.body;
 
@@ -147,25 +147,25 @@ router.post("/waypoint_comment/:id", authorize, async (req, res) => {
       `
       WITH del AS (
         -- If the user clicks the same value again, remove their rating
-        DELETE FROM waypoint_comment_ratings r
-         WHERE r.waypoint_comment_id = $1
+        DELETE FROM comment_ratings r
+         WHERE r.comment_id = $1
            AND r.user_id = $2
            AND r.val = $3
         RETURNING 1
       ),
       upsert AS (
         -- Otherwise insert or flip the rating to the new value
-        INSERT INTO waypoint_comment_ratings (waypoint_comment_id, user_id, val)
+        INSERT INTO comment_ratings (comment_id, user_id, val)
         SELECT $1, $2, $3
         WHERE NOT EXISTS (SELECT 1 FROM del)
-        ON CONFLICT (user_id, waypoint_comment_id)
+        ON CONFLICT (user_id, comment_id)
         DO UPDATE SET val = EXCLUDED.val
         RETURNING val
       ),
       tot AS (
         SELECT COALESCE(SUM(val), 0) AS total
-          FROM waypoint_comment_ratings
-         WHERE waypoint_comment_id = $1
+          FROM omment_ratings
+         WHERE comment_id = $1
       ),
       final_user AS (
         -- If we deleted, user_rating is NULL; if we inserted/updated, return that val
@@ -178,7 +178,7 @@ router.post("/waypoint_comment/:id", authorize, async (req, res) => {
         (SELECT val FROM final_user
            LIMIT 1)                    AS user_rating;
       `,
-      [waypoint_comment_id, userId, val]
+      [comment_id, userId, val]
     );
 
     res.json({ ok: true, total: row.total, user_rating: row.user_rating });
@@ -276,99 +276,6 @@ router.post("/route/:id", authorize, async (req, res) => {
   } catch (err) {
     console.error("[POST route rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to post route rating" });
-  }
-});
-
-// =======================
-// GET ROUTE Comment Rating
-// =======================
-router.get("/route_comment/:id", authorize, async (req, res) => {
-  const route_comment_id = req.params.id;
-  const userId = req.user?.id;
-
-  try {
-    if (!route_comment_id) throw new Error("Missing comment id");
-    if (!userId) throw new Error("Missing user id from token");
-
-    const totalRows = await db.all(
-      `SELECT COALESCE(SUM(val), 0) AS total
-       FROM route_comment_ratings
-       WHERE route_comment_id = $1`,
-      [route_comment_id]
-    );
-
-    const userRow = await db.get(
-      `SELECT val
-       FROM route_comment_ratings
-       WHERE route_comment_id = $1 AND user_id = $2`,
-      [route_comment_id, userId]
-    );
-
-    const total = totalRows[0]?.total || 0;
-    const user_rating = userRow?.val ?? null;
-
-    res.json({ ok: true, total, user_rating });
-  } catch (err) {
-    console.error("[GET route comment rating] Error:", err);
-    res.status(500).json({ ok: false, error: "Failed to fetch comment rating" });
-  }
-});
-
-// =======================
-// POST ROUTE Comment Rating
-// =======================
-router.post("/route_comment/:id", authorize, async (req, res) => {
-  const route_comment_id = req.params.id;
-  const userId = req.user?.id;
-  const { val } = req.body;
-
-  if (![1, -1].includes(val)) {
-    return res.status(400).json({ ok: false, error: "val must be 1 or -1" });
-  }
-
-  try {
-    const row = await db.get(
-      `
-      WITH del AS (
-        -- If the user clicks the same value again, remove their rating
-        DELETE FROM route_comment_ratings r
-         WHERE r.route_comment_id = $1
-           AND r.user_id = $2
-           AND r.val = $3
-        RETURNING 1
-      ),
-      upsert AS (
-        -- Otherwise insert or flip the rating to the new value
-        INSERT INTO route_comment_ratings (route_comment_id, user_id, val)
-        SELECT $1, $2, $3
-        WHERE NOT EXISTS (SELECT 1 FROM del)
-        ON CONFLICT (user_id, route_comment_id)
-        DO UPDATE SET val = EXCLUDED.val
-        RETURNING val
-      ),
-      tot AS (
-        SELECT COALESCE(SUM(val), 0) AS total
-          FROM route_comment_ratings
-         WHERE route_comment_id = $1
-      ),
-      final_user AS (
-        -- If we deleted, user_rating is NULL; if we inserted/updated, return that val
-        SELECT val FROM upsert
-        UNION ALL
-        SELECT NULL::INT AS val FROM del
-      )
-      SELECT
-        (SELECT total FROM tot)        AS total,
-        (SELECT val FROM final_user
-           LIMIT 1)                    AS user_rating;
-      `,
-      [route_comment_id, userId, val]
-    );
-
-    res.json({ ok: true, total: row.total, user_rating: row.user_rating });
-  } catch (err) {
-    console.error("[POST route comment rating] Error:", err);
-    res.status(500).json({ ok: false, error: "Failed to post route comment rating" });
   }
 });
 

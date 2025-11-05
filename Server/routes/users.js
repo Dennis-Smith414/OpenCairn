@@ -101,39 +101,34 @@ router.get("/me/comments", authorize, async (req, res) => {
     const { rows } = await pool.query(
       `
       SELECT
-        'waypoint'::text           AS source,
-        wc.id                      AS id,
-        wc.content                 AS content,
-        wc.created_at              AS created_at,
-        wc.updated_at              AS updated_at,
-        wc.edited                  AS edited,
-        wc.waypoint_id             AS waypoint_id,
-        w.name                     AS waypoint_name,
-        w.route_id                 AS route_id,
-        r.name                     AS route_name
-      FROM waypoint_comments wc
-      LEFT JOIN waypoints w ON w.id = wc.waypoint_id
-      LEFT JOIN routes    r ON r.id = w.route_id
-      WHERE wc.user_id = $1
+        c.kind                         AS source,
+        c.id                           AS id,
+        c.content                      AS content,
+        c.created_at                   AS created_at,
+        c.updated_at                   AS updated_at,
+        c.edited                       AS edited,
 
-      UNION ALL
+        CASE WHEN c.kind = 'waypoint' THEN c.waypoint_id ELSE NULL END AS waypoint_id,
+        CASE WHEN c.kind = 'waypoint' THEN w.name       ELSE NULL END AS waypoint_name,
 
-      SELECT
-        'route'::text              AS source,
-        rc.id                      AS id,
-        rc.content                 AS content,
-        rc.created_at              AS created_at,
-        rc.updated_at              AS updated_at,
-        rc.edited                  AS edited,
-        NULL::int                  AS waypoint_id,
-        NULL::text                 AS waypoint_name,
-        rc.route_id                AS route_id,
-        r.name                     AS route_name
-      FROM route_comments rc
-      LEFT JOIN routes r ON r.id = rc.route_id
-      WHERE rc.user_id = $1
+        -- route_id/name from either the comment (route) or the waypoint's route (waypoint)
+        COALESCE(
+          CASE WHEN c.kind = 'route'    THEN c.route_id END,
+          CASE WHEN c.kind = 'waypoint' THEN w.route_id END
+        ) AS route_id,
 
-      ORDER BY created_at DESC
+        COALESCE(
+          CASE WHEN c.kind = 'route'    THEN r.name      END,
+          CASE WHEN c.kind = 'waypoint' THEN rw.name     END
+        ) AS route_name
+
+      FROM comments c
+      LEFT JOIN waypoints w ON w.id = c.waypoint_id              -- for waypoint comments
+      LEFT JOIN routes   r ON r.id = c.route_id                  -- for route comments
+      LEFT JOIN routes  rw ON rw.id = w.route_id                 -- route via waypoint
+
+      WHERE c.user_id = $1
+      ORDER BY c.created_at DESC
       `,
       [userId]
     );
@@ -144,6 +139,7 @@ router.get("/me/comments", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "server-error" });
   }
 });
+
 
 
 module.exports = router;

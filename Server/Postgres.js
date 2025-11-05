@@ -85,35 +85,37 @@ await run(`
 await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_route_id ON waypoints(route_id);`);
 await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id);`);
 
-  // Waypoint comments
+  // Comments
   await run(`
-    CREATE TABLE IF NOT EXISTS waypoint_comments (
-      id SERIAL PRIMARY KEY,
-      user_id INT NOT NULL REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-      waypoint_id INT NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      content TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      edited BOOLEAN NOT NULL DEFAULT FALSE
+    CREATE TABLE IF NOT EXISTS comments (
+      id          SERIAL PRIMARY KEY,
+      -- pick ONE of the two lines below depending on desired behavior when a user is deleted:
+        user_id   INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+
+      kind        TEXT NOT NULL CHECK (kind IN ('waypoint','route')),
+      waypoint_id INT REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      route_id    INT REFERENCES routes(id)   ON DELETE CASCADE ON UPDATE CASCADE,
+      content     TEXT NOT NULL,
+      CHECK (
+        (kind = 'waypoint' AND waypoint_id IS NOT NULL AND route_id IS NULL) OR
+        (kind = 'route'    AND route_id    IS NOT NULL AND waypoint_id IS NULL)
+      ),
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      edited      BOOLEAN     NOT NULL DEFAULT FALSE
     )
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_wp_comments_user_id ON waypoint_comments(user_id);`);
-  await run(`CREATE INDEX IF NOT EXISTS idx_wp_comments_waypoint_id ON waypoint_comments(waypoint_id);`);
-
-    // Route comments
-    await run(`
-      CREATE TABLE IF NOT EXISTS route_comments (
-        id SERIAL PRIMARY KEY,
-        user_id INT NOT NULL REFERENCES users(id) SET NULL CASCADE ON UPDATE CASCADE,
-        route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        content TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        edited BOOLEAN NOT NULL DEFAULT FALSE
-      )
-    `);
-    await run(`CREATE INDEX IF NOT EXISTS idx_route_comments_user_id ON route_comments(user_id);`);
-    await run(`CREATE INDEX IF NOT EXISTS idx_route_comments_route_id ON route_comments(route_id);`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_comments_waypoint_recent
+               ON comments (waypoint_id, created_at DESC)
+               WHERE kind = 'waypoint';
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_comments_route_recent
+               ON comments (route_id, created_at DESC)
+               WHERE kind = 'route';
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_comments_user_recent
+               ON comments (user_id, created_at DESC);
+  `);
 
   //Waypoint ratings
   await run(`
@@ -138,28 +140,16 @@ await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id
   `);
   await run(`CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id ON route_ratings(route_id);`);
 
-    //Waypoint comment ratings
+    //Comment ratings
   await run(`
-    CREATE TABLE IF NOT EXISTS waypoint_comment_ratings (
+    CREATE TABLE IF NOT EXISTS comment_ratings (
       user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      waypoint_comment_id INT NOT NULL REFERENCES waypoint_comments(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      comment_id INT NOT NULL REFERENCES comments(id) ON DELETE CASCADE ON UPDATE CASCADE,
       val SMALLINT NOT NULL,
-      PRIMARY KEY(user_id, waypoint_comment_id)
-      )
+      PRIMARY KEY (user_id, comment_id)
+    )
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_wp_comment_ratings_cmt_id ON waypoint_comment_ratings(waypoint_comment_id);`);
-
-
-   //Route comment ratings
-  await run(`
-    CREATE TABLE IF NOT EXISTS route_comment_ratings (
-      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      route_comment_id INT NOT NULL REFERENCES route_comments(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      val SMALLINT NOT NULL,
-      PRIMARY KEY(user_id, route_comment_id)
-      )
-  `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_route_comment_ratings_cmt_id ON route_comment_ratings(route_comment_id);`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_comment_ratings_cmt_id ON comment_ratings(comment_id);`);
 
   // GPX
   await run(`
