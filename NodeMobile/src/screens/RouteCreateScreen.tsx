@@ -14,7 +14,7 @@ import RNFS from "react-native-fs";
 import { useThemeStyles } from "../styles/theme";
 import { uploadGpxFile } from "../lib/uploadGpx";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE as BASE } from "../lib/api";
+import { API_BASE } from "../config/env";
 
 export default function RouteCreateScreen({ navigation }: any) {
   const [name, setName] = useState("");
@@ -24,7 +24,7 @@ export default function RouteCreateScreen({ navigation }: any) {
   const [uploading, setUploading] = useState(false);
 
   const { userToken } = useAuth();
-  const API_BASE = BASE;
+
 
   // theme
   const { colors, styles: baseStyles } = useThemeStyles();
@@ -52,7 +52,7 @@ export default function RouteCreateScreen({ navigation }: any) {
     try {
       const uploadResult = await uploadGpxFile(fileUri, userToken);
 
-      const res = await fetch(`http://${API_BASE}/api/routes/${uploadResult.id}`, {
+      const res = await fetch(`${API_BASE}/api/routes/${uploadResult.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

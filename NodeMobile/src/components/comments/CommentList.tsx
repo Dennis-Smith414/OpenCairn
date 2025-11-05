@@ -12,6 +12,7 @@ import {
   Alert,
 } from "react-native";
 import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme"; // ✅ ADDED
 import { fetchComments, postComment, deleteComment, updateComment } from "../../lib/comments";
 import { fetchCommentRating, submitCommentVote } from "../../lib/ratings";
 import { useAuth } from "../../context/AuthContext";
@@ -43,7 +44,9 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
 
-  //Load comments & ratings
+  const { colors: theme } = useThemeStyles(); // ✅ ADDED
+
+  // Load comments & ratings
   const loadComments = useCallback(async () => {
     try {
       const data = await fetchComments(waypointId);
@@ -68,7 +71,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   }, [waypointId, userToken]);
 
-  // Fetch the current user from /me
+  // Fetch current user
   useEffect(() => {
     const loadUser = async () => {
       if (!userToken) return;
@@ -82,13 +85,13 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     loadUser();
   }, [userToken]);
 
-  // Initial comment load
+  // Initial load
   useEffect(() => {
     setLoading(true);
     loadComments();
   }, [loadComments]);
 
-  //Post new comment
+  // Post new comment
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
     if (!userToken) {
@@ -109,7 +112,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   };
 
-  //Delete comment (with confirmation popup)
+  // Delete comment (confirm)
   const confirmDelete = (id: number) => {
     Alert.alert(
       "Delete Comment",
@@ -137,7 +140,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     }
   };
 
-  //Vote handler
+  // Vote handler
   const handleVote = async (commentId: number, val: 1 | -1) => {
     if (!userToken) {
       alert("You must be logged in to vote.");
@@ -159,10 +162,19 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
     const isEditing = editingId === item.id;
 
     return (
-      <View style={[styles.commentBox, isOwner && { backgroundColor: colors.primary + "22" }]}>
+      <View
+        style={[
+          styles.commentBox,
+          isOwner && { backgroundColor: (theme.primary || colors.primary) + "22" }, // ✅ ADDED
+        ]}
+      >
         <View style={styles.commentHeader}>
-          <Text style={styles.username}>{isOwner ? "You" : item.username}</Text>
-          <Text style={styles.time}>{formatRelativeTime(item.create_time)}</Text>
+          <Text style={[styles.username, { color: theme.textPrimary }]}>
+            {isOwner ? "You" : item.username}
+          </Text>
+          <Text style={[styles.time, { color: theme.textSecondary }]}>
+            {formatRelativeTime(item.create_time)}
+          </Text>
         </View>
 
         {isEditing ? (
@@ -178,11 +190,11 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
               try {
                 setSavingMap((m) => ({ ...m, [item.id]: true }));
                 // optimistic UI
-                setComments((prev) => prev.map(c => c.id === item.id ? { ...c, content: newText } : c));
+                setComments((prev) =>
+                  prev.map((c) => (c.id === item.id ? { ...c, content: newText } : c))
+                );
                 await updateComment(item.id, newText, userToken);
                 setEditingId(null);
-                // or, to be strict, reload from server:
-                // await loadComments();
               } catch (e) {
                 alert("Failed to save changes.");
               } finally {
@@ -192,16 +204,33 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
           />
         ) : (
           <>
-            <Text style={styles.content}>{item.content}</Text>
+            <Text style={[styles.content, { color: theme.textPrimary }]}>
+              {item.content}
+            </Text>
 
             <View style={styles.voteRow}>
-              {/* up/downvote UI unchanged */}
               <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
-                <Text style={[styles.voteButton, rating.user_rating === 1 && { color: colors.accent }]}>⬆️</Text>
+                <Text
+                  style={[
+                    styles.voteButton,
+                    rating.user_rating === 1 && { color: theme.accent || colors.accent }, // ✅ ADDED
+                  ]}
+                >
+                  ⬆️
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.voteCount}>{rating.total}</Text>
+              <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
+                {rating.total}
+              </Text>
               <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
-                <Text style={[styles.voteButton, rating.user_rating === -1 && { color: colors.error || "#d33" }]}>⬇️</Text>
+                <Text
+                  style={[
+                    styles.voteButton,
+                    rating.user_rating === -1 && { color: theme.error || "#d33" }, // ✅ ADDED
+                  ]}
+                >
+                  ⬇️
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -222,7 +251,6 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
                 </TouchableOpacity>
               </View>
             )}
-
           </>
         )}
       </View>
@@ -233,7 +261,7 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={colors.textSecondary} />
+        <ActivityIndicator color={theme.textSecondary} />{/* ✅ ADDED */}
       </View>
     );
   }
@@ -244,17 +272,32 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
       style={styles.container}
     >
       {/* Input */}
-      <View style={styles.inputRow}>
+      <View
+        style={[
+          styles.inputRow,
+          { borderBottomColor: theme.border }, // ✅ ADDED
+        ]}
+      >
         <TextInput
           value={newComment}
           onChangeText={setNewComment}
           placeholder="Write a comment..."
-          placeholderTextColor={colors.textSecondary}
-          style={styles.input}
+          placeholderTextColor={theme.textSecondary} // ✅ ADDED
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.backgroundAlt, // ✅ ADDED
+              color: theme.textPrimary,            // ✅ ADDED
+            },
+          ]}
           editable={!submitting}
         />
         <TouchableOpacity
-          style={[styles.submitButton, submitting && { opacity: 0.6 }]}
+          style={[
+            styles.submitButton,
+            { backgroundColor: theme.primary }, // ✅ ADDED
+            submitting && { opacity: 0.6 },
+          ]}
           onPress={handleSubmit}
           disabled={submitting}
         >
@@ -262,14 +305,16 @@ export const CommentList: React.FC<CommentListProps> = ({ waypointId }) => {
         </TouchableOpacity>
       </View>
 
-      {/*Comments list */}
+      {/* Comments list */}
       <View style={{ flexGrow: 1 }}>
         <FlatList
           data={comments}
           renderItem={renderComment}
           keyExtractor={(item) => item.id.toString()}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No comments yet. Be the first!</Text>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              No comments yet. Be the first!
+            </Text>
           }
           contentContainerStyle={{ paddingVertical: 8 }}
           showsVerticalScrollIndicator
@@ -288,7 +333,7 @@ function formatRelativeTime(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-//Styles
+// Styles (left as-is)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -367,13 +412,13 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: "row",
-    justifyContent: "flex-end", // push buttons to the right side
+    justifyContent: "flex-end",
     alignItems: "center",
     gap: 8,
     marginTop: 10,
   },
   actionBtn: {
-    width: 90, // fixed button size
+    width: 90,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: "center",

@@ -6,8 +6,39 @@ import { RouteSelectionProvider } from './src/context/RouteSelectionContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
 
-// ✅ ADD: import theme bootstrap helpers
+// ✅ ADD: theme bootstrap helpers
 import { loadSavedThemeOverride, startSystemThemeListener } from "./src/styles/theme";
+
+// ✅ ADD (debug): show the API base you’re actually using
+import { API_BASE } from "./src/config/env";
+
+// ✅ ADD (debug): minimal fetch logger (safe to remove later)
+(function patchFetchOnce() {
+  // avoid double-patch during Fast Refresh
+  // @ts-ignore
+  if ((global as any).__FETCH_PATCHED__) return;
+  // @ts-ignore
+  (global as any).__FETCH_PATCHED__ = true;
+
+  console.log('[ENV] API_BASE =', API_BASE);
+  const _fetch = global.fetch;
+
+  global.fetch = async (input: any, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : String(input?.url || input);
+    const t0 = Date.now();
+    try {
+      const res = await _fetch(input, init);
+      const clone = res.clone();
+      const text = await clone.text();
+      console.log('[NET]', res.status, `${Date.now() - t0}ms`, url);
+      console.log('[NET] preview:', text.slice(0, 160)); // helpful for “unexpected <”
+      return res;
+    } catch (e) {
+      console.log('[NET][ERROR]', `${Date.now() - t0}ms`, url, e);
+      throw e;
+    }
+  };
+})();
 
 export default function App() {
   const startedRef = useRef(false);

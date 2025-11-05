@@ -1,8 +1,8 @@
 // utils/uploadGpx.ts
 import RNFS from 'react-native-fs';
-//import { API_BASE } from "./api";
 import { API_BASE } from "../config/env";
 
+console.log("[uploadGpxFile] module loaded; API_BASE =", API_BASE);
 
 export async function uploadGpxFile(fileUri: string, token?: string) {
   if (!fileUri) throw new Error('Invalid file URI');
@@ -13,28 +13,25 @@ export async function uploadGpxFile(fileUri: string, token?: string) {
   // Derive filename from the URI
   const filename = safeUri.split('/').pop() || 'route.gpx';
 
-
   const formData = new FormData();
 
-  // Append the file properly for React Native + Express + Multer
-  // React Native's FormData expects the file object to contain:
-  // - uri (must start with "file://")
-  // - type (MIME type)
-  // - name (filename)
+  // Use a broadly accepted MIME to avoid strict server/proxy checks
   formData.append('file', {
     uri: safeUri,
-    type: 'application/gpx+xml',
+    type: 'application/octet-stream',
     name: filename,
   } as any);
 
   console.log('[uploadGpxFile] Uploading:', filename);
   console.log('[uploadGpxFile] Safe URI:', safeUri);
+  console.log('[uploadGpxFile] about to POST', `${API_BASE}/api/routes/upload`);
 
-  // fetch() will set the correct multipart/form-data boundary automatically.
+  // Set explicit multipart header (RN will add the boundary)
   const res = await fetch(`${API_BASE}/api/routes/upload`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
+      'Content-Type': 'multipart/form-data',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: formData,
