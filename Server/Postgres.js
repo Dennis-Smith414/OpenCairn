@@ -18,6 +18,13 @@ pool
     console.error("[Postgres] Connection error:", err.message);
   });
 
+  // enforce search_path per connection
+  pool.on('connect', (client) => {
+    client.query("SET search_path TO opencairn").catch(e => {
+      console.error("[Postgres] failed to set search_path:", e.message);
+    });
+  });
+
 /** Write (INSERT/UPDATE/DELETE). Returns { rowCount, rows }. */
 async function run(sql, params = []) {
   const res = await pool.query(sql, params);

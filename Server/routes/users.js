@@ -25,10 +25,8 @@ router.get("/me", authorize, async (req, res) => {
          (SELECT COUNT(*) FROM waypoints WHERE user_id = $1) AS waypoints_created,
          (SELECT COUNT(*) FROM route_ratings WHERE user_id = $1) AS route_ratings,
          (SELECT COUNT(*) FROM waypoint_ratings WHERE user_id = $1) AS waypoint_ratings,
-         (SELECT COUNT(*) FROM waypoint_comments WHERE user_id = $1) AS waypoint_comments_created,
-         (SELECT COUNT(*) FROM waypoint_comment_ratings WHERE user_id = $1) AS waypoint_comment_ratings,
-         (SELECT COUNT(*) FROM route_comments WHERE user_id = $1) AS route_comments_created,
-         (SELECT COUNT(*) FROM route_comment_ratings WHERE user_id = $1) AS route_comment_ratings
+         (SELECT COUNT(*) FROM comments WHERE user_id = $1) AS comments_created,
+         (SELECT COUNT(*) FROM comment_ratings WHERE user_id = $1) AS comment_ratings
      `, [userId]);
 
 

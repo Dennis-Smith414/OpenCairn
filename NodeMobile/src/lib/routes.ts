@@ -1,8 +1,9 @@
-// src/lib/routes.ts
 import { API_BASE } from "../config/env";
+import { uploadGpxToExistingRoute } from "./uploadGpx";
 
 export interface Route {
   id?: number;
+  slug?: string;
   name: string;
   description?: string;
   region?: string;
@@ -12,36 +13,11 @@ export interface Route {
   updated_at?: string;
 }
 
-/**
- * Delete a route (owner only).
- * Expects server to return { ok: true } on success.
- */
-export async function deleteRoute(routeId: number, token: string) {
-  const res = await fetch(`${API_BASE}/api/routes/${routeId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const text = await res.text();
-  let json: any = {};
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // ignore parse errors; we'll still check res.ok
-  }
-
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error || `Failed to delete route ${routeId}`);
-  }
-  return json; // { ok: true }
-}
-
-/*
-// Optional: add as you migrate other calls here for consistency
-
-export async function createRoute(token: string, payload: Omit<Route, "id" | "created_at" | "updated_at" | "user_id">) {
+/** Create a route (owner = current user). */
+export async function createRoute(
+  token: string,
+  payload: { name: string; region?: string; slug?: string }
+): Promise<Route> {
   const res = await fetch(`${API_BASE}/api/routes`, {
     method: "POST",
     headers: {
@@ -51,8 +27,33 @@ export async function createRoute(token: string, payload: Omit<Route, "id" | "cr
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Failed to create route");
+  if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to create route");
   return data.route as Route;
 }
 
-*/
+/** Delete a route (owner only). */
+export async function deleteRoute(routeId: number, token: string) {
+  const res = await fetch(`${API_BASE}/api/routes/${routeId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const text = await res.text();
+  let json: any = {};
+  try { json = JSON.parse(text); } catch {}
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.error || `Failed to delete route ${routeId}`);
+  }
+  return json as { ok: true; deleted_id: number };
+}
+
+
+/** Create a route, then attach a GPX file to it. */
+export async function createRouteWithGpx(
+  token: string,
+  route: { name: string; region?: string },
+  fileUri: string
+) {
+  const newRoute = await createRoute(token, route);
+  const upload = await uploadGpxToExistingRoute(newRoute.id!, fileUri, token);
+  return { route: newRoute, upload };
+}

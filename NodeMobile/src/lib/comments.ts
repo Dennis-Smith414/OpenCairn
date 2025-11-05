@@ -2,9 +2,9 @@
 //import { API_BASE } from "./api";
 import { API_BASE } from "../config/env";
 
-//Fetch comments for a given waypoint
-export async function fetchComments(waypointId: number) {
-  const res = await fetch(`${API_BASE}/api/comments/${waypointId}`);
+// Fetch comments for either a waypoint or a route
+export async function fetchComments(id: number, kind: "waypoint" | "route") {
+  const res = await fetch(`${API_BASE}/api/comments/${kind}s/${id}`);
   const text = await res.text();
 
   try {
@@ -12,18 +12,20 @@ export async function fetchComments(waypointId: number) {
     if (!json.ok) throw new Error(json.error || "Failed to fetch comments");
     return json.comments;
   } catch (err) {
-    console.error("Error fetching comments:", err, text);
+    console.error(`Error fetching ${kind} comments:`, err, text);
     throw new Error("Failed to fetch comments");
   }
 }
 
-//Post a new comment (requires auth)
+
+//Post a new comment for a route or waypoint(requires auth)
 export async function postComment(
-  waypointId: number,
+  id: number,
   content: string,
-  token: string
+  token: string,
+  kind: "waypoint" | "route"
 ) {
-  const res = await fetch(`${API_BASE}/api/comments/${waypointId}`, {
+  const res = await fetch(`${API_BASE}/api/comments/${kind}s/${id}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
