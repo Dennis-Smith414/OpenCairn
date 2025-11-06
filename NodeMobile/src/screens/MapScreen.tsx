@@ -5,7 +5,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { fetchRouteGeo } from "../lib/api";
-import { flattenToLatLng } from "../utils/geoUtils";
+import { featureCollectionToSegments } from "../utils/geoUtils";
 import LeafletMap, { LatLng, Track } from "../components/LeafletMap/LeafletMap";
 import { colors } from "../styles/theme";
 import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
@@ -56,20 +56,28 @@ const MapScreen: React.FC = () => {
         return;
       }
 
-      const nextTracks: Track[] = [];
-      for (const id of selectedRouteIds) {
-        const geo = await fetchRouteGeo(id);
-        if (!geo) continue;
+        const nextTracks: Track[] = [];
+        for (const id of selectedRouteIds) {
+          // fetchRouteGeo returns a FeatureCollection (server: /api/routes/:id/gpx)
+          const fc = await fetchRouteGeo(id);
+          if (!fc) continue;
 
-        const coords = flattenToLatLng(geo) as LatLng[];
+          // Keep segments separate: LatLng[][]
+          const segments = featureCollectionToSegments(fc); // LatLng[][]
 
-        nextTracks.push({
-          id,
-          coords,
-          color: selectedRoutes.find(r => r.id === id)?.color,
-        });
-      }
-      setTracks(nextTracks);
+          if (segments.length === 0) {
+            // No GPX rows for this route; skip adding a track
+            continue;
+          }
+
+          nextTracks.push({
+            id,
+            // LeafletMap Track.coords accepts LatLng[] | LatLng[][]
+            coords: segments,
+            color: selectedRoutes.find(r => r.id === id)?.color,
+          });
+        }
+        setTracks(nextTracks);
     } catch (e: any) {
       setError(e?.message || "Failed to load routes");
     } finally {

@@ -72,8 +72,8 @@ router.post("/", authorize, async (req, res) => {
     }
 
     const insertSql = `
-      INSERT INTO waypoints (route_id, user_id, name, description, lat, lon, type, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+      INSERT INTO waypoints (route_id, user_id, name, description, lat, lon, type, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
       RETURNING *;
     `;
     const { rows } = await db.run(insertSql, [
@@ -100,12 +100,19 @@ router.patch("/:id", authorize, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const userId = Number(req.user?.id);
-    if (!id) return res.status(400).json({ ok: false, error: "Missing waypoint id." });
-    if (!userId) return res.status(401).json({ ok: false, error: "Unauthorized." });
 
-    // Allowed fields
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Invalid waypoint id." });
+    }
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ ok: false, error: "Unauthorized." });
+    }
+
+    // Allowed fields (include only columns that exist in your schema)
     let { route_id, name, description, lat, lon, type } = req.body || {};
     if (name != null) name = String(name).trim();
+    if (description !== undefined) description = description === "" ? null : String(description);
+    if (route_id != null) route_id = Number(route_id);
     if (lat != null) lat = Number(lat);
     if (lon != null) lon = Number(lon);
     if (type != null) type = String(type);
@@ -120,9 +127,9 @@ router.patch("/:id", authorize, async (req, res) => {
       params.push(value);
     };
 
-    if (route_id != null) add("route_id = ?", Number(route_id));
+    if (route_id != null) add("route_id = ?", route_id);
     if (name != null) add("name = ?", name);
-    if (description !== undefined) add("description = ?", description || null);
+    if (description !== undefined) add("description = ?", description);
     if (lat != null) add("lat = ?", lat);
     if (lon != null) add("lon = ?", lon);
     if (type != null) add("type = ?", type);
@@ -131,7 +138,9 @@ router.patch("/:id", authorize, async (req, res) => {
       return res.status(400).json({ ok: false, error: "No fields to update." });
     }
 
-    // Enforce ownership in WHERE clause
+    // Always bump updated_at using SQL NOW() (no bound param)
+    sets.push("updated_at = NOW()");
+
     const sql = `
       UPDATE waypoints
          SET ${sets.join(", ")}
@@ -148,9 +157,10 @@ router.patch("/:id", authorize, async (req, res) => {
     res.json({ ok: true, waypoint: rows[0] });
   } catch (err) {
     console.error("PATCH /waypoints/:id error:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: "server-error" });
   }
 });
+
 
 // ===================================================================
 // DELETE /api/waypoints/:id  (owner-only)

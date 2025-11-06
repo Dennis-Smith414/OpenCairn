@@ -1,21 +1,49 @@
-//Utility for the Geo features
-import { Feature, FeatureCollection, Geometry } from 'geojson';
-import type { LatLng } from '../components/LeafletMap/LeafletMap'; // Adjust path as needed
+// utils/geoUtils.ts
+import type { Feature, FeatureCollection, Geometry } from "geojson";
+import type { LatLng } from "../components/LeafletMap/LeafletMap";
 import haversine from "haversine-distance";
 
-export function flattenToLatLng(geo: FeatureCollection | Feature | Geometry): LatLng[] {
+// Convert any GeoJSON (FC/Feature/Geometry) into an array of segments (LatLng[][]).
+// Each segment is a continuous polyline. We keep segments separate to avoid
+// "bridge lines" between disjoint tracks.
+export function toSegments(geo: FeatureCollection | Feature | Geometry | null | undefined): LatLng[][] {
   if (!geo) return [];
-  if (geo.type === 'FeatureCollection') return geo.features.flatMap(f => flattenToLatLng(f));
-  if (geo.type === 'Feature') return flattenToLatLng(geo.geometry);
-  if (geo.type === 'LineString') return geo.coordinates.map(([lng, lat]) => [lat, lng]);
-  if (geo.type === 'MultiLineString') return geo.coordinates.map(([lng, lat]) => [lat, lng] as unknown as LatLng); //<--GET THIS OUT ASAP!!!, type asserting for testing only, UNSAFE!!
+
+  // Normalize to geometry level
+  if ((geo as FeatureCollection).type === "FeatureCollection") {
+    const fc = geo as FeatureCollection;
+    const out: LatLng[][] = [];
+    for (const f of fc.features || []) out.push(...toSegments(f));
+    return out;
+  }
+
+  if ((geo as Feature).type === "Feature") {
+    const feat = geo as Feature;
+    return toSegments(feat.geometry);
+  }
+
+  const g = geo as Geometry;
+  if (g.type === "LineString") {
+    return [g.coordinates.map(([lng, lat]) => [lat, lng] as LatLng)];
+  }
+
+  if (g.type === "MultiLineString") {
+    return g.coordinates.map(
+      (line) => line.map(([lng, lat]) => [lat, lng] as LatLng)
+    );
+  }
+
+  // Unsupported geometry types are ignored
   return [];
 }
 
+// Convenience: specifically for FeatureCollections (common for /routes/:id/gpx)
+export function featureCollectionToSegments(fc: FeatureCollection | null | undefined): LatLng[][] {
+  if (!fc || fc.type !== "FeatureCollection") return [];
+  return toSegments(fc);
+}
+
+// Distance helper (meters)
 export function getDistanceMeters(a: LatLng, b: LatLng): number {
-  try {
-    return haversine(a, b);
-  } catch {
-    return NaN;
-  }
+  try { return haversine(a, b); } catch { return NaN; }
 }
