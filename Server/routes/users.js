@@ -23,10 +23,10 @@ router.get("/me", authorize, async (req, res) => {
        SELECT
          (SELECT COUNT(*) FROM routes WHERE user_id = $1) AS routes_created,
          (SELECT COUNT(*) FROM waypoints WHERE user_id = $1) AS waypoints_created,
+         (SELECT COUNT(*) FROM route_ratings WHERE user_id = $1) AS route_ratings,
+         (SELECT COUNT(*) FROM waypoint_ratings WHERE user_id = $1) AS waypoint_ratings,
          (SELECT COUNT(*) FROM comments WHERE user_id = $1) AS comments_created,
-         (SELECT COUNT(*) FROM route_rating WHERE user_id = $1) AS route_ratings,
-         (SELECT COUNT(*) FROM comment_rating WHERE user_id = $1) AS comment_ratings,
-         (SELECT COUNT(*) FROM waypoint_rating WHERE user_id = $1) AS waypoint_ratings
+         (SELECT COUNT(*) FROM comment_ratings WHERE user_id = $1) AS comment_ratings
      `, [userId]);
 
 
@@ -73,7 +73,7 @@ router.get("/me/waypoints", authorize, async (req, res) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      `SELECT w.id, w.route_id, w.name, w.description, w.lat, w.lon, w.type, w.created_at, r.name AS route_name
+      `SELECT w.*, r.name AS route_name
          FROM waypoints w
          LEFT JOIN routes r ON r.id = w.route_id
         WHERE w.user_id = $1
@@ -90,28 +90,54 @@ router.get("/me/waypoints", authorize, async (req, res) => {
 
 // ================================================================
 // GET /api/users/me/comments
-// Returns all comments written by the logged-in user
+// Returns all comments (waypoint + route) written by the logged-in user
 // ================================================================
 router.get("/me/comments", authorize, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const result = await pool.query(
-      `SELECT c.id, c.content, c.create_time, w.name AS waypoint_name, r.name AS route_name
-         FROM comments c
-         LEFT JOIN waypoints w ON c.waypoint_id = w.id
-         LEFT JOIN routes r ON r.id = w.route_id
-        WHERE c.user_id = $1
-        ORDER BY c.create_time DESC`,
+    const { rows } = await pool.query(
+      `
+      SELECT
+        c.kind                         AS source,
+        c.id                           AS id,
+        c.content                      AS content,
+        c.created_at                   AS created_at,
+        c.updated_at                   AS updated_at,
+        c.edited                       AS edited,
+
+        CASE WHEN c.kind = 'waypoint' THEN c.waypoint_id ELSE NULL END AS waypoint_id,
+        CASE WHEN c.kind = 'waypoint' THEN w.name       ELSE NULL END AS waypoint_name,
+
+        -- route_id/name from either the comment (route) or the waypoint's route (waypoint)
+        COALESCE(
+          CASE WHEN c.kind = 'route'    THEN c.route_id END,
+          CASE WHEN c.kind = 'waypoint' THEN w.route_id END
+        ) AS route_id,
+
+        COALESCE(
+          CASE WHEN c.kind = 'route'    THEN r.name      END,
+          CASE WHEN c.kind = 'waypoint' THEN rw.name     END
+        ) AS route_name
+
+      FROM comments c
+      LEFT JOIN waypoints w ON w.id = c.waypoint_id              -- for waypoint comments
+      LEFT JOIN routes   r ON r.id = c.route_id                  -- for route comments
+      LEFT JOIN routes  rw ON rw.id = w.route_id                 -- route via waypoint
+
+      WHERE c.user_id = $1
+      ORDER BY c.created_at DESC
+      `,
       [userId]
     );
 
-    res.json({ ok: true, comments: result.rows });
+    res.json({ ok: true, comments: rows });
   } catch (err) {
     console.error("GET /api/users/me/comments error:", err);
     res.status(500).json({ ok: false, error: "server-error" });
   }
 });
+
 
 
 module.exports = router;

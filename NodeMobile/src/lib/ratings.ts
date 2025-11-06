@@ -71,8 +71,81 @@ export async function submitWaypointVote(
     throw err;
   }
 }
+
+
+
+/**
+ * Fetch the total and user-specific rating for a given ROUTE.
+ */
+export async function fetchRouteRating(routeId: number, token?: string) {
+  const url = `${API_BASE}/api/ratings/route/${routeId}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: token
+        ? { Authorization: `Bearer ${token}` }
+        : {},
+    });
+    const text = await res.text();
+
+    if (!res.ok) throw new Error(`Failed to fetch route rating: ${text}`);
+
+    const json = JSON.parse(text);
+    return {
+      total: json.total ?? 0,
+      user_rating: json.user_rating ?? null,
+    };
+  } catch (err) {
+    console.error("[fetchRouteRating] error:", err);
+    throw err;
+  }
+}
+
+/**
+ * Submit an upvote or downvote for a ROUTE.
+ * If the same vote is sent again, the backend will delete the record (undo).
+ */
+export async function submitRouteVote(
+  routeId: number,
+  val: 1 | -1,
+  token: string
+) {
+  const url = `${API_BASE}/api/ratings/route/${routeId}`;
+
+  try {
+      console.log("[submitRouteVote] →", {
+        url: `${API_BASE}/api/ratings/route/${routeId}`,
+        val,
+        tokenStart: token?.slice(0, 10) + "...",
+      });
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ val }),
+    });
+    const text = await res.text();
+
+    if (!res.ok) throw new Error(`Failed to post route vote: ${text}`);
+
+    const json = JSON.parse(text);
+
+    return {
+      total: json.total ?? 0,
+      user_rating: json.user_rating ?? null,
+    };
+  } catch (err) {
+    console.error("❌ [submitRouteVote] error:", err);
+    throw err;
+  }
+}
+
+
 /* ============================================================
-   💬 Comment Rating Functions
+ Comment Rating Functions
    ============================================================ */
 
 /**

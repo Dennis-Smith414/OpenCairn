@@ -1,19 +1,10 @@
 // Server/routes/gpx.js
-require('dotenv').config();
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
-const { Pool } = require("pg");
 const gpxParse = require("gpx-parse");
-const { featureCollection, lineString } = require("@turf/helpers");
 const authorize = require("../middleware/authorize");
-
-console.log('[gpx] Loaded DATABASE_URL =', JSON.stringify(process.env.DATABASE_URL));
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const db = require("../Postgres"); // use your pooled helper
 
 const router = express.Router();
 
@@ -23,161 +14,122 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-// Health check
+// Simple health check (optional)
 router.get("/routes/ping", (_req, res) => res.json({ ok: true, where: "gpx-router" }));
 
-//Route list
-router.get("/routes/list", async (req, res) => {
-  try {
-    const { offset = 0, limit = 20, q = "" } = req.query;
-    const lim = Math.min(parseInt(limit, 10) || 20, 100);
-    const off = parseInt(offset, 10) || 0;
-    const where = q ? `WHERE name ILIKE $1` : ``;
-    const params = q ? [`%${q}%`, lim, off] : [lim, off];
-
-    const sql = `
-      SELECT id, slug, name, region, created_at, updated_at
-      FROM routes
-      ${where}
-      ORDER BY updated_at DESC
-      LIMIT $${q ? 2 : 1} OFFSET $${q ? 3 : 2}
-    `;
-    const { rows } = await pool.query(sql, params);
-    res.json({ items: rows, nextOffset: off + rows.length });
-  } catch (e) {
-    console.error("list failed:", e);
-    res.status(500).json({ error: "list-failed" });
+/** Utility: parse GPX XML → array of segments, each segment = [[lon,lat], ...] */
+function extractSegments(gpx) {
+  const segments = [];
+  for (const trk of gpx.tracks || []) {
+    for (const seg of trk.segments || []) {
+      const coords = [];
+      for (const p of seg || []) {
+        if (Number.isFinite(p.lon) && Number.isFinite(p.lat)) {
+          coords.push([p.lon, p.lat]);
+        }
+      }
+      if (coords.length >= 2) segments.push(coords);
+    }
   }
-});
+  return segments;
+}
 
-// Route metadata (no geometry)
-router.get("/routes/:id.meta", async (req, res) => {
-  const { id } = req.params;
-  const q = await pool.query(
-    `SELECT id, slug, name, region, created_at, updated_at FROM routes WHERE id = $1`,
-    [id]
-  );
-  if (!q.rowCount) return res.sendStatus(404);
-  res.json(q.rows[0]);
-});
+function lineWkt(coords) {
+  // coords is [[lon,lat], ...]
+  return `LINESTRING(${coords.map(([x, y]) => `${x} ${y}`).join(",")})`;
+}
 
-// GeoJSON for *all GPX entries* of a route
-router.get("/routes/:id.geojson", async (req, res) => {
+/**
+ * POST /api/routes/:id/gpx
+ * Attach GPX file to an existing route (one DB row per GPX segment)
+ */
+router.post("/routes/:id/gpx", authorize, upload.single("file"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const routeId = Number(req.params.id);
+    if (!req.file) return res.status(400).json({ ok: false, error: "no-file" });
 
-    const result = await pool.query(
-      `SELECT ST_AsGeoJSON(geometry)::json AS geometry
-         FROM gpx
-        WHERE route_id = $1`,
-      [id]
-    );
+    // Ensure route exists
+    const route = await db.get(`SELECT id, name FROM routes WHERE id = $1`, [routeId]);
+    if (!route) return res.status(404).json({ ok: false, error: "route-not-found" });
 
-    if (!result.rowCount) return res.sendStatus(404);
-
-    // Build a FeatureCollection of all geometries for this route
-    const features = result.rows.map((row, idx) => ({
-      type: "Feature",
-      properties: { route_id: id, segment: idx },
-      geometry: row.geometry,
-    }));
-
-    res.json({
-      type: "FeatureCollection",
-      features,
-    });
-  } catch (e) {
-    console.error("geojson failed:", e);
-    res.status(500).json({ error: "geojson-failed" });
-  }
-});
-
-router.use((req, res, next) => {
-  console.log("[gpx router] hit path:", req.path);
-  next();
-});
-
-// GPX Upload
-router.post("/routes/upload", authorize, upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "no-file" });
     const xml = req.file.buffer.toString("utf8");
-    const checksum = crypto.createHash("sha256").update(xml).digest("hex");
-
-    // Parse GPX → coords
     const gpx = await new Promise((resolve, reject) =>
       gpxParse.parseGpx(xml, (err, data) => (err ? reject(err) : resolve(data)))
     );
 
-    const coords = [];
-    for (const trk of gpx.tracks || []) {
-      for (const seg of trk.segments || []) {
-        seg.forEach((p) => {
-          if (Number.isFinite(p.lon) && Number.isFinite(p.lat)) {
-            coords.push([p.lon, p.lat]);
-          }
-        });
-      }
+    const segments = extractSegments(gpx);
+    if (!segments.length) return res.status(400).json({ ok: false, error: "no-track-segments" });
+
+    const baseName = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded GPX";
+
+    // Insert one row per segment
+    for (let i = 0; i < segments.length; i++) {
+      const segName = segments.length > 1 ? `${baseName} (seg ${i + 1})` : baseName;
+      const wkt = lineWkt(segments[i]);
+      await db.run(
+        `INSERT INTO gpx (route_id, name, geometry, file)
+         VALUES ($1, $2, ST_GeomFromText($3, 4326), $4)`,
+        [routeId, segName, wkt, req.file.buffer]
+      );
     }
-    if (coords.length < 2) return res.status(400).json({ error: "no-track-points" });
 
+    res.json({ ok: true, route_id: routeId, segments: segments.length });
+  } catch (err) {
+    console.error("POST /routes/:id/gpx failed:", err);
+    res.status(500).json({ ok: false, error: "upload-failed" });
+  }
+});
+
+/**
+ * Legacy: POST /api/routes/upload
+ * Create-or-reuse a route by checksum-derived slug, then attach GPX.
+ * (Keeps your old flow working while you migrate the client.)
+ */
+router.post("/routes/upload", authorize, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: "no-file" });
+
+    const xml = req.file.buffer.toString("utf8");
+    const checksum = crypto.createHash("sha256").update(xml).digest("hex");
     const slug = "route-" + checksum.slice(0, 8);
-    const name = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded Route";
-    const userId = req.user?.id || null;
+    const userId = req.user?.id ?? null;
 
-    const routeRes = await pool.query(
+    // Parse GPX
+    const gpx = await new Promise((resolve, reject) =>
+      gpxParse.parseGpx(xml, (err, data) => (err ? reject(err) : resolve(data)))
+    );
+    const segments = extractSegments(gpx);
+    if (!segments.length) return res.status(400).json({ ok: false, error: "no-track-segments" });
+
+    const name = gpx?.metadata?.name || gpx?.tracks?.[0]?.name || "Uploaded Route";
+
+    // Upsert route by slug
+    const route = await db.get(
       `INSERT INTO routes (slug, name, user_id)
        VALUES ($1, $2, $3)
        ON CONFLICT (slug) DO UPDATE
          SET name = EXCLUDED.name,
              user_id = COALESCE(routes.user_id, EXCLUDED.user_id)
-       RETURNING id`,
+       RETURNING id, slug, name`,
       [slug, name, userId]
     );
-    const routeId = routeRes.rows[0].id;
+    const routeId = route.id;
 
-    const lineWkt = `LINESTRING(${coords.map(([x, y]) => `${x} ${y}`).join(",")})`;
-    await pool.query(
-      `INSERT INTO gpx (route_id, name, geometry, file)
-       VALUES ($1, $2, ST_GeomFromText($3, 4326), $4)
-       ON CONFLICT (route_id) DO UPDATE
-         SET name = EXCLUDED.name,
-             geometry = EXCLUDED.geometry,
-             file = EXCLUDED.file`,
-      [routeId, name, lineWkt, req.file.buffer]
-    );
-
-    res.json({ ok: true, id: routeId, slug, name });
-  } catch (err) {
-    console.error("upload failed:", err);
-    res.status(500).json({ error: "upload-failed" });
-  }
-});
-
-// ✏️ Update route metadata
-router.patch("/routes/:id", async (req, res) => {
-  const { id } = req.params;
-  const { name, region } = req.body;
-
-  try {
-    const result = await pool.query(
-      `UPDATE routes
-       SET name = COALESCE($1, name),
-           region = COALESCE($2, region),
-           updated_at = NOW()
-       WHERE id = $3
-       RETURNING id, slug, name, region, updated_at`,
-      [name, region, id]
-    );
-
-    if (!result.rowCount) {
-      return res.status(404).json({ error: "not-found" });
+    // Insert one row per segment (no ON CONFLICT here → allow multiple GPX rows per route)
+    for (let i = 0; i < segments.length; i++) {
+      const segName = segments.length > 1 ? `${name} (seg ${i + 1})` : name;
+      const wkt = lineWkt(segments[i]);
+      await db.run(
+        `INSERT INTO gpx (route_id, name, geometry, file)
+         VALUES ($1, $2, ST_GeomFromText($3, 4326), $4)`,
+        [routeId, segName, wkt, req.file.buffer]
+      );
     }
 
-    res.json(result.rows[0]);
+    res.json({ ok: true, id: routeId, slug: route.slug, name: route.name, segments: segments.length });
   } catch (err) {
-    console.error("update route failed:", err);
-    res.status(500).json({ error: "update-failed" });
+    console.error("POST /routes/upload failed:", err);
+    res.status(500).json({ ok: false, error: "upload-failed" });
   }
 });
 

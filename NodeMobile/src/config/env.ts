@@ -30,7 +30,5 @@ function determineApiBase(): string {
   return 'http://localhost:5100';
  }
 
-// export const API_BASE = determineApiBase();
-// console.log(`[ENV] Final API_BASE: ${API_BASE}`);
 
-export const API_BASE = 'http://184.58.146.190:5100'
+export const API_BASE = 'http://184.58.146.190:5100';
