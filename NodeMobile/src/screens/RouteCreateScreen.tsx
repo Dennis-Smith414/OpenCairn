@@ -9,15 +9,10 @@ import { pick } from "@react-native-documents/picker";
 import RNFS from "react-native-fs";
 import { baseStyles, colors } from "../styles/theme";
 import { useAuth } from "../context/AuthContext";
-
-//import {API_BASE as BASE} from "../lib/api";
-import {API_BASE as BASE} from "../config/env";
-
 import { createRoute } from "../lib/routes";
 import { uploadGpxToExistingRoute } from "../lib/uploadGpx";
 
 type PickedFile = { uri: string; name: string };
->>>>>>> 6e0094c4f4fa20f553c84f244ab3f34d38a78a8a
 
 export default function RouteCreateScreen({ navigation }: any) {
   const [name, setName] = useState("");
@@ -29,42 +24,11 @@ export default function RouteCreateScreen({ navigation }: any) {
   const normalizeSelection = (chosen: any): any[] =>
     Array.isArray(chosen) ? chosen : chosen ? [chosen] : [];
 
-<<<<<<< HEAD
-    const handleSubmit = async () => {
-        if (!name || !fileUri) {
-            Alert.alert("Missing info", "Please provide a name and GPX file.");
-            return;
-        }
-        setUploading(true);
-        try {
-            // Upload GPX file, and get auth (this inserts the route + gpx rows)
-            const uploadResult = await uploadGpxFile(fileUri, userToken);
-            // PATCH to set user, name, and region
-            const res = await fetch(`${API_BASE}/api/routes/${uploadResult.id}`, {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${userToken}`,
-              },
-              body: JSON.stringify({ name, region }),
-            });
-            if (!res.ok) throw new Error("Failed to set metadata");
-            Alert.alert("Success", "Route created!");
-            navigation.goBack();
-        } catch (e) {
-            console.error(e);
-            Alert.alert("Upload failed", "Could not create route.");
-        } finally {
-            setUploading(false);
-        }
-    };
-=======
   const pickFiles = async () => {
     try {
       const chosen = await pick({ allowMultiSelection: true } as any);
       const arr = normalizeSelection(chosen);
       if (!arr.length) return;
->>>>>>> 6e0094c4f4fa20f553c84f244ab3f34d38a78a8a
 
       const prepared: PickedFile[] = [];
       for (const f of arr) {
@@ -328,7 +292,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     justifyContent: "flex-start",
-    alignSelf: "stretch",                // 👈 match width
+    alignSelf: "stretch",
   },
   smallBtn: {
     paddingVertical: 8,
