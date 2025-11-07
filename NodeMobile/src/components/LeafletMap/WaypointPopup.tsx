@@ -8,6 +8,7 @@ import {
   Image,
 } from "react-native";
 import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme"; // ✅ ADDED
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
@@ -56,6 +57,8 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
   const [loadingVote, setLoadingVote] = useState(false);
   const [totalVotes, setTotalVotes] = useState(0);
 
+  const { colors: theme } = useThemeStyles(); // ✅ ADDED
+
   // --- Load waypoint details when visible ---
   useEffect(() => {
     if (visible) {
@@ -68,7 +71,6 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
         distance,
       });
 
-      // Fetch live rating when popup opens
       if (id && userToken) {
         fetchWaypointRating(id, userToken)
           .then((r) => {
@@ -105,29 +107,25 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
     outputRange: [150, 0],
   });
 
-  if (!visible && slideAnim.__getValue() === 0) return null;
+  if (!visible && (slideAnim as any).__getValue?.() === 0) return null;
 
   // --- Voting handler ---
-const handleVote = async (val: 1 | -1) => {
-  if (!id || !userToken || loadingVote) {
-    console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
-    return;
-  }
-
-  setLoadingVote(true);
-
-  try {
-    const result = await submitWaypointVote(id, val, userToken);
-    setTotalVotes(result.total);
-    setUserRating(result.user_rating);
-  } catch (err) {
-    console.error("❌ Vote failed:", err);
-  } finally {
-    setLoadingVote(false);
-  }
-};
-
-
+  const handleVote = async (val: 1 | -1) => {
+    if (!id || !userToken || loadingVote) {
+      console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
+      return;
+    }
+    setLoadingVote(true);
+    try {
+      const result = await submitWaypointVote(id, val, userToken);
+      setTotalVotes(result.total);
+      setUserRating(result.user_rating);
+    } catch (err) {
+      console.error("❌ Vote failed:", err);
+    } finally {
+      setLoadingVote(false);
+    }
+  };
 
   // --- Formatting ---
   const formattedDate = displayData.dateUploaded
@@ -151,6 +149,7 @@ const handleVote = async (val: 1 | -1) => {
       style={[
         styles.container,
         { transform: [{ translateY }], opacity: slideAnim },
+        { backgroundColor: theme.backgroundAlt, shadowColor: "#000" }, // ✅ ADDED
       ]}
     >
       <View style={styles.row}>
@@ -168,17 +167,24 @@ const handleVote = async (val: 1 | -1) => {
                 resizeMode="contain"
               />
             ) : (
-              <View style={[styles.iconImage, styles.placeholderIcon]} />
+              <View
+                style={[
+                  styles.iconImage,
+                  styles.placeholderIcon,
+                ]}
+              />
             )}
 
             <View style={styles.info}>
-              <Text style={styles.title}>{displayData.name || "Waypoint"}</Text>
+              <Text style={[styles.title, { color: theme.textPrimary }]}>
+                {displayData.name || "Waypoint"}
+              </Text>
               {!isMarkedLocation && (
-                <Text style={styles.desc} numberOfLines={2}>
+                <Text style={[styles.desc, { color: theme.textSecondary }]} numberOfLines={2}>
                   {displayData.description || "No description provided."}
                 </Text>
               )}
-              <Text style={styles.meta}>
+              <Text style={[styles.meta, { color: theme.textSecondary }]}>
                 {formattedDate}{" "}
                 {displayData.username ? `• ${displayData.username}` : ""}
                 {formattedDistance ? ` • ${formattedDistance}` : ""}
@@ -197,14 +203,17 @@ const handleVote = async (val: 1 | -1) => {
               <Text
                 style={[
                   styles.voteButton,
-                  userRating === 1 && { color: colors.accent },
+                  { color: theme.textPrimary },                // ✅ ADDED
+                  userRating === 1 && { color: theme.accent }, // ✅ ADDED
                 ]}
               >
                 ⬆️
               </Text>
             </TouchableOpacity>
 
-            <Text style={styles.voteCount}>{totalVotes}</Text>
+            <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
+              {totalVotes}
+            </Text>
 
             <TouchableOpacity
               onPress={() => handleVote(-1)}
@@ -213,7 +222,8 @@ const handleVote = async (val: 1 | -1) => {
               <Text
                 style={[
                   styles.voteButton,
-                  userRating === -1 && { color: colors.error || "#d33" },
+                  { color: theme.textPrimary },                    // ✅ ADDED
+                  userRating === -1 && { color: theme.error || "#d33" }, // ✅ ADDED
                 ]}
               >
                 ⬇️

@@ -9,46 +9,42 @@ import {
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { Picker } from "@react-native-picker/picker";
-import { baseStyles, colors } from "../styles/theme";
+import { baseStyles, useThemeStyles } from "../styles/theme"; // ⬅️ swap import
 import { createWaypoint } from "../lib/waypoints";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useAuth } from "../context/AuthContext";
 
-
-
 export default function WaypointCreateScreen({ navigation }: any) {
-    const route = useRoute<any>();
-    const { selectedRoutes } = useRouteSelection();
-    const { userToken } = useAuth();
+  const route = useRoute<any>();
+  const { selectedRoutes } = useRouteSelection();
+  const { userToken } = useAuth();
+  const { colors: c } = useThemeStyles(); // ⬅️ active palette
 
-    const [name, setName] = useState("");
-    const [desc, setDesc] = useState("");
-    const [lat, setLat] = useState("");
-    const [lon, setLon] = useState("");
-    const [routeId, setRouteId] = useState<number | undefined>(
-      selectedRoutes[0]?.id
-    );
-
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [routeId, setRouteId] = useState<number | undefined>(
+    selectedRoutes[0]?.id
+  );
   const [type, setType] = useState("generic");
 
   useEffect(() => {
-      if (route.params?.lat && route.params?.lon) {
-        setLat(route.params.lat.toFixed(5).toString());
-        setLon(route.params.lon.toFixed(5).toString());
-      }
-    }, [route.params]);
+    if (route.params?.lat && route.params?.lon) {
+      setLat(route.params.lat.toFixed(5).toString());
+      setLon(route.params.lon.toFixed(5).toString());
+    }
+  }, [route.params]);
 
-  // Scroll picker options for types (can map to icons later)
   const waypointTypes = [
     { label: "Generic", value: "generic" },
     { label: "Water", value: "water" },
     { label: "Campsite", value: "campsite" },
     { label: "Road / Access Point", value: "road-access-point" },
     { label: "Intersection", value: "intersection" },
-    { label: "Navigation", value: "navigation" },
     { label: "Hazard", value: "hazard" },
-    {label: "Landmark", value: "landmark"},
-    {label: "Parking / Trailhead", value: "parking-trailhead"},
+    { label: "Landmark", value: "landmark" },
+    { label: "Parking / Trailhead", value: "parking-trailhead" },
   ];
 
   const handleSubmit = async () => {
@@ -60,55 +56,56 @@ export default function WaypointCreateScreen({ navigation }: any) {
       Alert.alert("Missing Route", "Please select a route to add this waypoint to.");
       return;
     }
-
     try {
-        const token = userToken;
-        if (!token) {
-          Alert.alert("Not logged in", "You must be logged in to create a waypoint.");
-          return;
-        }
-        const waypointData = {
-            route_id: routeId,
-            name,
-            description: desc,
-            lat: parseFloat(lat) || 0,
-            lon: parseFloat(lon) || 0,
-            type,
-        };
-
-        console.log("Creating waypoint:", waypointData);
-
-        const result = await createWaypoint(token, waypointData);
-        console.log("Waypoint created:", result);
-
-        Alert.alert("Success", "Waypoint created!");
-        navigation.goBack();
-        }
-        catch (err: any) {
-            console.error("Waypoint creation failed:", err);
-            Alert.alert("Error", err.message || "Failed to create waypoint.");
-        }
-    };
+      const token = userToken;
+      if (!token) {
+        Alert.alert("Not logged in", "You must be logged in to create a waypoint.");
+        return;
+      }
+      const waypointData = {
+        route_id: routeId,
+        name,
+        description: desc,
+        lat: parseFloat(lat) || 0,
+        lon: parseFloat(lon) || 0,
+        type,
+      };
+      const result = await createWaypoint(token, waypointData);
+      console.log("Waypoint created:", result);
+      Alert.alert("Success", "Waypoint created!");
+      navigation.goBack();
+    } catch (err: any) {
+      console.error("Waypoint creation failed:", err);
+      Alert.alert("Error", err.message || "Failed to create waypoint.");
+    }
+  };
 
   return (
     <ScrollView
-      contentContainerStyle={{
-        ...baseStyles.container,
-        alignItems: "center",
-        paddingVertical: 20,
-      }}
+      style={{ flex: 1, backgroundColor: c.background }} // ⬅️ themed bg
+      contentContainerStyle={{ alignItems: "center", paddingVertical: 20 }}
+      showsVerticalScrollIndicator={false}
     >
       {/* Back Button */}
-            <TouchableOpacity onPress={() => navigation.goBack()} style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}>
-              <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
-            </TouchableOpacity>
-      <Text style={baseStyles.headerText}>Create Waypoint</Text>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}
+      >
+        <Text style={{ fontSize: 16, color: c.accent }}>← Back</Text>
+      </TouchableOpacity>
+
+      <Text style={[baseStyles.headerText, { color: c.textPrimary }]}>
+        Create Waypoint
+      </Text>
 
       {/* Name (required) */}
       <TextInput
         placeholder="Name (required)"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={c.textSecondary}
+        style={[
+          baseStyles.input,
+          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
+        ]}
         value={name}
         onChangeText={setName}
       />
@@ -116,8 +113,11 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Description */}
       <TextInput
         placeholder="Description"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={c.textSecondary}
+        style={[
+          baseStyles.input,
+          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
+        ]}
         value={desc}
         onChangeText={setDesc}
         multiline
@@ -126,8 +126,11 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Latitude */}
       <TextInput
         placeholder="Latitude"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={c.textSecondary}
+        style={[
+          baseStyles.input,
+          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
+        ]}
         value={lat}
         onChangeText={setLat}
         keyboardType="numeric"
@@ -136,8 +139,11 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Longitude */}
       <TextInput
         placeholder="Longitude"
-        placeholderTextColor={colors.textSecondary}
-        style={baseStyles.input}
+        placeholderTextColor={c.textSecondary}
+        style={[
+          baseStyles.input,
+          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
+        ]}
         value={lon}
         onChangeText={setLon}
         keyboardType="numeric"
@@ -148,16 +154,17 @@ export default function WaypointCreateScreen({ navigation }: any) {
         style={{
           width: "80%",
           borderWidth: 1,
-          borderColor: colors.accent,
+          borderColor: c.accent,
           borderRadius: 12,
           marginVertical: 8,
-          backgroundColor: colors.backgroundAlt,
+          backgroundColor: c.backgroundAlt,
         }}
       >
         <Picker
           selectedValue={routeId}
           onValueChange={(value) => setRouteId(value)}
-          style={{ color: colors.textPrimary }}
+          style={{ color: c.textPrimary }}
+          dropdownIconColor={c.textSecondary}
         >
           {selectedRoutes.length > 0 ? (
             selectedRoutes.map((r) => (
@@ -167,7 +174,6 @@ export default function WaypointCreateScreen({ navigation }: any) {
             <Picker.Item label="No routes selected" value={undefined} />
           )}
         </Picker>
-
       </View>
 
       {/* Type Picker */}
@@ -175,30 +181,27 @@ export default function WaypointCreateScreen({ navigation }: any) {
         style={{
           width: "80%",
           borderWidth: 1,
-          borderColor: colors.accent,
+          borderColor: c.accent,
           borderRadius: 12,
           marginVertical: 8,
-          backgroundColor: colors.backgroundAlt,
+          backgroundColor: c.backgroundAlt,
         }}
       >
         <Picker
           selectedValue={type}
           onValueChange={(value) => setType(value)}
-          style={{ color: colors.textPrimary }}
+          style={{ color: c.textPrimary }}
+          dropdownIconColor={c.textSecondary}
         >
           {waypointTypes.map((item) => (
-            <Picker.Item
-              key={item.value}
-              label={item.label}
-              value={item.value}
-            />
+            <Picker.Item key={item.value} label={item.label} value={item.value} />
           ))}
         </Picker>
       </View>
 
       {/* Submit Button */}
       <TouchableOpacity
-        style={[baseStyles.button, baseStyles.buttonPrimary]}
+        style={[baseStyles.button, { backgroundColor: c.primary }]} // ⬅️ themed btn color
         onPress={handleSubmit}
       >
         <Text style={baseStyles.buttonText}>Save Waypoint</Text>

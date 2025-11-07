@@ -9,6 +9,7 @@ import {
   Image,
 } from "react-native";
 import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme"; // ADDED
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
@@ -16,8 +17,7 @@ import { CommentList } from "../comments/CommentList";
 import { fetchCurrentUser } from "../../lib/api";
 import { deleteWaypoint } from "../../lib/waypoints";
 import { useNavigation } from "@react-navigation/native";
-import {baseStyles} from "../../styles/theme"
-
+import { baseStyles } from "../../styles/theme";
 
 interface WaypointDetailProps {
   visible: boolean;
@@ -57,6 +57,8 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
   const [loadingVote, setLoadingVote] = useState(false);
   const navigation = useNavigation<any>();
 
+  const { colors: themeColors } = useThemeStyles(); // ADDED
+
   // --- Animate slide in/out ---
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -89,7 +91,9 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
         console.log("Failed to fetch /me", e);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [userToken]);
 
   const handleVote = async (val: 1 | -1) => {
@@ -123,7 +127,10 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     outputRange: [400, 0],
   });
 
-  const isOwner = !!currentUser && (typeof ownerId === "number" && Number(currentUser.id) === Number(ownerId));
+  const isOwner =
+    !!currentUser &&
+    typeof ownerId === "number" &&
+    Number(currentUser.id) === Number(ownerId);
 
   const confirmDeleteWaypoint = () => {
     if (!id) return;
@@ -142,7 +149,6 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     if (!id || !userToken) return;
     try {
       await deleteWaypoint(id, userToken);
-      // Close panel and let parent refresh list/map
       onClose?.();
       onDeleted?.();
     } catch (err) {
@@ -151,67 +157,75 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     }
   };
 
-
-  if (!visible && slideAnim.__getValue() === 0) return null;
+  if (!visible && (slideAnim as any).__getValue?.() === 0) return null;
 
   return (
     <Animated.View
       style={[
         styles.container,
+        // ✅ ADDED: theme-driven overrides
+        {
+          backgroundColor: themeColors.backgroundAlt,
+          shadowColor: "#000",
+        },
         { transform: [{ translateY }], opacity: slideAnim },
       ]}
     >
       {/* Header Section */}
       <View style={styles.header}>
         <Image
-          source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
+          source={
+            iconRequire || require("../../assets/icons/waypoints/generic.png")
+          }
           style={styles.iconImage}
           resizeMode="contain"
         />
         <View style={styles.headerInfo}>
-          <Text style={styles.title}>{name}</Text>
-          <Text style={styles.meta}>
+          <Text style={[styles.title, { color: themeColors.textPrimary }]}>
+            {name}
+          </Text>
+          <Text style={[styles.meta, { color: themeColors.textSecondary }]}>
             {formattedDate}
             {username ? ` • ${username}` : ""}
             {formattedDistance ? ` • ${formattedDistance}` : ""}
           </Text>
         </View>
         <TouchableOpacity onPress={onClose}>
-          <Text style={styles.closeButton}>✕</Text>
+          <Text style={[styles.closeButton, { color: themeColors.textSecondary }]}>
+            ✕
+          </Text>
         </TouchableOpacity>
       </View>
 
       {/* Description */}
-      <Text style={styles.description}>
+      <Text style={[styles.description, { color: themeColors.textPrimary }]}>
         {description || "No description provided."}
       </Text>
 
       {/* Voting */}
       <View style={styles.votingSection}>
-        <TouchableOpacity
-          onPress={() => handleVote(1)}
-          disabled={loadingVote}
-        >
+        <TouchableOpacity onPress={() => handleVote(1)} disabled={loadingVote}>
           <Text
             style={[
               styles.voteButton,
-              userRating === 1 && { color: colors.accent },
+              { color: themeColors.textPrimary }, //  ADDED
+              userRating === 1 && { color: themeColors.accent }, //  ADDED
             ]}
           >
             ⬆️
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.voteCount}>{votes}</Text>
+        <Text style={[styles.voteCount, { color: themeColors.textPrimary }]}>
+          {votes}
+        </Text>
 
-        <TouchableOpacity
-          onPress={() => handleVote(-1)}
-          disabled={loadingVote}
-        >
+        <TouchableOpacity onPress={() => handleVote(-1)} disabled={loadingVote}>
           <Text
             style={[
               styles.voteButton,
-              userRating === -1 && { color: colors.error || "#d33" },
+              { color: themeColors.textPrimary }, //  ADDED
+              userRating === -1 && { color: themeColors.error || "#d33" } //  ADDED
             ]}
           >
             ⬇️
@@ -221,72 +235,84 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
 
       {/* Comments (Always visible) */}
       {id && (
-        <View style={styles.commentsSection}>
-          <Text style={styles.commentsHeader}>Comments</Text>
+        <View
+          style={[
+            styles.commentsSection,
+            // ✅ ADDED: theme-driven overrides
+            {
+              borderTopColor: themeColors.border,
+              backgroundColor: themeColors.backgroundSecondary,
+            },
+          ]}
+        >
+          <Text
+            style={[styles.commentsHeader, { color: themeColors.textPrimary }]}
+          >
+            Comments
+          </Text>
           <CommentList waypointId={id} />
         </View>
       )}
-    {isOwner && (
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "center",
-          alignItems: "center",
-          marginTop: 20,
-          gap: 30,
-          paddingHorizontal: 80,
-        }}
-      >
-        {/* Edit Button */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate("WaypointEdit", { id })}
-          style={[
-            baseStyles.button,
-            {
-              backgroundColor: colors.primary,
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              borderRadius: 8,
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color: "#fff",
-              fontWeight: "600",
-            }}
-          >
-            Edit Waypoint
-          </Text>
-        </TouchableOpacity>
 
-        {/* Delete Button */}
-        <TouchableOpacity
-          onPress={confirmDeleteWaypoint}
-          style={[
-            baseStyles.button,
-            {
-              backgroundColor: colors.error || "#d33",
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              borderRadius: 8,
-            },
-          ]}
+      {isOwner && (
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: 20,
+            gap: 30,
+            paddingHorizontal: 80,
+          }}
         >
-          <Text
-            style={{
-              color: "#fff",
-              fontWeight: "600",
-            }}
+          {/* Edit Button */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate("WaypointEdit", { id })}
+            style={[
+              baseStyles.button,
+              {
+                backgroundColor: themeColors.primary, // ✅ ADDED
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 8,
+              },
+            ]}
           >
-            Delete Waypoint
-          </Text>
-        </TouchableOpacity>
-      </View>
-    )}
+            <Text
+              style={{
+                color: "#fff",
+                fontWeight: "600",
+              }}
+            >
+              Edit Waypoint
+            </Text>
+          </TouchableOpacity>
 
+          {/* Delete Button */}
+          <TouchableOpacity
+            onPress={confirmDeleteWaypoint}
+            style={[
+              baseStyles.button,
+              {
+                backgroundColor: themeColors.error || "#d33", // ✅ ADDED
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 8,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: "#fff",
+                fontWeight: "600",
+              }}
+            >
+              Delete Waypoint
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </Animated.View>
-
   );
 };
 
@@ -324,21 +350,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: colors.textPrimary,
+    color: colors.textPrimary, 
   },
   meta: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textSecondary, 
     marginTop: 2,
   },
   closeButton: {
     fontSize: 22,
-    color: colors.textSecondary,
+    color: colors.textSecondary, 
     padding: 4,
   },
   description: {
     fontSize: 15,
-    color: colors.textPrimary,
+    color: colors.textPrimary, 
     marginBottom: 12,
   },
   votingSection: {
@@ -353,21 +379,21 @@ const styles = StyleSheet.create({
   voteCount: {
     fontSize: 16,
     fontWeight: "700",
-    color: colors.textPrimary,
+    color: colors.textPrimary, 
   },
   commentsSection: {
     flex: 1,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.border, 
     paddingTop: 10,
     paddingBottom: 40,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundSecondary, 
     borderRadius: 10,
   },
   commentsHeader: {
     fontSize: 16,
     fontWeight: "600",
-    color: colors.textPrimary,
+    color: colors.textPrimary, 
     marginBottom: 8,
   },
 });

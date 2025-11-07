@@ -1,9 +1,11 @@
+// src/navigation/AppNavigator.tsx
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Image, View, ActivityIndicator } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useThemeStyles } from "../styles/theme"; // ← ADD
 
 // Screens
 import AccountCreationScreen from "../screens/AccountCreationScreen";
@@ -17,6 +19,7 @@ import RouteCreateScreen from "../screens/RouteCreateScreen";
 import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import WaypointEditScreen from "../screens/WaypointEditScreen";
+
 // Navigators
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -30,11 +33,7 @@ const RoutesStackNav = createNativeStackNavigator();
 ---------------------------- */
 function AccountStack() {
   return (
-    <AccountStackNav.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
+    <AccountStackNav.Navigator screenOptions={{ headerShown: false }}>
       <AccountStackNav.Screen name="AccountMain" component={AccountScreen} />
       <AccountStackNav.Screen name="Settings" component={SettingsScreen} />
     </AccountStackNav.Navigator>
@@ -46,19 +45,12 @@ function AccountStack() {
 ---------------------------- */
 function MapStack() {
   return (
-    <MapStackNav.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
+    <MapStackNav.Navigator screenOptions={{ headerShown: false }}>
       <MapStackNav.Screen name="MapMain" component={MapScreen} />
       <MapStackNav.Screen
         name="WaypointCreate"
         component={WaypointCreateScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
     </MapStackNav.Navigator>
   );
@@ -69,19 +61,12 @@ function MapStack() {
 ---------------------------- */
 function RoutesStack() {
   return (
-    <RoutesStackNav.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
+    <RoutesStackNav.Navigator screenOptions={{ headerShown: false }}>
       <RoutesStackNav.Screen name="RoutesMain" component={RouteSelectScreen} />
       <RoutesStackNav.Screen
         name="RouteCreate"
         component={RouteCreateScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
     </RoutesStackNav.Navigator>
   );
@@ -91,6 +76,8 @@ function RoutesStack() {
    Main Tab Navigator
 ---------------------------- */
 function MainTabs() {
+  const { colors: c } = useThemeStyles(); // ← ADD
+
   return (
     <Tab.Navigator
       initialRouteName="Account"
@@ -98,13 +85,15 @@ function MainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: c.backgroundAlt,   // ← THEMED
+          borderTopWidth: 1,
+          borderTopColor: c.border,           // ← THEMED
           height: 80,
           paddingTop: 15,
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: "#008b8b",
-        tabBarInactiveTintColor: "#000",
+        tabBarActiveTintColor: c.primary,     // ← THEMED
+        tabBarInactiveTintColor: c.textSecondary, // ← THEMED
       }}
     >
       <Tab.Screen
@@ -114,12 +103,7 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/RouteSelectLight.png")}
-              style={{
-                width: 48,
-                height: 48,
-                resizeMode: "contain",
-                tintColor: color,
-              }}
+              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
             />
           ),
         }}
@@ -131,12 +115,7 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/MapLight.png")}
-              style={{
-                width: 48,
-                height: 48,
-                resizeMode: "contain",
-                tintColor: color,
-              }}
+              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
             />
           ),
         }}
@@ -148,12 +127,7 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/AccountLight.png")}
-              style={{
-                width: 48,
-                height: 48,
-                resizeMode: "contain",
-                tintColor: color,
-              }}
+              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
             />
           ),
         }}
@@ -165,12 +139,7 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/FilesLight.png")}
-              style={{
-                width: 44,
-                height: 44,
-                resizeMode: "contain",
-                tintColor: color,
-              }}
+              style={{ width: 44, height: 44, resizeMode: "contain", tintColor: color }}
             />
           ),
         }}
@@ -208,7 +177,7 @@ export default function AppNavigator() {
             <Stack.Screen
               name="WaypointEdit"
               component={WaypointEditScreen}
-              options={{ title: "Edit Waypoint", headerShown: false }} // or true if you want RN header
+              options={{ title: "Edit Waypoint", headerShown: false }}
             />
           </>
         )}

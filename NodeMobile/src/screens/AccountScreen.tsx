@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { baseStyles, useThemeStyles, fonts } from "../styles/theme";
 import { useAuth } from "../context/AuthContext";
 //import { API_BASE } from "../lib/api";
 import { API_BASE } from "../config/env";
@@ -45,7 +45,7 @@ export default function AccountScreen({ navigation }: any) {
   const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
   const [userComments, setUserComments] = useState<any[]>([]);
 
-
+const { colors: c } = useThemeStyles(); // active theme colors (light/dark/system)
   const [routesQuery, setRoutesQuery] = useState("");
   const [waypointsQuery, setWaypointsQuery] = useState("");
   const [commentsQuery, setCommentsQuery] = useState("");
@@ -230,11 +230,19 @@ const handleDeleteComment = async (id: number) => {
 
 return (
   <ScrollView
-    style={{ flex: 1, backgroundColor: colors.background }}
+    style={{ flex: 1, backgroundColor: c.background }}
     contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
     showsVerticalScrollIndicator={false}
   >
-    <Text style={[baseStyles.headerText, styles.pageTitle]}>My Account</Text>
+    <Text
+      style={[
+        baseStyles.headerText,
+        { color: c.textPrimary },
+        styles.pageTitle,
+      ]}
+    >
+      My Account
+    </Text>
 
     {/* Basic Info */}
     <Card>
