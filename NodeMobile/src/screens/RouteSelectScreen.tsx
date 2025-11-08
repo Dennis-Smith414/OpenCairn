@@ -1,5 +1,5 @@
 // screens/RouteSelectScreen.tsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { useThemeStyles } from "../styles/theme";
 import { fetchRouteList } from "../lib/api";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
@@ -20,11 +21,15 @@ type RouteItem = {
 };
 
 export default function RouteSelectScreen({ navigation }: any) {
+  const { colors, styles: baseStyles } = useThemeStyles();
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { selectedRoutes, selectedRouteIds, toggleRoute, clearSelection } = useRouteSelection();
+  // 🔎 search
+  const [query, setQuery] = useState("");
+
+  const { selectedRouteIds, toggleRoute } = useRouteSelection();
 
   // Fetch route list
   const loadRoutes = useCallback(async () => {
@@ -45,28 +50,73 @@ export default function RouteSelectScreen({ navigation }: any) {
     loadRoutes();
   }, [loadRoutes]);
 
+  // 🔎 Fast in-memory filter (name or region, case-insensitive)
+  const filteredRoutes = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return routes;
+    return routes.filter((r) => {
+      const name = r.name?.toLowerCase() ?? "";
+      const region = r.region?.toLowerCase() ?? "";
+      return name.includes(q) || region.includes(q);
+    });
+  }, [routes, query]);
+
   if (loading) {
     return (
-      <View style={baseStyles.container}>
+      <View style={[baseStyles.container, { padding: 16 }]}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={baseStyles.subText}>Loading routes…</Text>
+        <Text style={[baseStyles.subText, { marginTop: 8 }]}>
+          Loading routes…
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={[baseStyles.container, { padding: 16 }]}>
-      <Text style={baseStyles.headerText}>Select Routes</Text>
+    <View style={[baseStyles.container, { padding: 16, backgroundColor: colors.background }]}>
+      <Text style={[baseStyles.headerText, { color: colors.textPrimary }]}>
+        Select Routes
+      </Text>
+
+      {/* 🔎 Search input */}
+      <View
+        style={{
+          width: "100%",
+          marginTop: 10,
+          marginBottom: 6,
+          borderWidth: 1,
+          borderColor: colors.accent,
+          borderRadius: 12,
+          backgroundColor: colors.backgroundAlt,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search name / region…"
+          placeholderTextColor={colors.textSecondary}
+          style={{
+            flex: 1,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            color: colors.textPrimary,
+          }}
+          returnKeyType="search"
+        />
+        {!!query && (
+          <TouchableOpacity onPress={() => setQuery("")} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+            <Text style={{ color: colors.textSecondary }}>×</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Create new route button */}
       <TouchableOpacity
         style={[
           baseStyles.button,
-          {
-            backgroundColor: colors.accent,
-            marginVertical: 8,
-            paddingVertical: 10,
-          },
+          { backgroundColor: colors.accent, marginVertical: 8, paddingVertical: 10, width: "100%" },
         ]}
         onPress={() => navigation.navigate("RouteCreate")}
       >
@@ -74,7 +124,7 @@ export default function RouteSelectScreen({ navigation }: any) {
       </TouchableOpacity>
 
       <FlatList
-        data={routes}
+        data={filteredRoutes}
         keyExtractor={(item) => String(item.id)}
         style={{ width: "100%", marginTop: 8 }}
         refreshing={refreshing}
@@ -88,22 +138,38 @@ export default function RouteSelectScreen({ navigation }: any) {
                 marginVertical: 6,
                 marginHorizontal: 16,
                 borderRadius: 12,
-                backgroundColor: isSelected
-                  ? colors.primary
-                  : colors.backgroundAlt,
+                backgroundColor: isSelected ? colors.primary : colors.backgroundAlt,
                 borderWidth: 1,
                 borderColor: colors.accent,
               }}
-              onPress={() => toggleRoute({ id: item.id, name: item.name })} // ✅ updated
+              onPress={() => toggleRoute({ id: item.id, name: item.name })}
             >
-              <Text style={baseStyles.bodyText}>{item.name}</Text>
-              {item.region && (
-                <Text style={baseStyles.subText}>{item.region}</Text>
+              <Text
+                style={[
+                  baseStyles.bodyText,
+                  { color: isSelected ? colors.background : colors.textPrimary },
+                ]}
+              >
+                {item.name}
+              </Text>
+              {!!item.region && (
+                <Text
+                  style={[
+                    baseStyles.subText,
+                    { color: isSelected ? colors.background : colors.textSecondary },
+                  ]}
+                >
+                  {item.region}
+                </Text>
               )}
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={<Text style={baseStyles.subText}>No routes found.</Text>}
+        ListEmptyComponent={
+          <Text style={[baseStyles.subText, { marginTop: 10, color: colors.textSecondary }]}>
+            {routes.length ? "No matching routes." : "No routes found."}
+          </Text>
+        }
       />
     </View>
   );

@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme"; // ✅ ADDED
 import { fetchComments, postComment, deleteComment, updateComment } from "../../lib/comments";
 import { fetchCommentRating, submitCommentVote } from "../../lib/ratings";
 import { useAuth } from "../../context/AuthContext";
@@ -54,6 +55,8 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
 
+  const { colors: theme } = useThemeStyles(); // ✅ ADDED
+
   // Load current user (for "You" badge + edit/delete auth)
   useEffect(() => {
     const loadUser = async () => {
@@ -68,7 +71,7 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
     loadUser();
   }, [userToken]);
 
-  // Load comments & ratings
+  //  Load comments & ratings
   const loadComments = useCallback(async () => {
     try {
       setLoading(true);
@@ -98,6 +101,7 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
     loadComments();
   }, [loadComments]);
 
+  // Post new comment
   // Post new comment
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
@@ -168,10 +172,19 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
     const isEditing = editingId === item.id;
 
     return (
-      <View style={[styles.commentBox, isOwner && { backgroundColor: colors.primary + "22" }]}>
+      <View
+        style={[
+          styles.commentBox,
+          isOwner && { backgroundColor: (theme.primary || colors.primary) + "22" }, // ✅ ADDED
+        ]}
+      >
         <View style={styles.commentHeader}>
-          <Text style={styles.username}>{isOwner ? "You" : item.username}</Text>
-          <Text style={styles.time}>{formatRelativeTime(item.created_at)}</Text>
+          <Text style={[styles.username, { color: theme.textPrimary }]}>
+            {isOwner ? "You" : item.username}
+          </Text>
+          <Text style={[styles.time, { color: theme.textSecondary }]}>
+            {formatRelativeTime(item.create_time)}
+          </Text>
         </View>
 
         {isEditing ? (
@@ -201,25 +214,29 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
           />
         ) : (
           <>
-            <Text style={styles.content}>{item.content}</Text>
+            <Text style={[styles.content, { color: theme.textPrimary }]}>
+              {item.content}
+            </Text>
 
             <View style={styles.voteRow}>
               <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
                 <Text
                   style={[
                     styles.voteButton,
-                    ratings[item.id]?.user_rating === 1 && { color: colors.accent },
+                    ratings[item.id]?.user_rating === 1 && { color: theme.accent || colors.accent },
                   ]}
                 >
                   ⬆️
                 </Text>
               </TouchableOpacity>
-              <Text style={styles.voteCount}>{rating.total}</Text>
+              <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
+                {rating.total}
+              </Text>
               <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
                 <Text
                   style={[
                     styles.voteButton,
-                    ratings[item.id]?.user_rating === -1 && { color: colors.error || "#d33" },
+                    ratings[item.id]?.user_rating === -1 && { color: theme.error || "#d33" },
                   ]}
                 >
                   ⬇️
@@ -254,7 +271,7 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={colors.textSecondary} />
+        <ActivityIndicator color={theme.textSecondary} />{/* ✅ ADDED */}
       </View>
     );
   }
@@ -264,18 +281,33 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
     >
-      {/* Composer */}
-      <View style={styles.inputRow}>
+      {/* Input */}
+      <View
+        style={[
+          styles.inputRow,
+          { borderBottomColor: theme.border }, // ✅ ADDED
+        ]}
+      >
         <TextInput
           value={newComment}
           onChangeText={setNewComment}
-          placeholder={`Write a comment…`}
-          placeholderTextColor={colors.textSecondary}
-          style={styles.input}
+          placeholder="Write a comment..."
+          placeholderTextColor={theme.textSecondary} // ✅ ADDED
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.backgroundAlt, // ✅ ADDED
+              color: theme.textPrimary,            // ✅ ADDED
+            },
+          ]}
           editable={!submitting}
         />
         <TouchableOpacity
-          style={[styles.submitButton, submitting && { opacity: 0.6 }]}
+          style={[
+            styles.submitButton,
+            { backgroundColor: theme.primary }, // ✅ ADDED
+            submitting && { opacity: 0.6 },
+          ]}
           onPress={handleSubmit}
           disabled={submitting}
         >
@@ -283,14 +315,16 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
         </TouchableOpacity>
       </View>
 
-      {/* List */}
+      {/* Comments list */}
       <View style={{ flexGrow: 1 }}>
         <FlatList
           data={comments}
           renderItem={renderComment}
           keyExtractor={(item) => item.id.toString()}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No comments yet. Be the first!</Text>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              No comments yet. Be the first!
+            </Text>
           }
           contentContainerStyle={{ paddingVertical: 8 }}
           showsVerticalScrollIndicator
@@ -309,7 +343,7 @@ function formatRelativeTime(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-// Styles
+//  Styles (left as-is)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

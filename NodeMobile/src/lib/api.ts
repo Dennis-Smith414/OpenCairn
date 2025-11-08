@@ -18,9 +18,6 @@ function safeJson(text: string) {
  * (keeps same signature/return shape as before)
  */
 export async function fetchRouteList() {
-
-  const res = await fetch(`${API_BASE}/api/routes/`);
-
   const url = new URL(`${API_BASE}/api/routes`);
   // If you later add search/pagination, set params here:
   // url.searchParams.set("q", q);
@@ -28,7 +25,6 @@ export async function fetchRouteList() {
   // url.searchParams.set("offset", String(offset));
 
   const res = await fetch(url.toString());
->>>>>>> 6e0094c4f4fa20f553c84f244ab3f34d38a78a8a
   const text = await res.text();
   const json = safeJson(text);
 
@@ -43,11 +39,6 @@ export async function fetchRouteList() {
  * Returns FeatureCollection
  */
 export async function fetchRouteGeo(id: number) {
-  //const r = await fetch(`${API_BASE}/api/routes/${id}.geojson`);
-  const r = await fetch(`${API_BASE}/api/routes/${id}/gpx`);
-  if (!r.ok) throw new Error(`geo error ${r.status}`);
-  return r.json();
-
   const res = await fetch(`${API_BASE}/api/routes/${id}/gpx`);
   const text = await res.text();
   const json = safeJson(text);
@@ -62,7 +53,6 @@ export async function fetchRouteGeo(id: number) {
   if (json.type === "FeatureCollection") return json; // fallback compat
 
   throw new Error(`Unexpected geometry payload: ${text.slice(0, 200)}`);
->>>>>>> 6e0094c4f4fa20f553c84f244ab3f34d38a78a8a
 }
 
 export async function fetchUserRoutes(token: string) {
