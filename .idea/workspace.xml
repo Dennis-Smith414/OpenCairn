@@ -4,7 +4,22 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
+<<<<<<< HEAD
     <list default="true" id="32fe6836-a350-4937-a5b6-28deea2ec251" name="Changes" comment="" />
+=======
+    <list default="true" id="3e3a31bb-4fb8-440b-8961-8a55a61d48d6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+<<<<<<< HEAD
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/config/env.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/config/env.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/lib/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/screens/RouteCreateScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/screens/RouteCreateScreen.tsx" afterDir="false" />
+=======
+      <change beforePath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/NodeMobile/src/components/comments/CommentList.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Server/routes/ratings.js" beforeDir="false" afterPath="$PROJECT_DIR$/Server/routes/ratings.js" afterDir="false" />
+>>>>>>> 6e0094c4f4fa20f553c84f244ab3f34d38a78a8a
+    </list>
+>>>>>>> main
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -19,11 +34,45 @@
   <component name="ProjectLevelVcsManager">
     <ConfirmationsSetting value="2" id="Add" />
   </component>
+<<<<<<< HEAD
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "git-widget-placeholder": "ui-refactoring"
   }
 }]]></component>
+=======
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Felix-idkyet&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/felixkoch/Documents/GitHub/CS595-Capstone/NodeMobile/src/assets/icons/waypoints&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/NodeMobile/src/assets/icons/waypoints" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/NodeMobile/src/assets/icons/waypoints" />
+      <recent name="$PROJECT_DIR$/NodeMobile/src/components/comments" />
+      <recent name="$PROJECT_DIR$/NodeMobile/src/assets/icons" />
+      <recent name="$PROJECT_DIR$/NodeMobile/src/lib" />
+      <recent name="$PROJECT_DIR$/NodeMobile/src/assets/fonts" />
+    </key>
+  </component>
+>>>>>>> main
   <component name="TaskManager">
     <servers />
   </component>

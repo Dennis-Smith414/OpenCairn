@@ -10,10 +10,9 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-//import { baseStyles, colors } from "../styles/theme";
-import { globalStyles, theme } from '../styles/globalStyles'; // <-- NEW IMPORT
+import { useThemeStyles } from "../styles/theme";
+import { createGlobalStyles } from '../styles/globalStyles';
 import { useAuth } from "../context/AuthContext";
-//import { API_BASE } from "../lib/api";
 import { API_BASE } from "../config/env";
 import { Card } from "../components/common/Card";
 import { StatRow } from "../components/common/StatRow";
@@ -34,8 +33,13 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+type DatePreset = "all" | "7" | "30" | "365";
+
 export default function AccountScreen({ navigation }: any) {
   const { userToken } = useAuth();
+  const { colors, styles: baseStyles } = useThemeStyles();
+  const globalStyles = createGlobalStyles(colors);
+  
   const [profile, setProfile] = useState<any>(null);
   const [expanded, setExpanded] = useState({
     routes: false,
@@ -45,7 +49,6 @@ export default function AccountScreen({ navigation }: any) {
   const [userRoutes, setUserRoutes] = useState<any[]>([]);
   const [userWaypoints, setUserWaypoints] = useState<any[]>([]);
   const [userComments, setUserComments] = useState<any[]>([]);
-
 
   const [routesQuery, setRoutesQuery] = useState("");
   const [waypointsQuery, setWaypointsQuery] = useState("");
@@ -58,8 +61,6 @@ export default function AccountScreen({ navigation }: any) {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [savingCommentId, setSavingCommentId] = useState<number | null>(null);
 
-    //this fetches pretty much everything,
-    //not just profile and routes
   useEffect(() => {
     const fetchProfileAndRoutes = async () => {
       if (!userToken) return;
@@ -84,7 +85,6 @@ export default function AccountScreen({ navigation }: any) {
         const commentsRes = await fetchUserComments(userToken);
         if (commentsRes.ok) setUserComments(commentsRes.comments);
 
-
       } catch (error) {
         console.error("Failed to fetch profile data / routes:", error);
       }
@@ -104,9 +104,7 @@ export default function AccountScreen({ navigation }: any) {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-
-
-// ---- Filtering helpers ----
+  // ---- Filtering helpers ----
   function withinPreset(dateStr: string, preset: DatePreset) {
     if (preset === "all") return true;
     const days = preset === "7" ? 7 : preset === "30" ? 30 : 365;
@@ -150,41 +148,38 @@ export default function AccountScreen({ navigation }: any) {
   }, [userComments, commentsPreset, commentsQuery]);
 
   // ---- Delete handlers ----
-const handleDeleteRoute = async (id: number) => {
-  if (!id || !userToken) return;
-  try {
-    await deleteRoute(id, userToken);
-    setUserRoutes((prev) => prev.filter((r) => r.id !== id));
-  } catch (err) {
-    console.error("Failed to delete route:", err);
-    Alert.alert("Error", "Failed to delete route.");
-  }
-};
+  const handleDeleteRoute = async (id: number) => {
+    if (!id || !userToken) return;
+    try {
+      await deleteRoute(id, userToken);
+      setUserRoutes((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error("Failed to delete route:", err);
+      Alert.alert("Error", "Failed to delete route.");
+    }
+  };
 
-const handleDeleteWaypoint = async (id: number) => {
-  if (!id || !userToken) return;
-  try {
-    await deleteWaypoint(id, userToken);
-    // remove from UI
-    setUserWaypoints((prev) => prev.filter((w) => w.id !== id));
-  } catch (err) {
-    console.error("Failed to delete waypoint:", err);
-    Alert.alert("Error", "Failed to delete waypoint.");
-  }
-};
+  const handleDeleteWaypoint = async (id: number) => {
+    if (!id || !userToken) return;
+    try {
+      await deleteWaypoint(id, userToken);
+      setUserWaypoints((prev) => prev.filter((w) => w.id !== id));
+    } catch (err) {
+      console.error("Failed to delete waypoint:", err);
+      Alert.alert("Error", "Failed to delete waypoint.");
+    }
+  };
 
-const handleDeleteComment = async (id: number) => {
-  if (!id || !userToken) return;
-  try {
-    await deleteComment(id, userToken); // returns deleted_id (ignored here)
-    setUserComments((prev) => prev.filter((c) => c.id !== id));
-  } catch (err) {
-    console.error("Failed to delete comment:", err);
-    Alert.alert("Error", "Failed to delete comment.");
-  }
-};
-
-
+  const handleDeleteComment = async (id: number) => {
+    if (!id || !userToken) return;
+    try {
+      await deleteComment(id, userToken);
+      setUserComments((prev) => prev.filter((c) => c.id !== c.id));
+    } catch (err) {
+      console.error("Failed to delete comment:", err);
+      Alert.alert("Error", "Failed to delete comment.");
+    }
+  };
 
   // --- delete confirms (popup only) ---
   const confirmDeleteRoute = (id: number) => {
@@ -223,55 +218,51 @@ const handleDeleteComment = async (id: number) => {
     );
   };
 
-
-  // ---- Edit handlers (adjust to your navigator screen names) ----
+  // ---- Edit handlers ----
   const handleEditRoute = (id: number) => navigation.navigate("RouteEdit", { id });
   const handleEditWaypoint = (id: number) => navigation.navigate("WaypointEdit", { id });
-  const handleEditComment = (id: number) => navigation.navigate("CommentEdit", { id });
 
-return (
-  <ScrollView
-    style={{ flex: 1, backgroundColor: theme.colors.background }}
-    contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-    showsVerticalScrollIndicator={false}
-  >
-    <Text style={[globalStyles.headerText, globalStyles.pageTitle]}>My Account</Text>
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={globalStyles.pageTitle}>My Account</Text>
 
-    {/* Basic Info */}
-    <Card>
-      <StatRow label="Username" value={profile?.username || "Loading..."} />
-      <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
-    </Card>
+      {/* Basic Info */}
+      <Card>
+        <StatRow label="Username" value={profile?.username || "Loading..."} />
+        <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
+      </Card>
 
-    {/* Stats */}
-    <Card title="Profile Statistics">
-      <StatRow
-        label="Member Since"
-        value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
-      />
-      <StatRow
-        label="Routes Created"
-        value={profile?.stats?.routes_created ?? "—"} />
-      <StatRow
-        label="Waypoints Created"
-        value={profile?.stats?.waypoints_created ?? "—"}
-        //showBorder={false}
-      />
-      <StatRow
-        label="Comments Written"
-        value={profile?.stats?.comments_created ?? "—"}
-        //showBorder={false}
-      />
-      <StatRow
-        label="Total Upvote / Downvote Contributions"
-        value={
-          (Number(profile?.stats?.route_ratings) ?? 0) +
-          (Number(profile?.stats?.comment_ratings) ?? 0) +
-          (Number(profile?.stats?.waypoint_ratings) ?? 0)
-        }
-        showBorder={false}
-      />
-    </Card>
+      {/* Stats */}
+      <Card title="Profile Statistics">
+        <StatRow
+          label="Member Since"
+          value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
+        />
+        <StatRow
+          label="Routes Created"
+          value={profile?.stats?.routes_created ?? "—"} />
+        <StatRow
+          label="Waypoints Created"
+          value={profile?.stats?.waypoints_created ?? "—"}
+        />
+        <StatRow
+          label="Comments Written"
+          value={profile?.stats?.comments_created ?? "—"}
+        />
+        <StatRow
+          label="Total Upvote / Downvote Contributions"
+          value={
+            (Number(profile?.stats?.route_ratings) ?? 0) +
+            (Number(profile?.stats?.comment_ratings) ?? 0) +
+            (Number(profile?.stats?.waypoint_ratings) ?? 0)
+          }
+          showBorder={false}
+        />
+      </Card>
 
       {/* Routes */}
       <AccountSection
@@ -356,7 +347,6 @@ return (
                       if (!userToken) return;
                       try {
                         setSavingCommentId(c.id);
-                        // optimistic update
                         setUserComments((prev) => prev.map(cc => cc.id === c.id ? { ...cc, content: text } : cc));
                         await updateComment(c.id, text, userToken);
                         setEditingCommentId(null);

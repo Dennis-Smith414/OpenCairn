@@ -1,24 +1,25 @@
 import React, { useState } from "react";
-//import { API_BASE } from "../lib/api";
 import { API_BASE } from "../config/env";
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     Image,
     Alert,
 } from "react-native";
-//import { globalStyles, colors } from "../styles/theme";
-import { globalStyles, theme } from '../styles/globalStyles'; // <-- NEW IMPORT
+import { useThemeStyles } from '../styles/theme';
+import { createGlobalStyles } from '../styles/globalStyles';
 
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AccountCreationScreen({ navigation }: { navigation: any }) {
+    const { colors } = useThemeStyles();
+    const globalStyles = createGlobalStyles(colors);
+    
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -96,7 +97,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     <TextInput
                         style={globalStyles.input}
                         placeholder="Username"
-                        placeholderTextColor={theme.colors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         autoCapitalize="none"
                         autoCorrect={false}
                         value={username}
@@ -107,7 +108,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     <TextInput
                         style={globalStyles.input}
                         placeholder="Email"
-                        placeholderTextColor={theme.colors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         autoCapitalize="none"
                         autoCorrect={false}
                         keyboardType="email-address"
@@ -119,7 +120,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     <TextInput
                         style={globalStyles.input}
                         placeholder="Password"
-                        placeholderTextColor={theme.colors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         secureTextEntry
                         autoCapitalize="none"
                         value={password}
@@ -130,7 +131,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     <TextInput
                         style={globalStyles.input}
                         placeholder="Confirm Password"
-                        placeholderTextColor={theme.colors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         secureTextEntry
                         autoCapitalize="none"
                         value={confirmPassword}
