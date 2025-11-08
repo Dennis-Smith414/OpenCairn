@@ -7,7 +7,8 @@ import {
 } from "react-native";
 import { pick } from "@react-native-documents/picker";
 import RNFS from "react-native-fs";
-import { baseStyles, colors } from "../styles/theme";
+import { useThemeStyles } from "../styles/theme";
+import { createGlobalStyles } from '../styles/globalStyles';
 import { useAuth } from "../context/AuthContext";
 import { createRoute } from "../lib/routes";
 import { uploadGpxToExistingRoute } from "../lib/uploadGpx";
@@ -15,6 +16,10 @@ import { uploadGpxToExistingRoute } from "../lib/uploadGpx";
 type PickedFile = { uri: string; name: string };
 
 export default function RouteCreateScreen({ navigation }: any) {
+  const { colors } = useThemeStyles();
+  const globalStyles = createGlobalStyles(colors);
+  const styles = makeStyles(colors);
+  
   const [name, setName] = useState("");
   const [region, setRegion] = useState("");
   const [files, setFiles] = useState<PickedFile[]>([]);
@@ -33,7 +38,7 @@ export default function RouteCreateScreen({ navigation }: any) {
       const prepared: PickedFile[] = [];
       for (const f of arr) {
         if (!/\.gpx$/i.test(f.name)) {
-          Alert.alert("Warning", `“${f.name}” does not look like a .gpx file.`);
+          Alert.alert("Warning", `"${f.name}" does not look like a .gpx file.`);
         }
         const destPath = `${RNFS.CachesDirectoryPath}/${f.name}`;
         await RNFS.copyFile(f.uri, destPath);
@@ -90,10 +95,10 @@ export default function RouteCreateScreen({ navigation }: any) {
 
   return (
     <KeyboardAvoidingView
-      style={[baseStyles.container, styles.container]}
+      style={[globalStyles.container, styles.container]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={[baseStyles.headerText, styles.header]}>Create New Route</Text>
+      <Text style={globalStyles.headerText}>Create New Route</Text>
 
       <ScrollView
         style={styles.scroll}
@@ -101,9 +106,9 @@ export default function RouteCreateScreen({ navigation }: any) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.form}>
-          <Text style={styles.label}>Route Name *</Text>
+          <Text style={globalStyles.label}>Route Name *</Text>
           <TextInput
-            style={styles.input}
+            style={globalStyles.input}
             placeholder="Enter route name"
             placeholderTextColor={colors.textSecondary}
             value={name}
@@ -111,9 +116,9 @@ export default function RouteCreateScreen({ navigation }: any) {
             editable={!uploading}
           />
 
-          <Text style={styles.label}>Region (Optional)</Text>
+          <Text style={globalStyles.label}>Region (Optional)</Text>
           <TextInput
-            style={styles.input}
+            style={globalStyles.input}
             placeholder="Enter region"
             placeholderTextColor={colors.textSecondary}
             value={region}
@@ -123,11 +128,11 @@ export default function RouteCreateScreen({ navigation }: any) {
 
           {/* Primary picker */}
           <TouchableOpacity
-            style={[styles.fileButton, files.length > 0 && styles.fileButtonSelected]}
+            style={[globalStyles.fileButton, files.length > 0 && globalStyles.fileButtonSelected]}
             onPress={pickFiles}
             disabled={uploading}
           >
-            <Text style={styles.fileButtonText}>
+            <Text style={globalStyles.fileButtonText}>
               {files.length ? `✓ ${files.length} file(s) selected` : "Select GPX File(s)"}
             </Text>
           </TouchableOpacity>
@@ -154,7 +159,7 @@ export default function RouteCreateScreen({ navigation }: any) {
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No GPX files selected</Text>
                 <Text style={styles.emptyText}>
-                  Tap “Select GPX File(s)” or “Add another GPX” to attach files.
+                  Tap "Select GPX File(s)" or "Add another GPX" to attach files.
                 </Text>
               </View>
             )}
@@ -180,7 +185,7 @@ export default function RouteCreateScreen({ navigation }: any) {
           </View>
 
           <Text style={styles.helperText}>
-            Tip: if multi-select isn’t supported on your device, tap “Add another GPX” again to pick files one by one.
+            Tip: if multi-select isn't supported on your device, tap "Add another GPX" again to pick files one by one.
           </Text>
         </View>
       </ScrollView>
@@ -189,8 +194,8 @@ export default function RouteCreateScreen({ navigation }: any) {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
-            baseStyles.button,
-            baseStyles.buttonPrimary,
+            globalStyles.button,
+            globalStyles.buttonPrimary,
             styles.submitButton,
             uploading && styles.submitButtonDisabled,
           ]}
@@ -201,7 +206,7 @@ export default function RouteCreateScreen({ navigation }: any) {
           {uploading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={baseStyles.buttonText}>Create Route</Text>
+            <Text style={globalStyles.buttonText}>Create Route</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -209,111 +214,79 @@ export default function RouteCreateScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 20, flex: 1 },
-  header: { textAlign: "center" },
-  scroll: { flex: 1, marginTop: 8 },
-  scrollContent: { paddingBottom: 20 },
-  form: { gap: 8 },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.backgroundAlt,
-  },
-  fileButton: {
-    alignSelf: "stretch",                // 👈 ensure full width always
-    borderWidth: 2,
-    borderColor: colors.accent,
-    borderRadius: 8,
-    borderStyle: "dashed",
-    padding: 20,
-    alignItems: "center",
-    marginTop: 16,
-    backgroundColor: colors.backgroundAlt,
-  },
-  fileButtonSelected: {
-    backgroundColor: colors.backgroundAlt,
-    borderStyle: "solid",
-    borderColor: colors.primary,
-  },
-  fileButtonText: { fontSize: 16, fontWeight: "600", color: colors.text },
-  filesWrapper: {
-    alignSelf: "stretch",                // 👈 keep same width as button/inputs
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: colors.backgroundAlt,
-    maxHeight: 160,
-    minHeight: 120,
-    overflow: "hidden",
-  },
-  filesList: { maxHeight: 160 },
-  emptyState: {
-    flex: 1,
-    minHeight: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-  },
-  emptyIcon: { fontSize: 20, marginBottom: 6 },
-  emptyTitle: {
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 2,
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    textAlign: "center",
-  },
-  fileRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  fileName: { flex: 1, marginRight: 12, color: colors.text },
-  removeLink: { color: colors.accent, fontWeight: "700" },
-  fileActionsRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "flex-start",
-    alignSelf: "stretch",
-  },
-  smallBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  smallBtnText: { color: colors.text },
-  helperText: {
-    marginTop: 6,
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  footer: {
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  submitButton: { alignSelf: "center", minWidth: 220 },
-  submitButtonDisabled: { opacity: 0.6 },
-});
+// ---- themed styles factory ----
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { padding: 20, flex: 1 },
+    scroll: { flex: 1, marginTop: 8 },
+    scrollContent: { paddingBottom: 20 },
+    form: { gap: 8 },
+    filesWrapper: {
+      alignSelf: "stretch",
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      backgroundColor: colors.backgroundAlt,
+      maxHeight: 160,
+      minHeight: 120,
+      overflow: "hidden",
+    },
+    filesList: { maxHeight: 160 },
+    emptyState: {
+      flex: 1,
+      minHeight: 120,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 12,
+    },
+    emptyTitle: {
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      textAlign: "center",
+    },
+    fileRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    fileName: { flex: 1, marginRight: 12, color: colors.textPrimary },
+    removeLink: { color: colors.accent, fontWeight: "700" },
+    fileActionsRow: {
+      marginTop: 10,
+      flexDirection: "row",
+      gap: 10,
+      justifyContent: "flex-start",
+      alignSelf: "stretch",
+    },
+    smallBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    smallBtnText: { color: colors.textPrimary },
+    helperText: {
+      marginTop: 6,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    footer: {
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    submitButton: { alignSelf: "center", minWidth: 220 },
+    submitButtonDisabled: { opacity: 0.6 },
+  });

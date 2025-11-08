@@ -10,6 +10,7 @@ import {
   TextInput,
 } from "react-native";
 import { useThemeStyles } from "../styles/theme";
+import { createGlobalStyles } from '../styles/globalStyles';
 import { fetchRouteList } from "../lib/api";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
@@ -22,6 +23,8 @@ type RouteItem = {
 
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors, styles: baseStyles } = useThemeStyles();
+  const globalStyles = createGlobalStyles(colors);
+  
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,35 +66,19 @@ export default function RouteSelectScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={[baseStyles.container, { padding: 16 }]}>
+      <View style={[globalStyles.container, { padding: 16 }]}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[baseStyles.subText, { marginTop: 8 }]}>
-          Loading routes…
-        </Text>
+        <Text style={[globalStyles.subText, { marginTop: 8 }]}>Loading routes…</Text>
       </View>
     );
   }
 
   return (
-    <View style={[baseStyles.container, { padding: 16, backgroundColor: colors.background }]}>
-      <Text style={[baseStyles.headerText, { color: colors.textPrimary }]}>
-        Select Routes
-      </Text>
+    <View style={[globalStyles.container, { padding: 16 }]}>
+      <Text style={globalStyles.headerText}>Select Routes</Text>
 
       {/* 🔎 Search input */}
-      <View
-        style={{
-          width: "100%",
-          marginTop: 10,
-          marginBottom: 6,
-          borderWidth: 1,
-          borderColor: colors.accent,
-          borderRadius: 12,
-          backgroundColor: colors.backgroundAlt,
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
+      <View style={globalStyles.input}>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -115,12 +102,12 @@ export default function RouteSelectScreen({ navigation }: any) {
       {/* Create new route button */}
       <TouchableOpacity
         style={[
-          baseStyles.button,
+          globalStyles.button,
           { backgroundColor: colors.accent, marginVertical: 8, paddingVertical: 10, width: "100%" },
         ]}
         onPress={() => navigation.navigate("RouteCreate")}
       >
-        <Text style={baseStyles.buttonText}>＋ Create / Upload Route</Text>
+        <Text style={globalStyles.buttonText}>＋ Create / Upload Route</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -144,21 +131,17 @@ export default function RouteSelectScreen({ navigation }: any) {
               }}
               onPress={() => toggleRoute({ id: item.id, name: item.name })}
             >
-              <Text
-                style={[
-                  baseStyles.bodyText,
-                  { color: isSelected ? colors.background : colors.textPrimary },
-                ]}
-              >
+              <Text style={[
+                globalStyles.bodyText,
+                { color: isSelected ? colors.background : colors.textPrimary }
+              ]}>
                 {item.name}
               </Text>
-              {!!item.region && (
-                <Text
-                  style={[
-                    baseStyles.subText,
-                    { color: isSelected ? colors.background : colors.textSecondary },
-                  ]}
-                >
+              {item.region && (
+                <Text style={[
+                  globalStyles.subText,
+                  { color: isSelected ? colors.background : colors.textSecondary }
+                ]}>
                   {item.region}
                 </Text>
               )}
@@ -166,7 +149,7 @@ export default function RouteSelectScreen({ navigation }: any) {
           );
         }}
         ListEmptyComponent={
-          <Text style={[baseStyles.subText, { marginTop: 10, color: colors.textSecondary }]}>
+          <Text style={[globalStyles.subText, { marginTop: 10, color: colors.textSecondary }]}>
             {routes.length ? "No matching routes." : "No routes found."}
           </Text>
         }

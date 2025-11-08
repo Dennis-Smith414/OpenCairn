@@ -1,6 +1,6 @@
 // src/styles/theme.ts
 import React from "react";
-import { StyleSheet, Appearance, useColorScheme } from "react-native";
+import { StyleSheet, Appearance, useColorScheme, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /** ---------- Override store (no Provider needed) ---------- */
@@ -57,6 +57,11 @@ type Palette = {
   textPrimary: string;
   textSecondary: string;
   border: string;
+  placeholder: string;
+  buttonText: string;
+  danger: string;
+  success: string;
+  text: string;
 };
 
 export const lightColors: Palette = {
@@ -64,10 +69,15 @@ export const lightColors: Palette = {
   secondary: "#008B8B",
   accent: "#5F9EA0",
   background: "#FFFFFF",
-  backgroundAlt: "#F8F9FA",
+  backgroundAlt: "#F8F9FA", // Light gray background for cards/sections
   textPrimary: "#222222",
   textSecondary: "#666666",
-  border: "#E5E7EB",
+  placeholder: '#A9A9A9',
+  buttonText: '#FFFFFF',
+  border: '#D3D3D3',
+  danger: '#DC143C', // Red for errors
+  success: '#28a745',
+  text: "#222222",
 };
 
 export const darkColors: Palette = {
@@ -79,13 +89,43 @@ export const darkColors: Palette = {
   textPrimary: "#EAEAEA",
   textSecondary: "#A6A6A6",
   border: "#2B3137",
+  placeholder: '#A9A9A9',
+  buttonText: '#FFFFFF',
+  danger: '#DC143C',
+  success: '#28a745',
+  text: "#EAEAEA",
 };
 
 /** ---------- Fonts ---------- */
 export const fonts = {
-  header: { fontFamily: "Comfortaa-Bold" },
-  body: { fontFamily: "System" },
-  button: { fontFamily: "Comfortaa-Bold" },
+  header: {
+    fontFamily: Platform.OS === 'android' ? "Comfortaa-Bold" : "Comfortaa",
+    fontWeight: '700' as '700',
+  },
+  body: {
+    fontFamily: "System",
+    fontWeight: '400' as '400',
+  },
+  button: {
+    fontFamily: Platform.OS === 'android' ? "Comfortaa-Bold" : "Comfortaa",
+    fontWeight: '700' as '700',
+  },
+};
+
+// 3. SPACING (e.g., for padding and margins)
+export const spacing = {
+  small: 8,
+  medium: 16,
+  large: 24,
+  xlarge: 32,
+};
+
+// 4. FONT SIZES
+export const fontSizes = {
+  small: 12,
+  medium: 16,
+  large: 24,
+  xlarge: 28,
 };
 
 /** ---------- Style factory ---------- */
@@ -111,7 +151,7 @@ const makeBaseStyles = (c: Palette) =>
     buttonPrimary: { backgroundColor: c.primary },
     buttonSecondary: { backgroundColor: c.secondary },
     buttonAccent: { backgroundColor: c.accent },
-    buttonText: { ...fonts.button, fontSize: 16, fontWeight: "600", color: "#fff" },
+    buttonText: { ...fonts.button, fontSize: 16, fontWeight: "600", color: c.buttonText },
     input: {
       ...fonts.body,
       width: "80%",
@@ -124,7 +164,7 @@ const makeBaseStyles = (c: Palette) =>
       color: c.textPrimary,
       backgroundColor: c.backgroundAlt,
     },
-    error: { color: "#b00020", textAlign: "center", marginTop: 8 },
+    error: { color: c.danger, textAlign: "center", marginTop: 8 },
     card: {
       width: "90%",
       padding: 16,
@@ -173,3 +213,13 @@ export function createThemedStyles(scheme: "light" | "dark") {
   const c = scheme === "dark" ? darkColors : lightColors;
   return makeBaseStyles(c);
 }
+
+// Legacy theme object for backward compatibility
+const theme = {
+  colors: lightColors,
+  fonts,
+  spacing,
+  fontSizes,
+};
+
+export default theme;

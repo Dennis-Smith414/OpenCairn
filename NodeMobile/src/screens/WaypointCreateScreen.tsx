@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { Picker } from "@react-native-picker/picker";
-import { baseStyles, useThemeStyles } from "../styles/theme"; // ⬅️ swap import
+import { useThemeStyles } from "../styles/theme";
+import { createGlobalStyles } from '../styles/globalStyles';
 import { createWaypoint } from "../lib/waypoints";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useAuth } from "../context/AuthContext";
@@ -18,7 +19,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
   const route = useRoute<any>();
   const { selectedRoutes } = useRouteSelection();
   const { userToken } = useAuth();
-  const { colors: c } = useThemeStyles(); // ⬅️ active palette
+  const { colors } = useThemeStyles();
+  const globalStyles = createGlobalStyles(colors);
 
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -82,30 +84,25 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: c.background }} // ⬅️ themed bg
-      contentContainerStyle={{ alignItems: "center", paddingVertical: 20 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={globalStyles.filesContainer}
       showsVerticalScrollIndicator={false}
     >
       {/* Back Button */}
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
+      <TouchableOpacity 
+        onPress={() => navigation.goBack()} 
         style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}
       >
-        <Text style={{ fontSize: 16, color: c.accent }}>← Back</Text>
+        <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
       </TouchableOpacity>
-
-      <Text style={[baseStyles.headerText, { color: c.textPrimary }]}>
-        Create Waypoint
-      </Text>
+      
+      <Text style={globalStyles.headerText}>Create Waypoint</Text>
 
       {/* Name (required) */}
       <TextInput
         placeholder="Name (required)"
-        placeholderTextColor={c.textSecondary}
-        style={[
-          baseStyles.input,
-          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
-        ]}
+        placeholderTextColor={colors.textSecondary}
+        style={globalStyles.input}
         value={name}
         onChangeText={setName}
       />
@@ -113,11 +110,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Description */}
       <TextInput
         placeholder="Description"
-        placeholderTextColor={c.textSecondary}
-        style={[
-          baseStyles.input,
-          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
-        ]}
+        placeholderTextColor={colors.textSecondary}
+        style={globalStyles.input}
         value={desc}
         onChangeText={setDesc}
         multiline
@@ -126,11 +120,8 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Latitude */}
       <TextInput
         placeholder="Latitude"
-        placeholderTextColor={c.textSecondary}
-        style={[
-          baseStyles.input,
-          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
-        ]}
+        placeholderTextColor={colors.textSecondary}
+        style={globalStyles.input}
         value={lat}
         onChangeText={setLat}
         keyboardType="numeric"
@@ -139,32 +130,20 @@ export default function WaypointCreateScreen({ navigation }: any) {
       {/* Longitude */}
       <TextInput
         placeholder="Longitude"
-        placeholderTextColor={c.textSecondary}
-        style={[
-          baseStyles.input,
-          { borderColor: c.accent, backgroundColor: c.backgroundAlt, color: c.textPrimary },
-        ]}
+        placeholderTextColor={colors.textSecondary}
+        style={globalStyles.input}
         value={lon}
         onChangeText={setLon}
         keyboardType="numeric"
       />
 
       {/* Route Picker */}
-      <View
-        style={{
-          width: "80%",
-          borderWidth: 1,
-          borderColor: c.accent,
-          borderRadius: 12,
-          marginVertical: 8,
-          backgroundColor: c.backgroundAlt,
-        }}
-      >
+      <View style={globalStyles.picker}>
         <Picker
           selectedValue={routeId}
           onValueChange={(value) => setRouteId(value)}
-          style={{ color: c.textPrimary }}
-          dropdownIconColor={c.textSecondary}
+          style={{ color: colors.textPrimary }}
+          dropdownIconColor={colors.textSecondary}
         >
           {selectedRoutes.length > 0 ? (
             selectedRoutes.map((r) => (
@@ -177,21 +156,12 @@ export default function WaypointCreateScreen({ navigation }: any) {
       </View>
 
       {/* Type Picker */}
-      <View
-        style={{
-          width: "80%",
-          borderWidth: 1,
-          borderColor: c.accent,
-          borderRadius: 12,
-          marginVertical: 8,
-          backgroundColor: c.backgroundAlt,
-        }}
-      >
+      <View style={globalStyles.picker}>
         <Picker
           selectedValue={type}
           onValueChange={(value) => setType(value)}
-          style={{ color: c.textPrimary }}
-          dropdownIconColor={c.textSecondary}
+          style={{ color: colors.textPrimary }}
+          dropdownIconColor={colors.textSecondary}
         >
           {waypointTypes.map((item) => (
             <Picker.Item key={item.value} label={item.label} value={item.value} />
@@ -201,10 +171,10 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
       {/* Submit Button */}
       <TouchableOpacity
-        style={[baseStyles.button, { backgroundColor: c.primary }]} // ⬅️ themed btn color
+        style={[globalStyles.button, globalStyles.buttonPrimary]}
         onPress={handleSubmit}
       >
-        <Text style={baseStyles.buttonText}>Save Waypoint</Text>
+        <Text style={globalStyles.buttonText}>Save Waypoint</Text>
       </TouchableOpacity>
     </ScrollView>
   );

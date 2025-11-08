@@ -1,23 +1,25 @@
 import React, { useState } from "react";
-//import { API_BASE } from "../lib/api";
 import { API_BASE } from "../config/env";
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     Image,
     Alert,
 } from "react-native";
-import { baseStyles, colors } from "../styles/theme";
+import { useThemeStyles } from '../styles/theme';
+import { createGlobalStyles } from '../styles/globalStyles';
 
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AccountCreationScreen({ navigation }: { navigation: any }) {
+    const { colors } = useThemeStyles();
+    const globalStyles = createGlobalStyles(colors);
+    
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -75,25 +77,25 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 
     return (
         <KeyboardAvoidingView
-            style={styles.container}
+            style={globalStyles.baseContainer}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={globalStyles.scrollContent}
                 keyboardShouldPersistTaps="handled"
             >
                 <Image
                     source={require("../assets/images/OCLogoLight.png")}
-                    style={styles.logo}
+                    style={globalStyles.logo}
                     resizeMode="contain"
                 />
 
-                <Text style={styles.title}>Create Account</Text>
-                <Text style={styles.subtitle}>Join us today</Text>
+                <Text style={globalStyles.title}>Create Account</Text>
+                <Text style={globalStyles.subtitle}>Join us today</Text>
 
-                <View style={styles.form}>
+                <View style={globalStyles.form}>
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Username"
                         placeholderTextColor={colors.textSecondary}
                         autoCapitalize="none"
@@ -104,7 +106,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Email"
                         placeholderTextColor={colors.textSecondary}
                         autoCapitalize="none"
@@ -116,7 +118,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Password"
                         placeholderTextColor={colors.textSecondary}
                         secureTextEntry
@@ -127,7 +129,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
-                        style={baseStyles.input}
+                        style={globalStyles.input}
                         placeholder="Confirm Password"
                         placeholderTextColor={colors.textSecondary}
                         secureTextEntry
@@ -138,72 +140,27 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                         onSubmitEditing={handleCreateAccount}
                     />
 
-                    <Text style={styles.helperText}>
+                    <Text style={globalStyles.helperText}>
                         Password must be 8+ characters with 1 uppercase and 1 special character
                     </Text>
 
-                    {error && <Text style={baseStyles.error}>{error}</Text>}
+                    {error && <Text style={globalStyles.error}>{error}</Text>}
 
                     <TouchableOpacity
-                        style={[baseStyles.button, baseStyles.buttonPrimary, styles.createButton]}
+                        style={[globalStyles.button, globalStyles.buttonPrimary, globalStyles.createButton]}
                         onPress={handleCreateAccount}
                     >
-                        <Text style={baseStyles.buttonText}>Create Account</Text>
+                        <Text style={globalStyles.buttonText}>Create Account</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[baseStyles.button, baseStyles.buttonSecondary]}
+                        style={[globalStyles.button, globalStyles.buttonSecondary]}
                         onPress={() => navigation.goBack()}
                     >
-                        <Text style={baseStyles.buttonText}>Cancel</Text>
+                        <Text style={globalStyles.buttonText}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 24,
-        paddingVertical: 32,
-    },
-    logo: {
-        width: "80%",
-        height: 140,
-        marginBottom: 24,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: "700",
-        color: colors.text,
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: colors.textSecondary,
-        marginBottom: 32,
-    },
-    form: {
-        width: "100%",
-        alignItems: "center",
-    },
-    helperText: {
-        fontSize: 12,
-        color: colors.textSecondary,
-        textAlign: "center",
-        marginTop: 8,
-        marginBottom: 16,
-        paddingHorizontal: 16,
-    },
-    createButton: {
-        marginTop: 8,
-    },
-});
