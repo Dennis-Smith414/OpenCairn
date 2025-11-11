@@ -1,6 +1,18 @@
+// src/components/MapLibre/MapLibreMap.tsx
 import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
-import MapboxGL from "react-native-maplibre-gl/maps";
+import {
+  MapView,
+  Camera,
+  UserLocation,
+  ShapeSource,
+  LineLayer,
+  CircleLayer,
+  RasterSource,
+  RasterLayer,
+  Images,
+  SymbolLayer,
+} from "@maplibre/maplibre-react-native";
 import { getDistanceMeters } from "../../utils/geoUtils";
 
 export type LatLng = [number, number];
@@ -14,7 +26,6 @@ export interface Waypoint {
   type?: string;
   username?: string;
   created_at?: string;
-  // Optional fields added client-side:
   distance?: number;   // meters
   iconRequire?: any;
   user_id?: number;
@@ -22,8 +33,6 @@ export interface Waypoint {
 
 export interface Track {
   id: string | number;
-  // One continuous line: LatLng[]
-  // Multiple disjoint segments: LatLng[][]
   coords: LatLng[] | LatLng[][];
   color?: string;
   weight?: number;
@@ -55,13 +64,12 @@ const MapLibreMap: React.FC<Props> = ({
   onWaypointPress,
   showTrackingButton = true,
 }) => {
-  const cameraRef = useRef<MapboxGL.Camera>(null);
+  const cameraRef = useRef<any>(null);
   const [tracking, setTracking] = useState<boolean>(true);
+  const zoomRef = useRef<number>(zoom ?? DEFAULT_ZOOM);
+  const lastUserLocRef = useRef<LatLng | null>(null);
 
-  // Dev-only online style; we’ll swap to local later.
-  const styleURL = "https://demotiles.maplibre.org/style.json";
-
-  // Icons parity (RN requires) so MapScreen can pass iconRequire through when selecting a point
+  // Icons (keeps your popup UI parity)
   const rnIcons = useMemo(
     () => ({
       generic: require("../../assets/icons/waypoints/generic.png"),
@@ -77,7 +85,7 @@ const MapLibreMap: React.FC<Props> = ({
     []
   );
 
-  // Convert tracks into per-route MultiLineString features (color per route)
+  // Convert tracks → MultiLineString features (lon,lat order)
   const routeFeatures = useMemo(() => {
     return tracks.map((t) => {
       const multi: number[][][] =
@@ -95,7 +103,7 @@ const MapLibreMap: React.FC<Props> = ({
     });
   }, [tracks]);
 
-  // Waypoints as a single FeatureCollection (clusters on)
+  // Waypoints as FeatureCollection
   const waypointFC = useMemo(() => {
     return {
       type: "FeatureCollection" as const,
@@ -115,31 +123,36 @@ const MapLibreMap: React.FC<Props> = ({
     };
   }, [waypoints]);
 
-  // Camera follow-me pill
+  // Follow-me pill action
   const enableTracking = useCallback(() => {
     setTracking(true);
     if (userLocation) {
       cameraRef.current?.setCamera({
         centerCoordinate: [userLocation[1], userLocation[0]],
-        zoomLevel: Math.max(10, zoom),
+        zoomLevel: Math.max(10, zoomRef.current ?? DEFAULT_ZOOM),
         animationDuration: 600,
       });
     }
-  }, [userLocation, zoom]);
+  }, [userLocation]);
 
-  // Stop tracking on user gesture (pan/zoom)
-  const stopTrackingOnGesture = useCallback(() => {
-    setTracking(false);
+  // Zoom buttons (imperative only)
+  const zoomIn = useCallback(() => {
+    zoomRef.current = Math.min(22, (zoomRef.current ?? DEFAULT_ZOOM) + 1);
+    cameraRef.current?.setCamera({ zoomLevel: zoomRef.current, animationDuration: 250 });
   }, []);
 
-  // Long-press -> temp “Marked Location” handoff
+  const zoomOut = useCallback(() => {
+    zoomRef.current = Math.max(2, (zoomRef.current ?? DEFAULT_ZOOM) - 1);
+    cameraRef.current?.setCamera({ zoomLevel: zoomRef.current, animationDuration: 250 });
+  }, []);
+
+  // Long-press → “Marked Location”
   const onLongPress = useCallback(
     (e: any) => {
       const coords = e?.geometry?.coordinates; // [lon, lat]
       if (!coords) return;
       const [lon, lat] = coords;
 
-      // Build a synthetic waypoint (parity with Leaflet flow)
       const wp: any = {
         id: null,
         name: "Marked Location",
@@ -161,7 +174,7 @@ const MapLibreMap: React.FC<Props> = ({
     [onMapLongPress, onWaypointPress, rnIcons.generic, userLocation]
   );
 
-  // Waypoint tap -> select feature and decorate with icon + distance
+  // Waypoint tap -> decorate with icon + distance
   const onWaypointPressInternal = useCallback(
     (e: any) => {
       const f = e?.features?.[0];
@@ -205,41 +218,88 @@ const MapLibreMap: React.FC<Props> = ({
     [onWaypointPress, rnIcons, userLocation]
   );
 
-  // Initial “map ready”
+  // “Map ready” ping
   useEffect(() => {
-    // FYI: MapboxGL.MapView doesn't expose an explicit "ready" event reliably across platforms,
-    // but layers will render as soon as style is loaded. We can call onMapReady once after first mount.
-    const timer = setTimeout(() => onMapReady?.(), 300);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => onMapReady?.(), 300);
+    return () => clearTimeout(t);
   }, [onMapReady]);
+
+  // Track last user location for the center-on-me button
+  const onUserLocUpdate = useCallback((pos: any) => {
+    const { coords } = pos || {};
+    if (coords?.latitude && coords?.longitude) {
+      lastUserLocRef.current = [coords.latitude, coords.longitude];
+    }
+  }, []);
+
+  const centerOnUserNow = useCallback(() => {
+    const loc = userLocation || lastUserLocRef.current;
+    if (loc) {
+      cameraRef.current?.setCamera({
+        centerCoordinate: [loc[1], loc[0]],
+        zoomLevel: Math.max(12, zoomRef.current ?? DEFAULT_ZOOM),
+        animationDuration: 400,
+      });
+      setTracking(true);
+    }
+  }, [userLocation]);
+
+  const onMapError = useCallback((e: any) => {
+    console.warn("[MapLibre] Map error:", JSON.stringify(e?.nativeEvent || e));
+  }, []);
+  const onStyleLoaded = useCallback(() => {
+    // console.log("[MapLibre] Style loaded");
+  }, []);
 
   return (
     <View style={styles.container}>
-      <MapboxGL.MapView
+      <MapView
         style={StyleSheet.absoluteFill}
-        styleURL={styleURL}
         logoEnabled={false}
         compassEnabled
-        onRegionWillChange={stopTrackingOnGesture}
-        onRegionIsChanging={stopTrackingOnGesture}
-        onRegionDidChange={stopTrackingOnGesture}
+        onPress={() => onWaypointPress?.(null)}
         onLongPress={onLongPress}
+        onMapError={onMapError}
+        onDidFinishLoadingStyle={onStyleLoaded}
       >
-        <MapboxGL.Camera
-          ref={cameraRef}
-          zoomLevel={zoom}
-          centerCoordinate={[center[1], center[0]]} // [lon, lat]
-          animationMode="flyTo"
-          animationDuration={0}
+        <Images
+          images={{
+            generic: require("../../assets/icons/waypoints/generic.png"),
+            water: require("../../assets/icons/waypoints/water.png"),
+            campsite: require("../../assets/icons/waypoints/campsite.png"),
+            "road-access-point": require("../../assets/icons/waypoints/road-access-point.png"),
+            intersection: require("../../assets/icons/waypoints/intersection.png"),
+            navigation: require("../../assets/icons/waypoints/navigation.png"),
+            hazard: require("../../assets/icons/waypoints/hazard.png"),
+            landmark: require("../../assets/icons/waypoints/landmark.png"),
+            "parking-trailhead": require("../../assets/icons/waypoints/parking-trailhead.png"),
+          }}
         />
 
-        {/* Native user location dot (independent of tracking state) */}
-        <MapboxGL.UserLocation visible />
+        {/* Base map: OSM raster tiles */}
+        <RasterSource
+          id="osm"
+          tileUrlTemplates={["https://tile.openstreetmap.org/{z}/{x}/{y}.png"]}
+          tileSize={256}
+        >
+          <RasterLayer id="osm-layer" />
+        </RasterSource>
+
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: [center[1], center[0]],
+            zoomLevel: zoomRef.current,
+          }}
+        />
+
+        {/* Native user location dot */}
+        <UserLocation visible onUpdate={onUserLocUpdate} />
 
         {/* Routes */}
         {routeFeatures.map(({ id, feature }) => (
-          <MapboxGL.ShapeSource key={id} id={id} shape={feature}>
-            <MapboxGL.LineLayer
+          <ShapeSource key={id} id={id} shape={feature}>
+            <LineLayer
               id={`${id}-line`}
               style={{
                 lineColor: ["get", "color"],
@@ -247,18 +307,18 @@ const MapLibreMap: React.FC<Props> = ({
                 lineOpacity: 0.95,
               }}
             />
-          </MapboxGL.ShapeSource>
+          </ShapeSource>
         ))}
 
-        {/* Waypoints (clustered circles for now; sprites optional later) */}
-        <MapboxGL.ShapeSource
+        {/* Waypoints (clustered circles) */}
+        <ShapeSource
           id="waypoints"
           shape={waypointFC}
           cluster
           clusterRadius={40}
           onPress={onWaypointPressInternal}
         >
-          <MapboxGL.CircleLayer
+          <CircleLayer
             id="wp-cluster"
             filter={["has", "point_count"]}
             style={{
@@ -266,17 +326,39 @@ const MapLibreMap: React.FC<Props> = ({
               circleOpacity: 0.8,
             }}
           />
-          <MapboxGL.CircleLayer
-            id="wp-point"
-            filter={["!", ["has", "point_count"]]}
-            style={{
-              circleRadius: 5,
-              circleOpacity: 0.9,
-            }}
-          />
-        </MapboxGL.ShapeSource>
-      </MapboxGL.MapView>
+           <SymbolLayer
+             id="wp-point"
+             filter={["!", ["has", "point_count"]]}
+             style={{
+               iconImage: [
+                 "coalesce",
+                 ["get", "type"],  // use e.g. "water", "campsite", "road-access-point", etc.
+                 "generic",
+               ],
+               iconAllowOverlap: true,
+               iconIgnorePlacement: true,
+               iconSize: 0.8,         // adjust to taste
+             }}
+           />
+        </ShapeSource>
+      </MapView>
 
+      {/* Zoom controls */}
+      <View style={styles.zoomGroup}>
+        <TouchableOpacity style={styles.zoomBtn} onPress={zoomIn}>
+          <Text style={styles.zoomTxt}>＋</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomBtn} onPress={zoomOut}>
+          <Text style={styles.zoomTxt}>－</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Center-on-user */}
+      <TouchableOpacity style={styles.centerBtn} onPress={centerOnUserNow}>
+        <Text style={styles.centerTxt}>◎</Text>
+      </TouchableOpacity>
+
+      {/* Follow-me pill */}
       {showTrackingButton && (
         <TouchableOpacity
           onPress={tracking ? undefined : enableTracking}
@@ -293,6 +375,7 @@ const MapLibreMap: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   pill: {
     position: "absolute",
     top: 12,
@@ -312,9 +395,49 @@ const styles = StyleSheet.create({
   pillOn: { backgroundColor: "rgba(230,255,240,0.95)" },
   pillOff: { backgroundColor: "rgba(255,255,255,0.95)" },
   pillText: { fontSize: 13, fontWeight: "600" },
+
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   dotOn: { backgroundColor: "#22c55e" },
   dotOff: { backgroundColor: "#999" },
+
+  zoomGroup: {
+    position: "absolute",
+    right: 12,
+    bottom: 100,
+    gap: 8,
+  },
+  zoomBtn: {
+    backgroundColor: "rgba(255,255,255,0.95)",
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  zoomTxt: { fontSize: 22, fontWeight: "700" },
+
+  centerBtn: {
+    position: "absolute",
+    right: 12,
+    bottom: 48,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  centerTxt: { fontSize: 18, fontWeight: "700" },
 });
 
 export default MapLibreMap;
