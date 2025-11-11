@@ -21,10 +21,16 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
-    const { login } = useAuth();
+    const { login, attemptsLeft, setAttempts, isLocked, lockoutTimeLeft } = useAuth();
 
     const handleLogin = async () => {
        setError(null);
+
+       if (isLocked) {
+           setError("You are locked out; please wait 5 minutes and try again.");
+           return;
+       }
+
 
        if (!username.trim() || !password) {
            setError("Please fill out all fields.");
@@ -41,8 +47,17 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
          const data = JSON.parse(responseText);
 
          if (!response.ok) {
-           throw new Error(data.error || 'Invalid credentials.');
+             const newAttemptsLeft = attemptsLeft - 1;
+             setAttempts(newAttemptsLeft)
+             if (newAttemptsLeft == 0) {
+                 throw new Error(data.error + "\nToo many incorrect attempts. Please wait 5 minutes and try again." || 'Invalid credentials.');
+             } else if (newAttemptsLeft == 1) {
+                 throw new Error(data.error + "\n1 login attempt left." || 'Invalid credentials.');
+             } else {
+                 throw new Error(data.error + "\n" + newAttemptsLeft + " login attempts left." || 'Invalid credentials.');
+             }
          }
+
 
          // On success, call the context's login function with the token.
          // The context will handle storing the token and triggering navigation.
