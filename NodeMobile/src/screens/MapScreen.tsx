@@ -11,9 +11,26 @@ import { colors } from "../styles/theme";
 import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
 import { WaypointDetail } from "../components/LeafletMap/WaypointDetail";
+import TripTracker from '../components/TripTracker/TripTracker';
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
+
+// Add distance calculation utility
+const calculateDistance = (coord1: LatLng, coord2: LatLng): number => {
+  const [lat1, lon1] = coord1;
+  const [lat2, lon2] = coord2;
+  
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
 const MapScreen: React.FC = () => {
   const { selectedRouteIds, selectedRoutes } = useRouteSelection();
@@ -27,6 +44,8 @@ const MapScreen: React.FC = () => {
   const [selectedWaypoint, setSelectedWaypoint] = useState<any | null>(null);
   const [showWaypointDetail, setShowWaypointDetail] = useState(false);
   const watchIdRef = useRef<number | null>(null);
+  const [tripStats, setTripStats] = useState<any>(null);
+  const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
 
   const {
     location,
@@ -44,6 +63,28 @@ const MapScreen: React.FC = () => {
     showErrorAlert: false,
   });
 
+  // Calculate total route distance
+  const calculateTotalRouteDistance = useCallback((tracks: Track[]): number => {
+    let totalDistance = 0;
+    tracks.forEach(track => {
+      if (Array.isArray(track.coords[0])) {
+        // Track.coords is LatLng[][]
+        (track.coords as LatLng[][]).forEach(segment => {
+          for (let i = 1; i < segment.length; i++) {
+            totalDistance += calculateDistance(segment[i-1], segment[i]);
+          }
+        });
+      } else {
+        // Track.coords is LatLng[]
+        const coords = track.coords as LatLng[];
+        for (let i = 1; i < coords.length; i++) {
+          totalDistance += calculateDistance(coords[i-1], coords[i]);
+        }
+      }
+    });
+    return totalDistance;
+  }, []);
+
   // ---- Load helpers (memoized so we can call on focus) ----
   const loadRoutes = useCallback(async () => {
     try {
@@ -53,37 +94,44 @@ const MapScreen: React.FC = () => {
       if (selectedRouteIds.length === 0) {
         setTracks([]);
         setWaypoints([]);
+        setRouteTotalDistance(0);
         return;
       }
 
-        const nextTracks: Track[] = [];
-        for (const id of selectedRouteIds) {
-          // fetchRouteGeo returns a FeatureCollection (server: /api/routes/:id/gpx)
-          const fc = await fetchRouteGeo(id);
-          if (!fc) continue;
+      const nextTracks: Track[] = [];
+      for (const id of selectedRouteIds) {
+        // fetchRouteGeo returns a FeatureCollection (server: /api/routes/:id/gpx)
+        const fc = await fetchRouteGeo(id);
+        if (!fc) continue;
 
-          // Keep segments separate: LatLng[][]
-          const segments = featureCollectionToSegments(fc); // LatLng[][]
+        // Keep segments separate: LatLng[][]
+        const segments = featureCollectionToSegments(fc); // LatLng[][]
 
-          if (segments.length === 0) {
-            // No GPX rows for this route; skip adding a track
-            continue;
-          }
-
-          nextTracks.push({
-            id,
-            // LeafletMap Track.coords accepts LatLng[] | LatLng[][]
-            coords: segments,
-            color: selectedRoutes.find(r => r.id === id)?.color,
-          });
+        if (segments.length === 0) {
+          // No GPX rows for this route; skip adding a track
+          continue;
         }
-        setTracks(nextTracks);
+
+        nextTracks.push({
+          id,
+          // LeafletMap Track.coords accepts LatLng[] | LatLng[][]
+          coords: segments,
+          color: selectedRoutes.find(r => r.id === id)?.color,
+        });
+      }
+      
+      setTracks(nextTracks);
+      
+      // Calculate total distance when routes are loaded
+      const totalDist = calculateTotalRouteDistance(nextTracks);
+      setRouteTotalDistance(totalDist);
+      
     } catch (e: any) {
       setError(e?.message || "Failed to load routes");
     } finally {
       setLoading(false);
     }
-  }, [JSON.stringify(selectedRouteIds)]);
+  }, [JSON.stringify(selectedRouteIds), calculateTotalRouteDistance]);
 
   const loadWaypoints = useCallback(async () => {
     if (selectedRouteIds.length === 0) {
@@ -160,43 +208,42 @@ const MapScreen: React.FC = () => {
   }, [loadWaypoints]);
 
   // Refetch when the screen regains focus (after creating /editing a waypoint)
- useFocusEffect(
-   useCallback(() => {
-     let active = true;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-     (async () => {
-       // Always refresh the waypoint list (e.g., counts/icons on map)
-       await loadWaypoints();
+      (async () => {
+        // Always refresh the waypoint list (e.g., counts/icons on map)
+        await loadWaypoints();
 
-       // If a waypoint is open/selected, refresh just that one
-       const id = selectedWaypoint?.id;
-       if (!id) return;
+        // If a waypoint is open/selected, refresh just that one
+        const id = selectedWaypoint?.id;
+        if (!id) return;
 
-       try {
-         const fresh = await fetchWaypoint(id);
-         if (!active) return;
+        try {
+          const fresh = await fetchWaypoint(id);
+          if (!active) return;
 
-         // update the list item
-         setWaypoints((prev) =>
-           prev.map((w) => (w.id === fresh.id ? { ...w, ...fresh } : w))
-         );
+          // update the list item
+          setWaypoints((prev) =>
+            prev.map((w) => (w.id === fresh.id ? { ...w, ...fresh } : w))
+          );
 
-         // update the detail panel if it's the same waypoint
-         setSelectedWaypoint((prev) =>
-           prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev
-         );
-       } catch (e) {
-         // swallow—if fetch fails, keep what we had
-         console.warn("[MapScreen] refresh selected waypoint failed:", e);
-       }
-     })();
+          // update the detail panel if it's the same waypoint
+          setSelectedWaypoint((prev) =>
+            prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev
+          );
+        } catch (e) {
+          // swallow—if fetch fails, keep what we had
+          console.warn("[MapScreen] refresh selected waypoint failed:", e);
+        }
+      })();
 
-     return () => {
-       active = false;
-     };
-   }, [loadWaypoints, selectedWaypoint?.id])
- );
-
+      return () => {
+        active = false;
+      };
+    }, [loadWaypoints, selectedWaypoint?.id])
+  );
 
   // Derived values
   const userLocation = location ? ([location.lat, location.lng] as LatLng) : null;
@@ -249,6 +296,16 @@ const MapScreen: React.FC = () => {
           }
         }}
       />
+
+      {/* Trip Tracker Component */}
+      {tracks.length > 0 && (
+        <TripTracker
+          totalRouteDistance={routeTotalDistance}
+          currentPosition={userLocation}
+          tracks={tracks}
+          onStatsUpdate={setTripStats}
+        />
+      )}
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>
