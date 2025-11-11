@@ -213,6 +213,7 @@ const MapScreen: React.FC = () => {
       <MapLibreMap
         tracks={tracks}
         userLocation={userLocation}
+        autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}

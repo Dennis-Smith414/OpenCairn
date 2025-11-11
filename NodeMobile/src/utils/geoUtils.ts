@@ -1,6 +1,6 @@
 // utils/geoUtils.ts
 import type { Feature, FeatureCollection, Geometry } from "geojson";
-import type { LatLng } from "../components/LeafletMap/LeafletMap";
+import type { LatLng } from "../components/MapLibre/MapLibreMap";
 import haversine from "haversine-distance";
 
 // Convert any GeoJSON (FC/Feature/Geometry) into an array of segments (LatLng[][]).
@@ -46,4 +46,31 @@ export function featureCollectionToSegments(fc: FeatureCollection | null | undef
 // Distance helper (meters)
 export function getDistanceMeters(a: LatLng, b: LatLng): number {
   try { return haversine(a, b); } catch { return NaN; }
+}
+
+//bounding boxes / route centering
+//export type LatLng = [number, number];
+
+export function boundsFromTracks(
+  tracks: { coords: LatLng[] | LatLng[][] }[]
+): { sw: LatLng; ne: LatLng } | null {
+  let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+  const push = (lat: number, lon: number) => {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+  };
+
+  for (const t of tracks) {
+    const c = t.coords;
+    if (!Array.isArray(c)) continue;
+    if (Array.isArray(c[0])) {
+      (c as LatLng[][]).forEach(seg => seg.forEach(([lat, lon]) => push(lat, lon)));
+    } else {
+      (c as LatLng[]).forEach(([lat, lon]) => push(lat, lon));
+    }
+  }
+  if (minLat === 90) return null;
+  return { sw: [minLat, minLon], ne: [maxLat, maxLon] };
 }

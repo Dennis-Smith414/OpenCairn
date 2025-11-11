@@ -13,7 +13,8 @@ import {
   Images,
   SymbolLayer,
 } from "@maplibre/maplibre-react-native";
-import { getDistanceMeters } from "../../utils/geoUtils";
+import { getDistanceMeters, boundsFromTracks } from "../../utils/geoUtils";
+import { colors } from "../../styles/theme";
 
 export type LatLng = [number, number];
 
@@ -41,6 +42,7 @@ export interface Track {
 interface Props {
   tracks?: Track[];
   center?: LatLng;
+  autoFitOnTracks?: boolean;
   zoom?: number;
   userLocation?: LatLng | null;
   onMapReady?: () => void;
@@ -56,6 +58,7 @@ const DEFAULT_ZOOM = 13;
 const MapLibreMap: React.FC<Props> = ({
   tracks = [],
   center = DEFAULT_CENTER,
+  autoFitOnTracks,
   zoom = DEFAULT_ZOOM,
   userLocation = null,
   onMapReady,
@@ -232,6 +235,20 @@ const MapLibreMap: React.FC<Props> = ({
     }
   }, []);
 
+  //Center on tracks
+  useEffect(() => {
+    if (!tracks?.length || !cameraRef.current || !autoFitOnTracks) return;
+    const bb = boundsFromTracks(tracks);
+    if (!bb) return;
+    // fitBounds expects [lon, lat]
+    cameraRef.current.fitBounds(
+      [bb.sw[1], bb.sw[0]],
+      [bb.ne[1], bb.ne[0]],
+      40,   // padding px
+      400   // duration ms
+    );
+  }, [tracks, autoFitOnTracks]);
+
   const centerOnUserNow = useCallback(() => {
     const loc = userLocation || lastUserLocRef.current;
     if (loc) {
@@ -353,10 +370,14 @@ const MapLibreMap: React.FC<Props> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Center-on-user */}
-      <TouchableOpacity style={styles.centerBtn} onPress={centerOnUserNow}>
-        <Text style={styles.centerTxt}>◎</Text>
-      </TouchableOpacity>
+        {/* Center-on-user */}
+        <TouchableOpacity
+          style={[styles.zoomBtn, styles.centerBtn, { backgroundColor: colors.primary }]}
+          onPress={centerOnUserNow}
+        >
+          <Text style={[styles.zoomTxt]}>◎</Text>
+        </TouchableOpacity>
+
 
       {/* Follow-me pill */}
       {showTrackingButton && (
@@ -421,22 +442,14 @@ const styles = StyleSheet.create({
   },
   zoomTxt: { fontSize: 22, fontWeight: "700" },
 
-  centerBtn: {
-    position: "absolute",
-    right: 12,
-    bottom: 48,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
+centerBtn: {
+  position: "absolute",
+  right: 12,
+  bottom: 48,
+  zIndex: 10,
+  elevation: 4,
+},
+
   centerTxt: { fontSize: 18, fontWeight: "700" },
 });
 
