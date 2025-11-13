@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE } from "../config/env";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     View,
     Text,
@@ -10,6 +11,7 @@ import {
     Platform,
     ScrollView,
     Image,
+    Switch,
 } from "react-native";
 import { useThemeStyles } from '../styles/theme';
 import { createGlobalStyles } from '../styles/globalStyles';
@@ -20,8 +22,28 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
     
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [rememberMe, setRememberMe] = useState(true);
+    // Prevents the remember me toggle from flickering
+    const [isLoadingRememberMe, setIsLoadingRememberMe] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { login, attemptsLeft, setAttempts, isLocked, lockoutTimeLeft } = useAuth();
+
+    // For the weirdos who don't use Remember Me. If the app was closed
+    // and Remember Me wasn't enabled, the next time the app is opened
+    // the toggle will be false.
+    useEffect(() => {
+        const loadRememberMePreference = async () => {
+            try {
+                const savedPreference = await AsyncStorage.getItem('rememberMe');
+                setRememberMe(savedPreference === 'true' || savedPreference === null);
+            } catch (error) {
+                console.error('Error loading remember me preference:', error);
+            } finally {
+                setIsLoadingRememberMe(false);
+            }
+        };
+        loadRememberMePreference();
+    }, []);
 
     const handleLogin = async () => {
        setError(null);
@@ -61,12 +83,18 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
          // On success, call the context's login function with the token.
          // The context will handle storing the token and triggering navigation.
-         login(data.token);
+         login(data.token, rememberMe);
 
        } catch (err: any) {
          setError(err.message);
        }
     };
+
+    if (isLoadingRememberMe) {
+        return (
+            <View style={[globalStyles.container, { justifyContent: 'center', alignItems: 'center' }]}/>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
@@ -105,6 +133,18 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                         returnKeyType="done"
                         onSubmitEditing={handleLogin}
                     />
+
+                    <View style={[globalStyles.row, { justifyContent: 'space-between', marginVertical: 15, paddingHorizontal: 10 }]}>
+                        <Text style={[globalStyles.text, { color: colors.text }]}>
+                            Remember Me
+                        </Text>
+                        <Switch
+                            value={rememberMe}
+                            onValueChange={setRememberMe}
+                            trackColor={{ false: colors.border, true: colors.primary }}
+                            thumbColor={rememberMe ? colors.primary : colors.placeholder}
+                        />
+                    </View>
 
                     {error && <Text style={globalStyles.error}>{error}</Text>}
 

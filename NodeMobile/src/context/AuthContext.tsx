@@ -8,6 +8,9 @@ interface AuthContextType {
   isLoading: boolean;
   attemptsLeft: number;
   setAttempts: (newAttempts: number) => void;
+  isLocked: boolean;
+  lockoutTimeLeft: number;
+  resetLockout: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -88,9 +91,10 @@ export const AuthProvider = ({ children }) => {
    }, [isLocked, lockoutTimeLeft]);
 
 
-  const login = async (token: string) => {
+  const login = async (token: string, rememberMe: boolean) => {
     setIsLoading(true);
     await AsyncStorage.setItem('token', token);
+    await AsyncStorage.setItem('rememberMe', rememberMe.toString());
     setUserToken(token);
     setIsLoading(false);
   };
@@ -105,7 +109,18 @@ export const AuthProvider = ({ children }) => {
   const isLoggedIn = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      setUserToken(token);
+      const rememberMe = await AsyncStorage.getItem('rememberMe');
+
+      if (rememberMe === 'true' && token) {
+          setUserToken(token)
+      } else {
+          // App closed without rememberMe causes logout
+          setUserToken(null)
+      }
+
+      // Without this line, lockout is ignored after closing and
+      // reopening the app
+      await checkLockout();
     } catch (e) {
       console.log(`isLoggedIn error: ${e}`);
     }
