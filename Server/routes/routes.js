@@ -20,22 +20,35 @@ router.get("/", async (req, res) => {
 
     // counts are handy for UI
     params.push(limit, offset);
-    const sql = `
-      SELECT
-        r.id, r.slug, r.name, r.region, r.created_at, r.updated_at,
-        COALESCE(wp.cnt, 0) AS waypoint_count,
-        COALESCE(gx.cnt, 0) AS gpx_count
-      FROM routes r
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS cnt FROM waypoints w WHERE w.route_id = r.id
-      ) wp ON true
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS cnt FROM gpx g WHERE g.route_id = r.id
-      ) gx ON true
-      ${where}
-      ORDER BY r.updated_at DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    `;
+const sql = `
+  SELECT
+    r.id,
+    r.slug,
+    r.name,
+    r.region,
+    r.created_at,
+    r.updated_at,
+    COALESCE(wp.cnt, 0) AS waypoint_count,
+    COALESCE(gx.cnt, 0) AS gpx_count,
+    COALESCE(uv.upvotes, 0) AS upvotes       -- ✅ FIXED
+  FROM routes r
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS cnt FROM waypoints w WHERE w.route_id = r.id
+  ) wp ON true
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS cnt FROM gpx g WHERE g.route_id = r.id
+  ) gx ON true
+  LEFT JOIN (
+    SELECT route_id, COUNT(*)::int AS upvotes
+    FROM route_ratings
+    WHERE val = 1
+    GROUP BY route_id
+  ) uv ON uv.route_id = r.id
+  ${where}
+  ORDER BY r.updated_at DESC
+  LIMIT $${params.length - 1} OFFSET $${params.length}
+`;
+
     const items = await db.all(sql, params);
     res.json({ ok: true, items, nextOffset: offset + items.length });
   } catch (e) {
@@ -198,6 +211,66 @@ router.delete("/:id", authorize, async (req, res) => {
       res.status(500).json({ ok: false, error: "geojson-failed" });
     }
   });
+
+  // POST /api/routes/:id/upvote  (toggle per-user upvote)
+router.post("/:id/upvote", authorize, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const routeId = Number(req.params.id);
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+
+    // Check existing vote
+    const existing = await db.get(
+      `SELECT val FROM route_ratings
+        WHERE user_id = $1 AND route_id = $2`,
+      [userId, routeId]
+    );
+
+    let userHasUpvoted = false;
+
+    if (existing && existing.val === 1) {
+      // Already upvoted → remove
+      await db.run(
+        `DELETE FROM route_ratings
+          WHERE user_id = $1 AND route_id = $2`,
+        [userId, routeId]
+      );
+      userHasUpvoted = false;
+    } else {
+      // Insert or update
+      await db.run(
+        `INSERT INTO route_ratings (user_id, route_id, val)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (user_id, route_id)
+         DO UPDATE SET val = 1`,
+        [userId, routeId]
+      );
+      userHasUpvoted = true;
+    }
+
+    // New aggregate
+    const agg = await db.get(
+      `SELECT COUNT(*)::int AS upvotes
+         FROM route_ratings
+        WHERE route_id = $1 AND val = 1`,
+      [routeId]
+    );
+
+    res.json({
+      ok: true,
+      routeId,
+      upvotes: agg.upvotes,
+      userHasUpvoted,
+    });
+
+  } catch (e) {
+    console.error("POST /routes/:id/upvote failed:", e);
+    res.status(500).json({ ok: false, error: "upvote-failed" });
+  }
+});
 
 
 module.exports = router;

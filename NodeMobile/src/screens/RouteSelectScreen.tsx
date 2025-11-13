@@ -10,8 +10,9 @@ import {
   TextInput,
 } from "react-native";
 import { useThemeStyles } from "../styles/theme";
-import { createGlobalStyles } from '../styles/globalStyles';
-import { fetchRouteList } from "../lib/api";
+import { createGlobalStyles } from "../styles/globalStyles";
+import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
 type RouteItem = {
@@ -19,12 +20,13 @@ type RouteItem = {
   slug: string;
   name: string;
   region?: string;
+  upvotes?: number; // from backend
 };
 
 export default function RouteSelectScreen({ navigation }: any) {
-  const { colors, styles: baseStyles } = useThemeStyles();
+  const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
-  
+
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,6 +55,29 @@ export default function RouteSelectScreen({ navigation }: any) {
     loadRoutes();
   }, [loadRoutes]);
 
+  // Upvote handler (must be before any early return)
+  const handleUpvote = useCallback(async (routeId: number) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Login required", "You must be logged in to upvote routes.");
+        return;
+      }
+
+      const result = await toggleRouteUpvote(routeId, token);
+
+      // Update only that route's upvote count
+      setRoutes((prev) =>
+        prev.map((r) =>
+          r.id === routeId ? { ...r, upvotes: result.upvotes } : r
+        )
+      );
+    } catch (e: any) {
+      console.error("Upvote failed:", e);
+      Alert.alert("Error", "Could not upvote route.");
+    }
+  }, []);
+
   // 🔎 Fast in-memory filter (name or region, case-insensitive)
   const filteredRoutes = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -68,7 +93,9 @@ export default function RouteSelectScreen({ navigation }: any) {
     return (
       <View style={[globalStyles.container, { padding: 16 }]}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[globalStyles.subText, { marginTop: 8 }]}>Loading routes…</Text>
+        <Text style={[globalStyles.subText, { marginTop: 8 }]}>
+          Loading routes…
+        </Text>
       </View>
     );
   }
@@ -93,7 +120,10 @@ export default function RouteSelectScreen({ navigation }: any) {
           returnKeyType="search"
         />
         {!!query && (
-          <TouchableOpacity onPress={() => setQuery("")} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+          <TouchableOpacity
+            onPress={() => setQuery("")}
+            style={{ paddingHorizontal: 12, paddingVertical: 10 }}
+          >
             <Text style={{ color: colors.textSecondary }}>×</Text>
           </TouchableOpacity>
         )}
@@ -103,7 +133,12 @@ export default function RouteSelectScreen({ navigation }: any) {
       <TouchableOpacity
         style={[
           globalStyles.button,
-          { backgroundColor: colors.accent, marginVertical: 8, paddingVertical: 10, width: "100%" },
+          {
+            backgroundColor: colors.accent,
+            marginVertical: 8,
+            paddingVertical: 10,
+            width: "100%",
+          },
         ]}
         onPress={() => navigation.navigate("RouteCreate")}
       >
@@ -118,38 +153,99 @@ export default function RouteSelectScreen({ navigation }: any) {
         onRefresh={loadRoutes}
         renderItem={({ item }) => {
           const isSelected = selectedRouteIds.includes(item.id);
+
           return (
-            <TouchableOpacity
+            <View
               style={{
-                padding: 12,
                 marginVertical: 6,
                 marginHorizontal: 16,
                 borderRadius: 12,
-                backgroundColor: isSelected ? colors.primary : colors.backgroundAlt,
                 borderWidth: 1,
                 borderColor: colors.accent,
+                backgroundColor: isSelected
+                  ? colors.primary
+                  : colors.backgroundAlt,
               }}
-              onPress={() => toggleRoute({ id: item.id, name: item.name })}
             >
-              <Text style={[
-                globalStyles.bodyText,
-                { color: isSelected ? colors.background : colors.textPrimary }
-              ]}>
-                {item.name}
-              </Text>
-              {item.region && (
-                <Text style={[
-                  globalStyles.subText,
-                  { color: isSelected ? colors.background : colors.textSecondary }
-                ]}>
-                  {item.region}
-                </Text>
-              )}
-            </TouchableOpacity>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                {/* Left: tap to select route */}
+                <TouchableOpacity
+                  style={{ flex: 1, padding: 12 }}
+                  onPress={() =>
+                    toggleRoute({ id: item.id, name: item.name })
+                  }
+                >
+                  <Text
+                    style={[
+                      globalStyles.bodyText,
+                      {
+                        color: isSelected
+                          ? colors.background
+                          : colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.region && (
+                    <Text
+                      style={[
+                        globalStyles.subText,
+                        {
+                          color: isSelected
+                            ? colors.background
+                            : colors.textSecondary,
+                          marginTop: 2,
+                        },
+                      ]}
+                    >
+                      {item.region}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Right: upvote button + count */}
+                <View
+                  style={{
+                    paddingRight: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => handleUpvote(item.id)}
+                    style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+                  >
+                    <Text style={{ color: colors.accent, fontSize: 18 }}>
+                      ▲
+                    </Text>
+                  </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      marginTop: -2,
+                    }}
+                  >
+                    {item.upvotes ?? 0}
+                  </Text>
+                </View>
+              </View>
+            </View>
           );
         }}
         ListEmptyComponent={
-          <Text style={[globalStyles.subText, { marginTop: 10, color: colors.textSecondary }]}>
+          <Text
+            style={[
+              globalStyles.subText,
+              { marginTop: 10, color: colors.textSecondary },
+            ]}
+          >
             {routes.length ? "No matching routes." : "No routes found."}
           </Text>
         }
