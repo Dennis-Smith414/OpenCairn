@@ -19,6 +19,7 @@ import RouteCreateScreen from "../screens/RouteCreateScreen";
 import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import WaypointEditScreen from "../screens/WaypointEditScreen";
+import RouteCommentsScreen from "../screens/RouteCommentScreen";
 
 // Navigators
 const Stack = createNativeStackNavigator();
@@ -59,6 +60,9 @@ function MapStack() {
 /* ----------------------------
    Routes Stack
 ---------------------------- */
+/* ----------------------------
+   Routes Stack
+---------------------------- */
 function RoutesStack() {
   return (
     <RoutesStackNav.Navigator screenOptions={{ headerShown: false }}>
@@ -68,9 +72,20 @@ function RoutesStack() {
         component={RouteCreateScreen}
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+
+<RoutesStackNav.Screen
+  name="RouteComments"
+  component={RouteCommentsScreen}
+  options={({ route }: any) => ({
+    headerShown: true,
+    title: route?.params?.routeName ?? "Route Comments",
+  })}
+/>
+
     </RoutesStackNav.Navigator>
   );
 }
+
 
 /* ----------------------------
    Main Tab Navigator

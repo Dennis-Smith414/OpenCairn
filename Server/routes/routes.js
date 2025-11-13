@@ -272,5 +272,144 @@ router.post("/:id/upvote", authorize, async (req, res) => {
   }
 });
 
+// ---------- GET /api/routes/:id/comments  (list comments for a route)
+router.get("/:id/comments", async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const limit = Math.min(parseInt(req.query.limit ?? "50", 10), 100);
+    const offset = Math.max(parseInt(req.query.offset ?? "0", 10), 0);
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+
+    // join users so we can show username next to comment
+    const comments = await db.all(
+      `
+      SELECT
+        c.id,
+        c.content,
+        c.created_at,
+        c.updated_at,
+        c.edited,
+        u.id   AS user_id,
+        u.username
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.kind = 'route' AND c.route_id = $1
+      ORDER BY c.created_at DESC
+      LIMIT $2 OFFSET $3
+      `,
+      [routeId, limit, offset]
+    );
+
+    res.json({
+      ok: true,
+      items: comments,
+      nextOffset: offset + comments.length,
+    });
+  } catch (e) {
+    console.error("GET /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comments-list-failed" });
+  }
+});
+
+// ---------- POST /api/routes/:id/comments  (add comment to route)
+router.post("/:id/comments", authorize, async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const userId = req.user.id;
+    const rawContent = (req.body.content ?? "").trim();
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+    if (!rawContent) {
+      return res.status(400).json({ ok: false, error: "content-required" });
+    }
+
+    // make sure route exists
+    const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
+    if (!route) {
+      return res.status(404).json({ ok: false, error: "route-not-found" });
+    }
+
+    const row = await db.get(
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'route', NULL, $2, $3)
+      RETURNING id, content, created_at, updated_at, edited
+      `,
+      [userId, routeId, rawContent]
+    );
+
+    // grab username for immediate UI display
+    const user = await db.get(
+      `SELECT username FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(201).json({
+      ok: true,
+      comment: {
+        ...row,
+        user_id: userId,
+        username: user?.username ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("POST /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comment-create-failed" });
+  }
+});
+
+// ---------- POST /api/routes/:id/comments  (add comment to route)
+router.post("/:id/comments", authorize, async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const userId = req.user.id;
+    const rawContent = (req.body.content ?? "").trim();
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+    if (!rawContent) {
+      return res.status(400).json({ ok: false, error: "content-required" });
+    }
+
+    // make sure route exists
+    const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
+    if (!route) {
+      return res.status(404).json({ ok: false, error: "route-not-found" });
+    }
+
+    const row = await db.get(
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'route', NULL, $2, $3)
+      RETURNING id, content, created_at, updated_at, edited
+      `,
+      [userId, routeId, rawContent]
+    );
+
+    // grab username for immediate UI display
+    const user = await db.get(
+      `SELECT username FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(201).json({
+      ok: true,
+      comment: {
+        ...row,
+        user_id: userId,
+        username: user?.username ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("POST /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comment-create-failed" });
+  }
+});
 
 module.exports = router;

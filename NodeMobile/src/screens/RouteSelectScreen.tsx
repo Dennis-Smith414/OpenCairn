@@ -145,7 +145,7 @@ export default function RouteSelectScreen({ navigation }: any) {
         <Text style={globalStyles.buttonText}>＋ Create / Upload Route</Text>
       </TouchableOpacity>
 
-      <FlatList
+   <FlatList
         data={filteredRoutes}
         keyExtractor={(item) => String(item.id)}
         style={{ width: "100%", marginTop: 8 }}
@@ -167,6 +167,7 @@ export default function RouteSelectScreen({ navigation }: any) {
                   : colors.backgroundAlt,
               }}
             >
+              {/* Top row: name/region + upvote */}
               <View
                 style={{
                   flexDirection: "row",
@@ -235,6 +236,33 @@ export default function RouteSelectScreen({ navigation }: any) {
                     {item.upvotes ?? 0}
                   </Text>
                 </View>
+              </View>
+
+              {/* Bottom row: comments button (left aligned under region) */}
+              <View
+                style={{
+                  paddingHorizontal: 12,
+                  paddingBottom: 8,
+                  paddingTop: 4,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("RouteComments", {
+                      routeId: item.id,
+                      routeName: item.name,
+                    })
+                  }
+                >
+                  <Text
+                    style={{
+                      color: colors.accent,
+                      fontSize: 13,
+                    }}
+                  >
+                    View comments
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           );
