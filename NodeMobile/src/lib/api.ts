@@ -32,6 +32,9 @@ function getBase(): string {
   }
   return API_BASE;
 }
+export function getBaseUrl() {
+  return getBase()
+}
 
 /**
  * GET /api/routes

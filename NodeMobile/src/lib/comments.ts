@@ -1,9 +1,11 @@
 // src/lib/comments.ts
 //import { API_BASE } from "./api";
-import { API_BASE } from "../config/env";
+import { getBaseUrl } from "./api";
+
 
 // Fetch comments for either a waypoint or a route
 export async function fetchComments(id: number, kind: "waypoint" | "route") {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/comments/${kind}s/${id}`);
   const text = await res.text();
 
@@ -25,6 +27,7 @@ export async function postComment(
   token: string,
   kind: "waypoint" | "route"
 ) {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/comments/${kind}s/${id}`, {
     method: "POST",
     headers: {
@@ -49,6 +52,7 @@ export async function postComment(
 
 // Delete a comment (author only)
 export async function deleteComment(commentId: number, token: string) {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
     method: "DELETE",
     headers: {
@@ -71,6 +75,7 @@ export async function deleteComment(commentId: number, token: string) {
 
 // UPDATE / PATCH a comment (author only)
 export async function updateComment(commentId: number, content: string, token: string) {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
     method: "PATCH", // if your server expects PUT, change to PUT
     headers: {
