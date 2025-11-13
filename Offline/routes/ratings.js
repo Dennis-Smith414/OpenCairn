@@ -1,280 +1,348 @@
-// Server/routes/ratings.js
+// offline/routes/ratings.js
 const express = require("express");
 const router = express.Router();
-const db = require("../Postgres");
-const authorize = require("../middleware/authorize");
+const { all, get, run } = require("../db/queries");
+
+// Helper: safely coerce numbers
+const toInt = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 // =======================
 // GET Waypoint Rating
+// GET /ratings/waypoint/:id?user_id=123
 // =======================
-router.get("/waypoint/:id", authorize, async (req, res) => {
-  const waypointId = req.params.id;
-  const userId = req.user?.id;
+router.get("/waypoint/:id", async (req, res) => {
+  const waypointId = toInt(req.params.id);
+  const userId = toInt(req.query.user_id); // optional
 
   try {
-    if (!waypointId) throw new Error("Missing waypoint id");
-    if (!userId) throw new Error("Missing user id from token");
+    if (!waypointId) {
+      return res.status(400).json({ ok: false, error: "Missing or invalid waypoint id" });
+    }
 
-    const totalRows = await db.all(
+    const totalRow = await get(
       `SELECT COALESCE(SUM(val), 0) AS total
-       FROM waypoint_ratings
-       WHERE waypoint_id = $1`,
+         FROM waypoint_ratings
+        WHERE waypoint_id = ?`,
       [waypointId]
     );
+    const total = totalRow?.total ?? 0;
 
-    const userRow = await db.get(
-      `SELECT val
-       FROM waypoint_ratings
-       WHERE waypoint_id = $1 AND user_id = $2`,
-      [waypointId, userId]
-    );
-
-    const total = totalRows[0]?.total || 0;
-    const user_rating = userRow?.val ?? null;
+    let user_rating = null;
+    if (userId) {
+      const userRow = await get(
+        `SELECT val
+           FROM waypoint_ratings
+          WHERE waypoint_id = ? AND user_id = ?`,
+        [waypointId, userId]
+      );
+      user_rating = userRow?.val ?? null;
+    }
 
     res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[GET waypoint rating] Error:", err);
+    console.error("[offline GET waypoint rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to fetch rating" });
   }
 });
 
 // =======================
 // POST Waypoint Rating
+// POST /ratings/waypoint/:id
+// body: { user_id, val } where val ∈ {1, -1}
 // =======================
-router.post("/waypoint/:id", authorize, async (req, res) => {
-  const waypointId = req.params.id;
-  const userId = req.user?.id;
-  const val = Number(req.body.val);
+router.post("/waypoint/:id", async (req, res) => {
+  const waypointId = toInt(req.params.id);
+  const userId = toInt(req.body.user_id);
+  const val = toInt(req.body.val);
 
+  if (!waypointId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid waypoint id" });
+  }
+  if (!userId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid user id" });
+  }
   if (![1, -1].includes(val)) {
     return res.status(400).json({ ok: false, error: "val must be 1 or -1" });
   }
 
   try {
-    const row = await db.get(
-      `
-      WITH del AS (
-        DELETE FROM waypoint_ratings r
-         WHERE r.waypoint_id = $1
-           AND r.user_id = $2
-           AND r.val = $3
-        RETURNING 1
-      ),
-      upsert AS (
-        INSERT INTO waypoint_ratings (waypoint_id, user_id, val)
-        SELECT $1, $2, $3
-        WHERE NOT EXISTS (SELECT 1 FROM del)
-        ON CONFLICT (user_id, waypoint_id)
-        DO UPDATE SET val = EXCLUDED.val
-        RETURNING val
-      ),
-      tot AS (
-        SELECT COALESCE(SUM(val), 0) AS total
-          FROM waypoint_ratings
-         WHERE waypoint_id = $1
-      ),
-      final_user AS (
-        SELECT val FROM upsert
-        UNION ALL
-        SELECT NULL::INT AS val FROM del
-      )
-      SELECT
-        (SELECT total FROM tot) AS total,
-        (SELECT val FROM final_user LIMIT 1) AS user_rating;
-      `,
-      [waypointId, userId, val]
+    const existing = await get(
+      `SELECT val
+         FROM waypoint_ratings
+        WHERE waypoint_id = ? AND user_id = ?`,
+      [waypointId, userId]
     );
 
-    res.json({ ok: true, total: row.total, user_rating: row.user_rating });
+    let user_rating = null;
+
+    if (existing && existing.val === val) {
+      // Same value → remove rating (toggle off)
+      await run(
+        `DELETE FROM waypoint_ratings
+          WHERE waypoint_id = ? AND user_id = ?`,
+        [waypointId, userId]
+      );
+      user_rating = null;
+    } else if (existing) {
+      // Different value → update
+      await run(
+        `UPDATE waypoint_ratings
+            SET val = ?
+          WHERE waypoint_id = ? AND user_id = ?`,
+        [val, waypointId, userId]
+      );
+      user_rating = val;
+    } else {
+      // No existing rating → insert new
+      await run(
+        `INSERT INTO waypoint_ratings (user_id, waypoint_id, val)
+          VALUES (?, ?, ?)`,
+        [userId, waypointId, val]
+      );
+      user_rating = val;
+    }
+
+    const totalRow = await get(
+      `SELECT COALESCE(SUM(val), 0) AS total
+         FROM waypoint_ratings
+        WHERE waypoint_id = ?`,
+      [waypointId]
+    );
+    const total = totalRow?.total ?? 0;
+
+    // keep aggregate in sync
+    await run(`UPDATE waypoints SET rating = ? WHERE id = ?`, [total, waypointId]);
+
+    res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[POST waypoint rating] Error:", err);
+    console.error("[offline POST waypoint rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to post rating" });
   }
 });
 
 
-
 // =======================
 // GET Comment Rating
+// GET /ratings/comment/:id?user_id=123
 // =======================
-router.get("/comment/:id", authorize, async (req, res) => {
-  const comment_id = req.params.id;
-  const userId = req.user?.id;
+router.get("/comment/:id", async (req, res) => {
+  const commentId = toInt(req.params.id);
+  const userId = toInt(req.query.user_id); // optional
 
   try {
-    if (!comment_id) throw new Error("Missing comment id");
-    if (!userId) throw new Error("Missing user id from token");
+    if (!commentId) {
+      return res.status(400).json({ ok: false, error: "Missing or invalid comment id" });
+    }
 
-    const totalRows = await db.all(
+    const totalRow = await get(
       `SELECT COALESCE(SUM(val), 0) AS total
-       FROM comment_ratings
-       WHERE comment_id = $1`,
-      [comment_id]
+         FROM comment_ratings
+        WHERE comment_id = ?`,
+      [commentId]
     );
+    const total = totalRow?.total ?? 0;
 
-    const userRow = await db.get(
-      `SELECT val
-       FROM comment_ratings
-       WHERE comment_id = $1 AND user_id = $2`,
-      [comment_id, userId]
-    );
-
-    const total = totalRows[0]?.total || 0;
-    const user_rating = userRow?.val ?? null;
+    let user_rating = null;
+    if (userId) {
+      const userRow = await get(
+        `SELECT val
+           FROM comment_ratings
+          WHERE comment_id = ? AND user_id = ?`,
+        [commentId, userId]
+      );
+      user_rating = userRow?.val ?? null;
+    }
 
     res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[GET comment rating] Error:", err);
+    console.error("[offline GET comment rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to fetch comment rating" });
   }
 });
 
 // =======================
 // POST Comment Rating
+// POST /ratings/comment/:id
+// body: { user_id, val }
 // =======================
-router.post("/comment/:id", authorize, async (req, res) => {
-  const comment_id = req.params.id;
-  const userId = req.user?.id;
-  const { val } = req.body;
+router.post("/comment/:id", async (req, res) => {
+  const commentId = toInt(req.params.id);
+  const userId = toInt(req.body.user_id);
+  const val = toInt(req.body.val);
 
+  if (!commentId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid comment id" });
+  }
+  if (!userId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid user id" });
+  }
   if (![1, -1].includes(val)) {
     return res.status(400).json({ ok: false, error: "val must be 1 or -1" });
   }
 
   try {
-    const row = await db.get(
-      `
-      WITH del AS (
-        -- If the user clicks the same value again, remove their rating
-        DELETE FROM comment_ratings r
-         WHERE r.comment_id = $1
-           AND r.user_id = $2
-           AND r.val = $3
-        RETURNING 1
-      ),
-      upsert AS (
-        -- Otherwise insert or flip the rating to the new value
-        INSERT INTO comment_ratings (comment_id, user_id, val)
-        SELECT $1, $2, $3
-        WHERE NOT EXISTS (SELECT 1 FROM del)
-        ON CONFLICT (user_id, comment_id)
-        DO UPDATE SET val = EXCLUDED.val
-        RETURNING val
-      ),
-      tot AS (
-        SELECT COALESCE(SUM(val), 0) AS total
-          FROM comment_ratings
-         WHERE comment_id = $1
-      ),
-      final_user AS (
-        -- If we deleted, user_rating is NULL; if we inserted/updated, return that val
-        SELECT val FROM upsert
-        UNION ALL
-        SELECT NULL::INT AS val FROM del
-      )
-      SELECT
-        (SELECT total FROM tot)        AS total,
-        (SELECT val FROM final_user
-           LIMIT 1)                    AS user_rating;
-      `,
-      [comment_id, userId, val]
+    const existing = await get(
+      `SELECT val
+         FROM comment_ratings
+        WHERE comment_id = ? AND user_id = ?`,
+      [commentId, userId]
     );
 
-    res.json({ ok: true, total: row.total, user_rating: row.user_rating });
+    let user_rating = null;
+
+    if (existing && existing.val === val) {
+      await run(
+        `DELETE FROM comment_ratings
+          WHERE comment_id = ? AND user_id = ?`,
+        [commentId, userId]
+      );
+      user_rating = null;
+    } else if (existing) {
+      await run(
+        `UPDATE comment_ratings
+            SET val = ?
+          WHERE comment_id = ? AND user_id = ?`,
+        [val, commentId, userId]
+      );
+      user_rating = val;
+    } else {
+      await run(
+        `INSERT INTO comment_ratings (user_id, comment_id, val)
+          VALUES (?, ?, ?)`,
+        [userId, commentId, val]
+      );
+      user_rating = val;
+    }
+
+    const totalRow = await get(
+      `SELECT COALESCE(SUM(val), 0) AS total
+         FROM comment_ratings
+        WHERE comment_id = ?`,
+      [commentId]
+    );
+    const total = totalRow?.total ?? 0;
+
+    // keep aggregate on comments in sync
+    await run(`UPDATE comments SET rating = ? WHERE id = ?`, [total, commentId]);
+
+    res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[POST comment rating] Error:", err);
+    console.error("[offline POST comment rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to post comment rating" });
   }
 });
 
 
-
 // =======================
-// GET ROUTE Rating
+// GET Route Rating
+// GET /ratings/route/:id?user_id=123
 // =======================
-router.get("/route/:id", authorize, async (req, res) => {
-  const routeId = req.params.id;
-  const userId = req.user?.id;
+router.get("/route/:id", async (req, res) => {
+  const routeId = toInt(req.params.id);
+  const userId = toInt(req.query.user_id); // optional
 
   try {
-    if (!routeId) throw new Error("Missing route id");
-    if (!userId) throw new Error("Missing user id from token");
+    if (!routeId) {
+      return res.status(400).json({ ok: false, error: "Missing or invalid route id" });
+    }
 
-    const totalRows = await db.all(
+    const totalRow = await get(
       `SELECT COALESCE(SUM(val), 0) AS total
-       FROM route_ratings
-       WHERE route_id = $1`,
+         FROM route_ratings
+        WHERE route_id = ?`,
       [routeId]
     );
+    const total = totalRow?.total ?? 0;
 
-    const userRow = await db.get(
-      `SELECT val
-       FROM route_ratings
-       WHERE route_id = $1 AND user_id = $2`,
-      [routeId, userId]
-    );
-
-    const total = totalRows[0]?.total || 0;
-    const user_rating = userRow?.val ?? null;
+    let user_rating = null;
+    if (userId) {
+      const userRow = await get(
+        `SELECT val
+           FROM route_ratings
+          WHERE route_id = ? AND user_id = ?`,
+        [routeId, userId]
+      );
+      user_rating = userRow?.val ?? null;
+    }
 
     res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[GET route rating] Error:", err);
+    console.error("[offline GET route rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to fetch rating" });
   }
 });
 
 // =======================
-// POST ROUTE Rating
+// POST Route Rating
+// POST /ratings/route/:id
+// body: { user_id, val }
 // =======================
-router.post("/route/:id", authorize, async (req, res) => {
-  const routeId = req.params.id;
-  const userId = req.user?.id;
-  const val = Number(req.body.val);
+router.post("/route/:id", async (req, res) => {
+  const routeId = toInt(req.params.id);
+  const userId = toInt(req.body.user_id);
+  const val = toInt(req.body.val);
 
+  if (!routeId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid route id" });
+  }
+  if (!userId) {
+    return res.status(400).json({ ok: false, error: "Missing or invalid user id" });
+  }
   if (![1, -1].includes(val)) {
     return res.status(400).json({ ok: false, error: "val must be 1 or -1" });
   }
 
   try {
-    const row = await db.get(
-      `
-      WITH del AS (
-        DELETE FROM route_ratings r
-         WHERE r.route_id = $1
-           AND r.user_id = $2
-           AND r.val = $3
-        RETURNING 1
-      ),
-      upsert AS (
-        INSERT INTO route_ratings (route_id, user_id, val)
-        SELECT $1, $2, $3
-        WHERE NOT EXISTS (SELECT 1 FROM del)
-        ON CONFLICT (user_id, route_id)
-        DO UPDATE SET val = EXCLUDED.val
-        RETURNING val
-      ),
-      tot AS (
-        SELECT COALESCE(SUM(val), 0) AS total
-          FROM route_ratings
-         WHERE route_id = $1
-      ),
-      final_user AS (
-        SELECT val FROM upsert
-        UNION ALL
-        SELECT NULL::INT AS val FROM del
-      )
-      SELECT
-        (SELECT total FROM tot) AS total,
-        (SELECT val FROM final_user LIMIT 1) AS user_rating;
-      `,
-      [routeId, userId, val]
+    const existing = await get(
+      `SELECT val
+         FROM route_ratings
+        WHERE route_id = ? AND user_id = ?`,
+      [routeId, userId]
     );
 
-    res.json({ ok: true, total: row.total, user_rating: row.user_rating });
+    let user_rating = null;
+
+    if (existing && existing.val === val) {
+      await run(
+        `DELETE FROM route_ratings
+          WHERE route_id = ? AND user_id = ?`,
+        [routeId, userId]
+      );
+      user_rating = null;
+    } else if (existing) {
+      await run(
+        `UPDATE route_ratings
+            SET val = ?
+          WHERE route_id = ? AND user_id = ?`,
+        [val, routeId, userId]
+      );
+      user_rating = val;
+    } else {
+      await run(
+        `INSERT INTO route_ratings (user_id, route_id, val)
+          VALUES (?, ?, ?)`,
+        [userId, routeId, val]
+      );
+      user_rating = val;
+    }
+
+    const totalRow = await get(
+      `SELECT COALESCE(SUM(val), 0) AS total
+         FROM route_ratings
+        WHERE route_id = ?`,
+      [routeId]
+    );
+    const total = totalRow?.total ?? 0;
+
+    // keep aggregate on routes in sync
+    await run(`UPDATE routes SET rating = ? WHERE id = ?`, [total, routeId]);
+
+    res.json({ ok: true, total, user_rating });
   } catch (err) {
-    console.error("[POST route rating] Error:", err);
+    console.error("[offline POST route rating] Error:", err);
     res.status(500).json({ ok: false, error: "Failed to post route rating" });
   }
 });

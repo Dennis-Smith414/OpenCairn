@@ -2,23 +2,47 @@
 const express = require("express");
 const { init, DB_PATH } = require("./db/init");
 
+// Offline route modules
+const commentsRoutes = require("./routes/comments");
+const gpxRoutes = require("./routes/gpx");
+const ratingsRoutes = require("./routes/ratings");
+const routesRoutes = require("./routes/routes");
+const waypointsRoutes = require("./routes/waypoints");
+
 const PORT = process.env.OFFLINE_PORT || 5101;
 
 async function start() {
   try {
     // 1) Initialize the SQLite DB (creates file + schema if needed)
-    await init({ withSeed: true }); //set to FALSE after testing
+    await init({ withSeed: true }); // set to false after testing
 
-    // 2) Start a minimal HTTP server
+    // 2) Start HTTP server
     const app = express();
     app.use(express.json());
 
     // Simple health check endpoint for the React Native app
-    app.get("/ping", (req, res) => {
+    app.get("/ping", (_req, res) => {
       res.json({
         ok: true,
         service: "offline-db",
         dbPath: DB_PATH,
+      });
+    });
+
+    // Mirror the online API prefixes as much as possible
+    app.use("/api/comments", commentsRoutes);
+    app.use("/api/ratings", ratingsRoutes);
+    app.use("/api/routes", routesRoutes);
+    app.use("/api/waypoints", waypointsRoutes);
+    app.use("/api", gpxRoutes); // /api/routes/ping, /api/routes/:id/gpx (stubbed uploads)
+
+    // Optional: offline-specific health endpoint
+    app.get("/api/health", (_req, res) => {
+      res.json({
+        ok: true,
+        db: true,
+        offline: true,
+        startedAt: new Date().toISOString(),
       });
     });
 
