@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Platform,
   UIManager,
   LayoutAnimation,
@@ -10,26 +13,33 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+
 import { useThemeStyles } from "../styles/theme";
-import { createGlobalStyles } from '../styles/globalStyles';
+import { createGlobalStyles } from "../styles/globalStyles";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE } from "../config/env";
+
 import { Card } from "../components/common/Card";
 import { StatRow } from "../components/common/StatRow";
 import { EmptyState } from "../components/common/EmptyState";
 import { AccountSection } from "../components/account/AccountSection";
 import { UserItemRow } from "../components/account/UserItemRow";
+
 import {
-    fetchUserComments,
-    fetchUserRoutes,
-    fetchUserWaypoints,
-    } from "../lib/api";
+  fetchUserComments,
+  fetchUserRoutes,
+  fetchUserWaypoints,
+} from "../lib/api";
 import { deleteWaypoint } from "../lib/waypoints";
 import { updateComment, deleteComment } from "../lib/comments";
 import { deleteRoute } from "../lib/routes";
 import { CommentEditBox } from "../components/comments/CommentEditBox";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
@@ -37,9 +47,9 @@ type DatePreset = "all" | "7" | "30" | "365";
 
 export default function AccountScreen({ navigation }: any) {
   const { userToken } = useAuth();
-  const { colors, styles: baseStyles } = useThemeStyles();
+  const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
-  
+
   const [profile, setProfile] = useState<any>(null);
   const [expanded, setExpanded] = useState({
     routes: false,
@@ -61,43 +71,40 @@ export default function AccountScreen({ navigation }: any) {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [savingCommentId, setSavingCommentId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchProfileAndRoutes = async () => {
-      if (!userToken) return;
-      try {
-        const profileRes = await fetch(`${API_BASE}/api/users/me`, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-        if (!profileRes.ok) throw new Error("Failed to fetch profile data");
+  // ---- Fetch profile + content (used on initial mount AND focus) ----
+  const loadAccountData = useCallback(async () => {
+    if (!userToken) return;
+    try {
+      const profileRes = await fetch(`${API_BASE}/api/users/me`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      if (!profileRes.ok) throw new Error("Failed to fetch profile data");
 
-        const profileJson = await profileRes.json();
-        setProfile({
-          ...profileJson.user,
-          stats: profileJson.stats,
-        });
+      const profileJson = await profileRes.json();
+      setProfile({
+        ...profileJson.user,
+        stats: profileJson.stats,
+      });
 
-        const routesRes = await fetchUserRoutes(userToken);
-        if (routesRes.ok) setUserRoutes(routesRes.routes);
+      const routesRes = await fetchUserRoutes(userToken);
+      if (routesRes.ok) setUserRoutes(routesRes.routes);
 
-        const waypointsRes = await fetchUserWaypoints(userToken);
-        if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
+      const waypointsRes = await fetchUserWaypoints(userToken);
+      if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
 
-        const commentsRes = await fetchUserComments(userToken);
-        if (commentsRes.ok) setUserComments(commentsRes.comments);
-
-      } catch (error) {
-        console.error("Failed to fetch profile data / routes:", error);
-      }
-    };
-    fetchProfileAndRoutes();
+      const commentsRes = await fetchUserComments(userToken);
+      if (commentsRes.ok) setUserComments(commentsRes.comments);
+    } catch (error) {
+      console.error("Failed to fetch profile data / routes:", error);
+    }
   }, [userToken]);
 
-  useEffect(() => {
-    const unsub = navigation.addListener("focus", () => {
-      // re-fetch the user data lists here if you want fresh counts/content
-    });
-    return unsub;
-  }, [navigation]);
+  // Run when screen is focused (and on first mount)
+  useFocusEffect(
+    useCallback(() => {
+      loadAccountData();
+    }, [loadAccountData])
+  );
 
   const toggleSection = (key: keyof typeof expanded) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -119,33 +126,43 @@ export default function AccountScreen({ navigation }: any) {
     return haystack.toLowerCase().includes(needle.trim().toLowerCase());
   }
 
-  const filteredRoutes = useMemo(() => {
-    return userRoutes.filter((r) => {
-      const name = r.name ?? "";
-      const region = r.region ?? "";
-      const when = r.created_at ?? r.create_time ?? r.createdAt ?? "";
-      return (
-        withinPreset(when, routesPreset) &&
-        textIncludes(`${name} ${region}`, routesQuery)
-      );
-    });
-  }, [userRoutes, routesPreset, routesQuery]);
+  const filteredRoutes = useMemo(
+    () =>
+      userRoutes.filter((r) => {
+        const name = r.name ?? "";
+        const region = r.region ?? "";
+        const when = r.created_at ?? r.create_time ?? r.createdAt ?? "";
+        return (
+          withinPreset(when, routesPreset) &&
+          textIncludes(`${name} ${region}`, routesQuery)
+        );
+      }),
+    [userRoutes, routesPreset, routesQuery]
+  );
 
-  const filteredWaypoints = useMemo(() => {
-    return userWaypoints.filter((w) => {
-      const text = `${w.name ?? ""} ${w.type ?? ""} ${w.description ?? ""}`;
-      const when = w.created_at ?? w.create_time ?? w.createdAt ?? "";
-      return withinPreset(when, waypointsPreset) && textIncludes(text, waypointsQuery);
-    });
-  }, [userWaypoints, waypointsPreset, waypointsQuery]);
+  const filteredWaypoints = useMemo(
+    () =>
+      userWaypoints.filter((w) => {
+        const text = `${w.name ?? ""} ${w.type ?? ""} ${w.description ?? ""}`;
+        const when = w.created_at ?? w.create_time ?? w.createdAt ?? "";
+        return withinPreset(when, waypointsPreset) &&
+          textIncludes(text, waypointsQuery);
+      }),
+    [userWaypoints, waypointsPreset, waypointsQuery]
+  );
 
-  const filteredComments = useMemo(() => {
-    return userComments.filter((c) => {
-      const text = `${c.content ?? ""} ${c.waypoint_name ?? ""} ${c.route_name ?? ""}`;
-      const when = c.create_time ?? c.created_at ?? c.createdAt ?? "";
-      return withinPreset(when, commentsPreset) && textIncludes(text, commentsQuery);
-    });
-  }, [userComments, commentsPreset, commentsQuery]);
+  const filteredComments = useMemo(
+    () =>
+      userComments.filter((c) => {
+        const text = `${c.content ?? ""} ${c.waypoint_name ?? ""} ${
+          c.route_name ?? ""
+        }`;
+        const when = c.create_time ?? c.created_at ?? c.createdAt ?? "";
+        return withinPreset(when, commentsPreset) &&
+          textIncludes(text, commentsQuery);
+      }),
+    [userComments, commentsPreset, commentsQuery]
+  );
 
   // ---- Delete handlers ----
   const handleDeleteRoute = async (id: number) => {
@@ -174,7 +191,7 @@ export default function AccountScreen({ navigation }: any) {
     if (!id || !userToken) return;
     try {
       await deleteComment(id, userToken);
-      setUserComments((prev) => prev.filter((c) => c.id !== c.id));
+      setUserComments((prev) => prev.filter((c) => c.id !== id)); // ✅ fix
     } catch (err) {
       console.error("Failed to delete comment:", err);
       Alert.alert("Error", "Failed to delete comment.");
@@ -219,8 +236,10 @@ export default function AccountScreen({ navigation }: any) {
   };
 
   // ---- Edit handlers ----
-  const handleEditRoute = (id: number) => navigation.navigate("RouteEdit", { id });
-  const handleEditWaypoint = (id: number) => navigation.navigate("WaypointEdit", { id });
+  const handleEditRoute = (id: number) =>
+    navigation.navigate("RouteEdit", { id });
+  const handleEditWaypoint = (id: number) =>
+    navigation.navigate("WaypointEdit", { id });
 
   return (
     <ScrollView
@@ -232,19 +251,31 @@ export default function AccountScreen({ navigation }: any) {
 
       {/* Basic Info */}
       <Card>
-        <StatRow label="Username" value={profile?.username || "Loading..."} />
-        <StatRow label="Email" value={profile?.email || "Loading..."} showBorder={false} />
+        <StatRow
+          label="Username"
+          value={profile?.username || "Loading..."}
+        />
+        <StatRow
+          label="Email"
+          value={profile?.email || "Loading..."}
+          showBorder={false}
+        />
       </Card>
 
       {/* Stats */}
       <Card title="Profile Statistics">
         <StatRow
           label="Member Since"
-          value={profile ? new Date(profile.created_at).toLocaleDateString() : "—"}
+          value={
+            profile
+              ? new Date(profile.created_at).toLocaleDateString()
+              : "—"
+          }
         />
         <StatRow
           label="Routes Created"
-          value={profile?.stats?.routes_created ?? "—"} />
+          value={profile?.stats?.routes_created ?? "—"}
+        />
         <StatRow
           label="Waypoints Created"
           value={profile?.stats?.waypoints_created ?? "—"}
@@ -282,13 +313,18 @@ export default function AccountScreen({ navigation }: any) {
             <UserItemRow
               key={r.id}
               title={r.name}
-              subtitle={`${r.region || "—"} • ${new Date(r.created_at).toLocaleDateString()}`}
+              subtitle={`${r.region || "—"} • ${new Date(
+                r.created_at
+              ).toLocaleDateString()}`}
               onEdit={() => handleEditRoute(r.id)}
               onDelete={() => confirmDeleteRoute(r.id)}
             />
           ))
         ) : (
-          <EmptyState title="No routes" subtitle="Try a different filter or search." />
+          <EmptyState
+            title="No routes"
+            subtitle="Try a different filter or search."
+          />
         )}
       </AccountSection>
 
@@ -310,13 +346,18 @@ export default function AccountScreen({ navigation }: any) {
             <UserItemRow
               key={w.id}
               title={w.name}
-              subtitle={`${w.route_name} • ${w.type} • ${new Date(w.created_at).toLocaleDateString()}`}
+              subtitle={`${w.route_name} • ${w.type} • ${new Date(
+                w.created_at
+              ).toLocaleDateString()}`}
               onEdit={() => handleEditWaypoint(w.id)}
               onDelete={() => confirmDeleteWaypoint(w.id)}
             />
           ))
         ) : (
-          <EmptyState title="No waypoints" subtitle="Adjust your filters or search." />
+          <EmptyState
+            title="No waypoints"
+            subtitle="Adjust your filters or search."
+          />
         )}
       </AccountSection>
 
@@ -347,11 +388,18 @@ export default function AccountScreen({ navigation }: any) {
                       if (!userToken) return;
                       try {
                         setSavingCommentId(c.id);
-                        setUserComments((prev) => prev.map(cc => cc.id === c.id ? { ...cc, content: text } : cc));
+                        setUserComments((prev) =>
+                          prev.map((cc) =>
+                            cc.id === c.id ? { ...cc, content: text } : cc
+                          )
+                        );
                         await updateComment(c.id, text, userToken);
                         setEditingCommentId(null);
                       } catch (e) {
-                        Alert.alert("Error", "Failed to update comment.");
+                        Alert.alert(
+                          "Error",
+                          "Failed to update comment."
+                        );
                       } finally {
                         setSavingCommentId(null);
                       }
@@ -360,7 +408,9 @@ export default function AccountScreen({ navigation }: any) {
                 ) : (
                   <UserItemRow
                     title={c.waypoint_name || c.route_name || "Unknown"}
-                    subtitle={`${new Date(c.create_time).toLocaleDateString()} • ${c.content}`}
+                    subtitle={`${new Date(
+                      c.create_time
+                    ).toLocaleDateString()} • ${c.content}`}
                     onEdit={() => setEditingCommentId(c.id)}
                     onDelete={() => confirmDeleteComment(c.id)}
                   />
@@ -369,12 +419,19 @@ export default function AccountScreen({ navigation }: any) {
             );
           })
         ) : (
-          <EmptyState title="No comments" subtitle="Nothing matches your search." />
+          <EmptyState
+            title="No comments"
+            subtitle="Nothing matches your search."
+          />
         )}
       </AccountSection>
 
       <TouchableOpacity
-        style={[globalStyles.button, globalStyles.buttonSecondary, globalStyles.settingsButton]}
+        style={[
+          globalStyles.button,
+          globalStyles.buttonSecondary,
+          globalStyles.settingsButton,
+        ]}
         onPress={() => navigation.navigate("Settings")}
       >
         <Text style={globalStyles.buttonText}>Settings</Text>

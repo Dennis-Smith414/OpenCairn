@@ -81,8 +81,28 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                         resizeMode="contain"
                     />
 
-                    <Text style={globalStyles.titleText}>Login</Text>
-                    <Text style={globalStyles.subtitleText}>Welcome back!</Text>
+<View style={{ alignItems: "center", marginBottom: 20, marginTop: 10 }}>
+  <Text
+    style={{
+      fontSize: 28,
+      color: colors.textPrimary,
+      fontWeight: "600",
+      marginBottom: 4,
+    }}
+  >
+    Login
+  </Text>
+
+  <Text
+    style={{
+      fontSize: 16,
+      color: colors.textSecondary,
+    }}
+  >
+    Welcome back!
+  </Text>
+</View>
+
 
                     <TextInput
                         style={globalStyles.input}

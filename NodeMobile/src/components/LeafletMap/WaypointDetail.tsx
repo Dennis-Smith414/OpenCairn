@@ -96,19 +96,33 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     };
   }, [userToken]);
 
-  const handleVote = async (val: 1 | -1) => {
-    if (!id || !userToken || loadingVote) return;
-    setLoadingVote(true);
-    try {
-      const result = await submitWaypointVote(id, val, userToken);
-      setVotes(result.total);
-      setUserRating(result.user_rating);
-    } catch (err) {
-      console.error("Vote failed:", err);
-    } finally {
-      setLoadingVote(false);
-    }
-  };
+// --- Voting handler ---
+const handleVote = async (val: 1 | -1) => {
+  if (!id || !userToken || loadingVote) {
+    console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
+    return;
+  }
+
+  setLoadingVote(true);
+
+  try {
+    // 1) Send vote to backend (we ignore its returned total)
+    await submitWaypointVote(id, val, userToken);
+
+    // 2) Immediately re-fetch the *real* total + user rating
+    const latest = await fetchWaypointRating(id, userToken);
+    console.log("[handleVote] refreshed rating:", latest);
+
+    setTotalVotes(latest.total ?? 0);
+    setUserRating(latest.user_rating ?? null);
+  } catch (err) {
+    console.error("❌ Vote failed or refresh failed:", err);
+    // (Optional) you could show an Alert here
+  } finally {
+    setLoadingVote(false);
+  }
+};
+
 
   // --- Formatters ---
   const formattedDate = dateUploaded
@@ -173,13 +187,14 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     >
       {/* Header Section */}
       <View style={styles.header}>
-        <Image
-          source={
-            iconRequire || require("../../assets/icons/waypoints/generic.png")
-          }
-          style={styles.iconImage}
-          resizeMode="contain"
-        />
+<Image
+  source={
+    iconRequire || require("../../assets/icons/waypoints/generic.png")
+  }
+  style={[styles.iconImage, { tintColor: themeColors.textPrimary }]}
+  resizeMode="contain"
+/>
+
         <View style={styles.headerInfo}>
           <Text style={[styles.title, { color: themeColors.textPrimary }]}>
             {name}
@@ -204,34 +219,34 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
 
       {/* Voting */}
       <View style={styles.votingSection}>
-        <TouchableOpacity onPress={() => handleVote(1)} disabled={loadingVote}>
-          <Text
-            style={[
-              styles.voteButton,
-              { color: themeColors.textPrimary }, //  ADDED
-              userRating === 1 && { color: themeColors.accent }, //  ADDED
-            ]}
-          >
-            ⬆️
-          </Text>
-        </TouchableOpacity>
+  <TouchableOpacity onPress={() => handleVote(1)} disabled={loadingVote}>
+    <Text
+      style={[
+        styles.voteButton,
+        { color: themeColors.textPrimary },
+        userRating === 1 && { color: themeColors.accent },
+      ]}
+    >
+      ▲
+    </Text>
+  </TouchableOpacity>
 
-        <Text style={[styles.voteCount, { color: themeColors.textPrimary }]}>
-          {votes}
-        </Text>
+  <Text style={[styles.voteCount, { color: themeColors.textPrimary }]}>
+    {votes}
+  </Text>
 
-        <TouchableOpacity onPress={() => handleVote(-1)} disabled={loadingVote}>
-          <Text
-            style={[
-              styles.voteButton,
-              { color: themeColors.textPrimary }, //  ADDED
-              userRating === -1 && { color: themeColors.error || "#d33" } //  ADDED
-            ]}
-          >
-            ⬇️
-          </Text>
-        </TouchableOpacity>
-      </View>
+  <TouchableOpacity onPress={() => handleVote(-1)} disabled={loadingVote}>
+    <Text
+      style={[
+        styles.voteButton,
+        { color: themeColors.textPrimary },
+        userRating === -1 && { color: themeColors.error || "#d33" },
+      ]}
+    >
+      ▼
+    </Text>
+  </TouchableOpacity>
+</View>
 
       {/* Comments (Always visible) */}
       {id && (
