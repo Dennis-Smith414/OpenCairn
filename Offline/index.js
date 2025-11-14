@@ -8,6 +8,7 @@ const gpxRoutes = require("./routes/gpx");
 const ratingsRoutes = require("./routes/ratings");
 const routesRoutes = require("./routes/routes");
 const waypointsRoutes = require("./routes/waypoints");
+const downloadRoutes = require("./routes/download");
 
 const PORT = process.env.OFFLINE_PORT || 5101;
 
@@ -29,12 +30,12 @@ async function start() {
       });
     });
 
-    // Mirror the online API prefixes as much as possible
     app.use("/api/comments", commentsRoutes);
     app.use("/api/ratings", ratingsRoutes);
     app.use("/api/routes", routesRoutes);
     app.use("/api/waypoints", waypointsRoutes);
-    app.use("/api", gpxRoutes); // /api/routes/ping, /api/routes/:id/gpx (stubbed uploads)
+    app.use("/api", gpxRoutes);
+    app.use("/api/sync", downloadRoutes);
 
     // Optional: offline-specific health endpoint
     app.get("/api/health", (_req, res) => {
