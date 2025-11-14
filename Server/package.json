@@ -8,6 +8,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^10.4.0",
     "@turf/bbox": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "bcryptjs": "^3.0.2",

@@ -5,6 +5,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { RouteSelectionProvider } from './src/context/RouteSelectionContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
+import { OfflineBackendProvider } from "./src/context/OfflineContext";
+
 
 // ✅ ADD: theme bootstrap helpers
 import { loadSavedThemeOverride, startSystemThemeListener } from "./src/styles/theme";
@@ -64,6 +66,7 @@ export default function App() {
   }, []); // runs on mount/unmount only
 
   return (
+   <OfflineBackendProvider initialMode="online">
     <AuthProvider>
       <RouteSelectionProvider>
         <DistanceUnitProvider>
@@ -71,5 +74,6 @@ export default function App() {
         </DistanceUnitProvider>
       </RouteSelectionProvider>
     </AuthProvider>
+  </OfflineBackendProvider>
   );
 }

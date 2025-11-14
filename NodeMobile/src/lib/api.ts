@@ -1,28 +1,48 @@
 // src/lib/api.ts
-//import { API_BASE as ENV_API_BASE } from '@env';
-import { API_BASE } from '../config/env';
-
-if (!API_BASE) {
-  console.error("[boot] ❌ No API_BASE found. Check your .env file path and contents.");
-  throw new Error("Missing API_BASE");
-}
+import { API_BASE, OFFLINE_API_BASE } from "../config/env";
 
 function safeJson(text: string) {
-  try { return JSON.parse(text); } catch { return null; }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
-//export const API_BASE = ENV_API_BASE;
+// This will be set by OfflineContext at app startup.
+let dynamicApiBase = "";
 
 /**
- * NEW: use GET /api/routes with optional pagination/search
- * (keeps same signature/return shape as before)
+ * Called from OfflineProvider whenever mode changes.
+ */
+export function setApiBase(base: string) {
+  dynamicApiBase = base;
+}
+
+/**
+ * Resolve the base URL to use.
+ * - Prefer dynamicApiBase set by OfflineContext
+ * - Fallback to env API_BASE (online) as a safety net
+ */
+function getBase(): string {
+  if (dynamicApiBase) return dynamicApiBase;
+  if (!API_BASE) {
+    console.error("[boot] ❌ No API_BASE found. Check your .env.");
+    throw new Error("Missing API_BASE");
+  }
+  return API_BASE;
+}
+export function getBaseUrl() {
+  return getBase()
+}
+
+/**
+ * GET /api/routes
+ * (shared online/offline)
  */
 export async function fetchRouteList() {
-  const url = new URL(`${API_BASE}/api/routes`);
-  // If you later add search/pagination, set params here:
-  // url.searchParams.set("q", q);
-  // url.searchParams.set("limit", String(limit));
-  // url.searchParams.set("offset", String(offset));
+  const base = getBase();
+  const url = new URL(`${base}/api/routes`);
 
   const res = await fetch(url.toString());
   const text = await res.text();
@@ -35,11 +55,12 @@ export async function fetchRouteList() {
 }
 
 /**
- * NEW: use GET /api/routes/:id/gpx
- * Returns FeatureCollection
+ * GET /api/routes/:id/gpx
+ * Returns FeatureCollection (shared online/offline)
  */
 export async function fetchRouteGeo(id: number) {
-  const res = await fetch(`${API_BASE}/api/routes/${id}/gpx`);
+  const base = getBase();
+  const res = await fetch(`${base}/api/routes/${id}/gpx`);
   const text = await res.text();
   const json = safeJson(text);
 
@@ -47,19 +68,28 @@ export async function fetchRouteGeo(id: number) {
     throw new Error(`geo error ${res.status} :: ${text.slice(0, 200)}`);
   }
 
-  // Server returns { ok: true, geojson: FeatureCollection }
-  // (Compat: if server ever returns raw FeatureCollection, handle that too)
   if (json.ok && json.geojson) return json.geojson;
-  if (json.type === "FeatureCollection") return json; // fallback compat
+  if (json.type === "FeatureCollection") return json;
 
   throw new Error(`Unexpected geometry payload: ${text.slice(0, 200)}`);
 }
 
+/**
+ * BELOW: /users/me* endpoints are ONLINE ONLY.
+ * If we’re pointed at the offline base, we short-circuit and
+ * return a safe “offline” response instead of throwing.
+ */
+
 export async function fetchUserRoutes(token: string) {
-  const res = await fetch(`${API_BASE}/api/users/me/routes`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  const base = getBase();
+
+  // Offline DB: don't even try, just return safe shape
+  if (base === OFFLINE_API_BASE) {
+    return { ok: false, offline: true, routes: [] };
+  }
+
+  const res = await fetch(`${base}/api/users/me/routes`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
@@ -70,10 +100,14 @@ export async function fetchUserRoutes(token: string) {
 }
 
 export async function fetchUserWaypoints(token: string) {
-  const res = await fetch(`${API_BASE}/api/users/me/waypoints`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  const base = getBase();
+
+  if (base === OFFLINE_API_BASE) {
+    return { ok: false, offline: true, waypoints: [] };
+  }
+
+  const res = await fetch(`${base}/api/users/me/waypoints`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
@@ -84,10 +118,14 @@ export async function fetchUserWaypoints(token: string) {
 }
 
 export async function fetchUserComments(token: string) {
-  const res = await fetch(`${API_BASE}/api/users/me/comments`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  const base = getBase();
+
+  if (base === OFFLINE_API_BASE) {
+    return { ok: false, offline: true, comments: [] };
+  }
+
+  const res = await fetch(`${base}/api/users/me/comments`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
@@ -98,7 +136,15 @@ export async function fetchUserComments(token: string) {
 }
 
 export async function fetchCurrentUser(token: string) {
-  const res = await fetch(`${API_BASE}/api/users/me`, {
+  const base = getBase();
+
+  if (base === OFFLINE_API_BASE) {
+    // In offline mode we simply can't load the profile.
+    // Returning null makes it easy for the UI to hide account-specific stuff.
+    return null;
+  }
+
+  const res = await fetch(`${base}/api/users/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 

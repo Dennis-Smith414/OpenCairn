@@ -1,12 +1,13 @@
 // src/lib/ratings.ts
 //import { API_BASE } from "./api";
-
-import { API_BASE } from "../config/env";
+//import { API_BASE } from "../config/env";
+import { getBaseUrl } from "./api";
 
 /**
  * Fetch the total and user-specific rating for a given waypoint.
  */
 export async function fetchWaypointRating(waypointId: number, token?: string) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/waypoint/${waypointId}`;
 
   try {
@@ -39,6 +40,7 @@ export async function submitWaypointVote(
   val: 1 | -1,
   token: string
 ) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/waypoint/${waypointId}`;
 
   try {
@@ -78,6 +80,7 @@ export async function submitWaypointVote(
  * Fetch the total and user-specific rating for a given ROUTE.
  */
 export async function fetchRouteRating(routeId: number, token?: string) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/route/${routeId}`;
 
   try {
@@ -110,6 +113,7 @@ export async function submitRouteVote(
   val: 1 | -1,
   token: string
 ) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/route/${routeId}`;
 
   try {
@@ -152,6 +156,7 @@ export async function submitRouteVote(
  * Fetch total and user-specific rating for a comment.
  */
 export async function fetchCommentRating(commentId: number, token?: string) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/comment/${commentId}`;
 
   try {
@@ -182,6 +187,7 @@ export async function submitCommentVote(
   val: 1 | -1,
   token: string
 ) {
+  const API_BASE = getBaseUrl();
   const url = `${API_BASE}/api/ratings/comment/${commentId}`;
 
   try {

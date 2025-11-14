@@ -1,5 +1,6 @@
 import RNFS from "react-native-fs";
-import { API_BASE } from "../config/env";
+//import { API_BASE } from "../config/env";
+import { getBaseUrl } from "./api";
 
 /** Low-level: build FormData for a local file URI. */
 function buildGpxFormData(fileUri: string) {
@@ -26,6 +27,7 @@ export async function uploadGpxToExistingRoute(
   token: string
 ) {
   const { form, filename } = buildGpxFormData(fileUri);
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/routes/${routeId}/gpx`, {
     method: "POST",
     headers: {
@@ -54,6 +56,7 @@ export async function uploadGpxToExistingRoute(
  */
 export async function uploadGpxAndCreateRoute(fileUri: string, token: string) {
   const { form, filename } = buildGpxFormData(fileUri);
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/routes/upload`, {
     method: "POST",
     headers: {
