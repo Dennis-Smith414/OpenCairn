@@ -5,20 +5,20 @@ import { useThemeStyles } from '../../styles/theme';
 import { createGlobalStyles } from '../../styles/globalStyles';
 
 interface TripStats {
-  distanceRemaining: number; // meters
-  elapsedTime: number; // seconds
-  estimatedTimeRemaining: number; // seconds
-  averageSpeed: number; // m/s
+  distanceRemaining: number;
+  elapsedTime: number;
+  estimatedTimeRemaining: number;
+  averageSpeed: number;
   isPaused: boolean;
   startTime: number | null;
   lastResumeTime: number | null;
-  totalPausedTime: number; // seconds
+  totalPausedTime: number;
 }
 
 interface TripTrackerProps {
-  totalRouteDistance: number; // meters
-  currentPosition: [number, number] | null; // [lat, lng]
-  tracks: any[]; // Users track data
+  totalRouteDistance: number;
+  currentPosition: [number, number] | null;
+  tracks: any[];
   onStatsUpdate?: (stats: TripStats) => void;
 }
 
@@ -30,7 +30,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 }) => {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
-  
+
   const [tripStats, setTripStats] = useState<TripStats>({
     distanceRemaining: totalRouteDistance,
     elapsedTime: 0,
@@ -43,13 +43,13 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   });
 
   const tripTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastUpdateRef = useRef<number>(0);
 
-  // Calculate distance between two coordinates (Haversine formula)
+  // Calculate distance between two coordinates
   const calculateDistance = useCallback((coord1: [number, number], coord2: [number, number]): number => {
     const [lat1, lon1] = coord1;
     const [lat2, lon2] = coord2;
-    
-    const R = 6371000; // Earth's radius in meters
+    const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -65,95 +65,153 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     if (tracks.length === 0) return totalRouteDistance;
 
     let minDistance = Infinity;
-    let remainingDistance = 0;
-    let foundCurrentPosition = false;
+    let nearestSegmentIndex = -1;
+    let nearestPointIndex = -1;
+    let nearestTrackIndex = -1;
 
-    tracks.forEach(track => {
-      const segments = Array.isArray(track.coords[0]) ? track.coords as [number, number][][] : [track.coords as [number, number][]];
-      
-      segments.forEach(segment => {
-        for (let i = 0; i < segment.length; i++) {
-          const point = segment[i];
+    // Find the nearest point on any track
+    tracks.forEach((track, trackIdx) => {
+      const segments = Array.isArray(track.coords[0]) 
+        ? track.coords as [number, number][][] 
+        : [track.coords as [number, number][]];
+
+      segments.forEach((segment, segIdx) => {
+        segment.forEach((point, pointIdx) => {
           const distanceToCurrent = calculateDistance(currentPos, point);
-          
           if (distanceToCurrent < minDistance) {
             minDistance = distanceToCurrent;
-            foundCurrentPosition = true;
-            remainingDistance = 0;
-            
-            // Calculate remaining distance from this point to end
-            for (let j = i; j < segment.length - 1; j++) {
-              remainingDistance += calculateDistance(segment[j], segment[j+1]);
-            }
-          } else if (foundCurrentPosition) {
-            // Add distance from remaining segments
-            for (let j = 0; j < segment.length - 1; j++) {
-              remainingDistance += calculateDistance(segment[j], segment[j+1]);
-            }
+            nearestTrackIndex = trackIdx;
+            nearestSegmentIndex = segIdx;
+            nearestPointIndex = pointIdx;
           }
-        }
+        });
       });
     });
 
-    return foundCurrentPosition && minDistance < 50 ? remainingDistance : totalRouteDistance; // 50m threshold
+    // If we're too far from the track (>50m), return full distance
+    // TODO
+    // If 15m off trail add a warning that you are off trail
+    if (minDistance > 50) {
+      return totalRouteDistance;
+    }
+
+    // Calculate remaining distance from nearest point to end
+    let remainingDistance = 0;
+    
+    // Get the track and segments
+    const nearestTrack = tracks[nearestTrackIndex];
+    const segments = Array.isArray(nearestTrack.coords[0]) 
+      ? nearestTrack.coords as [number, number][][] 
+      : [nearestTrack.coords as [number, number][]];
+
+    // Add distance from nearest point to end of current segment
+    const currentSegment = segments[nearestSegmentIndex];
+    for (let i = nearestPointIndex; i < currentSegment.length - 1; i++) {
+      remainingDistance += calculateDistance(currentSegment[i], currentSegment[i + 1]);
+    }
+
+    // Add distance from remaining segments in current track
+    for (let s = nearestSegmentIndex + 1; s < segments.length; s++) {
+      const segment = segments[s];
+      for (let i = 0; i < segment.length - 1; i++) {
+        remainingDistance += calculateDistance(segment[i], segment[i + 1]);
+      }
+    }
+
+    // Add distance from remaining tracks
+    for (let t = nearestTrackIndex + 1; t < tracks.length; t++) {
+      const track = tracks[t];
+      const trackSegments = Array.isArray(track.coords[0]) 
+        ? track.coords as [number, number][][] 
+        : [track.coords as [number, number][]];
+      
+      trackSegments.forEach(segment => {
+        for (let i = 0; i < segment.length - 1; i++) {
+          remainingDistance += calculateDistance(segment[i], segment[i + 1]);
+        }
+      });
+    }
+
+    return remainingDistance;
   }, [tracks, totalRouteDistance, calculateDistance]);
 
   // Update trip stats
-  const updateTripStats = useCallback((currentPos: [number, number] | null) => {
-    if (!currentPos || tripStats.isPaused) return;
+  const doUpdateStats = useCallback(() => {
+    if (!currentPosition) return;
 
-    const remainingDistance = calculateRemainingDistance(currentPos);
+    // Avoid too many state changes THIS was the damn problem!!!!
     const now = Date.now();
-    const elapsed = tripStats.lastResumeTime ? 
-      (now - tripStats.lastResumeTime) / 1000 + tripStats.totalPausedTime : 
-      tripStats.totalPausedTime;
-    
-    const distanceTraveled = totalRouteDistance - remainingDistance;
-    const avgSpeed = elapsed > 0 ? distanceTraveled / elapsed : 0;
-    const eta = avgSpeed > 0 ? remainingDistance / avgSpeed : 0;
+    if (now - lastUpdateRef.current < 500) return; // Update at most every 500ms
+    lastUpdateRef.current = now;
 
-    const newStats: TripStats = {
-      ...tripStats,
-      distanceRemaining: remainingDistance,
-      elapsedTime: elapsed,
-      estimatedTimeRemaining: eta,
-      averageSpeed: avgSpeed
-    };
+    setTripStats(prevStats => {
+      if (prevStats.isPaused) return prevStats;
 
-    setTripStats(newStats);
-    onStatsUpdate?.(newStats);
-  }, [tripStats, calculateRemainingDistance, totalRouteDistance, onStatsUpdate]);
+      const remainingDistance = calculateRemainingDistance(currentPosition);
+      const elapsed = prevStats.lastResumeTime 
+        ? (now - prevStats.lastResumeTime) / 1000 + prevStats.totalPausedTime
+        : prevStats.totalPausedTime;
 
-  // Trip control functions
+      const distanceTraveled = totalRouteDistance - remainingDistance;
+      const avgSpeed = elapsed > 0 ? distanceTraveled / elapsed : 0;
+      const eta = avgSpeed > 0 ? remainingDistance / avgSpeed : 0;
+
+      const newStats: TripStats = {
+        ...prevStats,
+        distanceRemaining: remainingDistance,
+        elapsedTime: elapsed,
+        estimatedTimeRemaining: eta,
+        averageSpeed: avgSpeed
+      };
+
+      // callback outside of setState
+      setTimeout(() => onStatsUpdate?.(newStats), 0);
+      
+      return newStats;
+    });
+  }, [currentPosition, calculateRemainingDistance, totalRouteDistance, onStatsUpdate]);
+
+  // Start trip
   const startTrip = useCallback(() => {
+    console.log('[TripTracker] Starting trip');
     const now = Date.now();
-    const newStats: TripStats = {
-      ...tripStats,
-      isPaused: false,
-      startTime: tripStats.startTime || now,
-      lastResumeTime: now
-    };
     
-    setTripStats(newStats);
-    onStatsUpdate?.(newStats);
-  }, [tripStats, onStatsUpdate]);
+    setTripStats(prev => {
+      console.log('[TripTracker] Start - prev.isPaused:', prev.isPaused);
+      const newStats: TripStats = {
+        ...prev,
+        isPaused: false,
+        startTime: prev.startTime || now,
+        lastResumeTime: now
+      };
+      setTimeout(() => onStatsUpdate?.(newStats), 0);
+      return newStats;
+    });
+  }, [onStatsUpdate]);
 
+  // Pause trip
   const pauseTrip = useCallback(() => {
+    console.log('[TripTracker] Pausing trip');
     const now = Date.now();
-    const newStats: TripStats = {
-      ...tripStats,
-      isPaused: true,
-      totalPausedTime: tripStats.lastResumeTime ? 
-        tripStats.totalPausedTime + (now - tripStats.lastResumeTime) / 1000 : 
-        tripStats.totalPausedTime,
-      lastResumeTime: null
-    };
     
-    setTripStats(newStats);
-    onStatsUpdate?.(newStats);
-  }, [tripStats, onStatsUpdate]);
+    setTripStats(prev => {
+      console.log('[TripTracker] Pause - prev.isPaused:', prev.isPaused);
+      const newStats: TripStats = {
+        ...prev,
+        isPaused: true,
+        totalPausedTime: prev.lastResumeTime 
+          ? prev.totalPausedTime + (now - prev.lastResumeTime) / 1000
+          : prev.totalPausedTime,
+        lastResumeTime: null
+      };
+      setTimeout(() => onStatsUpdate?.(newStats), 0);
+      return newStats;
+    });
+  }, [onStatsUpdate]);
 
+  // Reset trip
   const resetTrip = useCallback(() => {
+    console.log('[TripTracker] Reset requested');
     Alert.alert(
       "Reset Trip",
       "Are you sure you want to reset all trip statistics?",
@@ -163,6 +221,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
           text: "Reset", 
           style: "destructive", 
           onPress: () => {
+            console.log('[TripTracker] Resetting trip');
             const newStats: TripStats = {
               distanceRemaining: totalRouteDistance,
               elapsedTime: 0,
@@ -174,26 +233,48 @@ const TripTracker: React.FC<TripTrackerProps> = ({
               totalPausedTime: 0
             };
             setTripStats(newStats);
-            onStatsUpdate?.(newStats);
+            setTimeout(() => onStatsUpdate?.(newStats), 0);
           }
         },
       ]
     );
   }, [totalRouteDistance, onStatsUpdate]);
 
-  //keep updating stats on pos change
+  // Update stats when position changes
   useEffect(() => {
     if (currentPosition && !tripStats.isPaused) {
-      updateTripStats(currentPosition);
+      doUpdateStats();
     }
-  }, [currentPosition, tripStats.isPaused, updateTripStats]);
+  }, [currentPosition, tripStats.isPaused, doUpdateStats]);
 
-  // Formatting 
+  // Timer for updating elapsed time
+  useEffect(() => {
+    // Clear any existing timer
+    if (tripTimerRef.current) {
+      clearInterval(tripTimerRef.current);
+      tripTimerRef.current = null;
+    }
+
+    if (!tripStats.isPaused && tripStats.lastResumeTime) {
+      console.log('[TripTracker] Starting update timer');
+      tripTimerRef.current = setInterval(() => {
+        doUpdateStats();
+      }, 1000);
+    }
+
+    return () => {
+      if (tripTimerRef.current) {
+        clearInterval(tripTimerRef.current);
+        tripTimerRef.current = null;
+      }
+    };
+  }, [tripStats.isPaused, tripStats.lastResumeTime, doUpdateStats]);
+
+  // Formatting functions
   const formatTime = (seconds: number): string => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
     if (hrs > 0) {
       return `${hrs}h ${mins}m ${secs}s`;
     } else if (mins > 0) {
@@ -215,6 +296,8 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 
   const styles = createStyles(colors);
 
+  console.log('[TripTracker] Render - isPaused:', tripStats.isPaused);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Trip Tracker</Text>
@@ -226,23 +309,24 @@ const TripTracker: React.FC<TripTrackerProps> = ({
             {formatDistance(tripStats.distanceRemaining)}
           </Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Elapsed</Text>
           <Text style={styles.statValue}>
             {formatTime(tripStats.elapsedTime)}
           </Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>ETA</Text>
           <Text style={styles.statValue}>
-            {tripStats.estimatedTimeRemaining > 0 ? 
-              formatTime(tripStats.estimatedTimeRemaining) : '--'
+            {tripStats.estimatedTimeRemaining > 0 
+              ? formatTime(tripStats.estimatedTimeRemaining) 
+              : '--'
             }
           </Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Speed</Text>
           <Text style={styles.statValue}>
@@ -258,20 +342,22 @@ const TripTracker: React.FC<TripTrackerProps> = ({
             tripStats.isPaused ? styles.startButton : styles.pauseButton
           ]}
           onPress={tripStats.isPaused ? startTrip : pauseTrip}
+          activeOpacity={0.7}
         >
           <Text style={styles.controlButtonText}>
             {tripStats.isPaused ? 'Start Trip' : 'Pause Trip'}
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.controlButton, styles.resetButton]}
           onPress={resetTrip}
+          activeOpacity={0.7}
         >
           <Text style={styles.controlButtonText}>Reset</Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.statusBar}>
         <Text style={[
           styles.statusText,
@@ -297,6 +383,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+    zIndex: 1,
   },
   title: {
     fontSize: 18,
@@ -330,14 +417,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+    zIndex: 2,
   },
   controlButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginHorizontal: 4,
+    elevation: 2,
   },
   startButton: {
     backgroundColor: colors.success,
