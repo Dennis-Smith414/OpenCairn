@@ -10,9 +10,11 @@ import {
   TextInput,
 } from "react-native";
 import { useThemeStyles } from "../styles/theme";
-import { createGlobalStyles } from '../styles/globalStyles';
+import { createGlobalStyles } from "../styles/globalStyles";
 import { fetchRouteList } from "../lib/api";
 import { useRouteSelection } from "../context/RouteSelectionContext";
+import { syncRouteToOffline } from "../lib/bringOffline";
+import { useAuth } from "../context/AuthContext";  // 👈 NEW
 
 type RouteItem = {
   id: number;
@@ -24,7 +26,7 @@ type RouteItem = {
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors, styles: baseStyles } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
-  
+
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,6 +35,8 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [query, setQuery] = useState("");
 
   const { selectedRouteIds, toggleRoute } = useRouteSelection();
+  const { userToken, user } = useAuth();              // 👈 NEW
+  const [syncingRouteId, setSyncingRouteId] = useState<number | null>(null); // 👈 NEW
 
   // Fetch route list
   const loadRoutes = useCallback(async () => {
@@ -64,11 +68,48 @@ export default function RouteSelectScreen({ navigation }: any) {
     });
   }, [routes, query]);
 
+  // 👇 NEW: basic test handler for taking a route offline
+  const handleDownloadRoute = useCallback(
+    async (routeId: number, routeName: string) => {
+      if (!userToken) {
+        Alert.alert(
+          "Login required",
+          "You must be logged in to sync routes for offline use."
+        );
+        return;
+      }
+
+      try {
+        setSyncingRouteId(routeId);
+        await syncRouteToOffline(routeId, {
+          token: userToken,
+          currentUserId: user?.id,
+        });
+
+        Alert.alert(
+          "Offline ready",
+          `Route "${routeName}" has been synced to the offline database.`
+        );
+      } catch (err: any) {
+        console.error("syncRouteToOffline error:", err);
+        Alert.alert(
+          "Sync failed",
+          err?.message ?? "Failed to sync route for offline use."
+        );
+      } finally {
+        setSyncingRouteId(null);
+      }
+    },
+    [userToken, user?.id]
+  );
+
   if (loading) {
     return (
       <View style={[globalStyles.container, { padding: 16 }]}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[globalStyles.subText, { marginTop: 8 }]}>Loading routes…</Text>
+        <Text style={[globalStyles.subText, { marginTop: 8 }]}>
+          Loading routes…
+        </Text>
       </View>
     );
   }
@@ -93,7 +134,10 @@ export default function RouteSelectScreen({ navigation }: any) {
           returnKeyType="search"
         />
         {!!query && (
-          <TouchableOpacity onPress={() => setQuery("")} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+          <TouchableOpacity
+            onPress={() => setQuery("")}
+            style={{ paddingHorizontal: 12, paddingVertical: 10 }}
+          >
             <Text style={{ color: colors.textSecondary }}>×</Text>
           </TouchableOpacity>
         )}
@@ -103,7 +147,12 @@ export default function RouteSelectScreen({ navigation }: any) {
       <TouchableOpacity
         style={[
           globalStyles.button,
-          { backgroundColor: colors.accent, marginVertical: 8, paddingVertical: 10, width: "100%" },
+          {
+            backgroundColor: colors.accent,
+            marginVertical: 8,
+            paddingVertical: 10,
+            width: "100%",
+          },
         ]}
         onPress={() => navigation.navigate("RouteCreate")}
       >
@@ -118,6 +167,8 @@ export default function RouteSelectScreen({ navigation }: any) {
         onRefresh={loadRoutes}
         renderItem={({ item }) => {
           const isSelected = selectedRouteIds.includes(item.id);
+          const isSyncing = syncingRouteId === item.id;
+
           return (
             <TouchableOpacity
               style={{
@@ -125,31 +176,95 @@ export default function RouteSelectScreen({ navigation }: any) {
                 marginVertical: 6,
                 marginHorizontal: 16,
                 borderRadius: 12,
-                backgroundColor: isSelected ? colors.primary : colors.backgroundAlt,
+                backgroundColor: isSelected
+                  ? colors.primary
+                  : colors.backgroundAlt,
                 borderWidth: 1,
                 borderColor: colors.accent,
               }}
               onPress={() => toggleRoute({ id: item.id, name: item.name })}
+              activeOpacity={0.8}
             >
-              <Text style={[
-                globalStyles.bodyText,
-                { color: isSelected ? colors.background : colors.textPrimary }
-              ]}>
-                {item.name}
-              </Text>
-              {item.region && (
-                <Text style={[
-                  globalStyles.subText,
-                  { color: isSelected ? colors.background : colors.textSecondary }
-                ]}>
-                  {item.region}
-                </Text>
-              )}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      globalStyles.bodyText,
+                      {
+                        color: isSelected
+                          ? colors.background
+                          : colors.textPrimary,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.region && (
+                    <Text
+                      style={[
+                        globalStyles.subText,
+                        {
+                          color: isSelected
+                            ? colors.background
+                            : colors.textSecondary,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.region}
+                    </Text>
+                  )}
+                </View>
+
+                {/* 👇 NEW: simple "Offline" test button */}
+                <TouchableOpacity
+                  onPress={() => handleDownloadRoute(item.id, item.name)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: colors.accent,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                  activeOpacity={0.9}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.background}
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        color: colors.background,
+                        fontSize: 12,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Offline
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
           );
         }}
         ListEmptyComponent={
-          <Text style={[globalStyles.subText, { marginTop: 10, color: colors.textSecondary }]}>
+          <Text
+            style={[
+              globalStyles.subText,
+              { marginTop: 10, color: colors.textSecondary },
+            ]}
+          >
             {routes.length ? "No matching routes." : "No routes found."}
           </Text>
         }

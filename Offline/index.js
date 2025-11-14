@@ -15,7 +15,7 @@ const PORT = process.env.OFFLINE_PORT || 5101;
 async function start() {
   try {
     // 1) Initialize the SQLite DB (creates file + schema if needed)
-    await init({ withSeed: true }); // set to false after testing
+    await init({ withSeed: false }); // set to false after testing
 
     // 2) Start HTTP server
     const app = express();
