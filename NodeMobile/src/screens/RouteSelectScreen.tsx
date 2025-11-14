@@ -23,6 +23,8 @@ type RouteItem = {
   upvotes?: number; // from backend
 };
 
+const FAVORITES_KEY = "favorite_route_ids";
+
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
@@ -35,6 +37,52 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [query, setQuery] = useState("");
 
   const { selectedRouteIds, toggleRoute } = useRouteSelection();
+
+  // ⭐ favorites
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // Load favorites once
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setFavoriteIds(parsed);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load favorite routes", e);
+      }
+    })();
+  }, []);
+
+  const persistFavorites = useCallback(async (ids: number[]) => {
+    try {
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+    } catch (e) {
+      console.warn("Failed to save favorite routes", e);
+    }
+  }, []);
+
+  const toggleFavorite = useCallback(
+    (routeId: number) => {
+      setFavoriteIds((prev) => {
+        let next: number[];
+        if (prev.includes(routeId)) {
+          next = prev.filter((id) => id !== routeId);
+        } else {
+          next = [...prev, routeId];
+        }
+        // fire and forget persist
+        persistFavorites(next);
+        return next;
+      });
+    },
+    [persistFavorites]
+  );
 
   // Fetch route list
   const loadRoutes = useCallback(async () => {
@@ -55,7 +103,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     loadRoutes();
   }, [loadRoutes]);
 
-  // Upvote handler (must be before any early return)
+  // Upvote handler
   const handleUpvote = useCallback(async (routeId: number) => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -78,16 +126,23 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, []);
 
-  // 🔎 Fast in-memory filter (name or region, case-insensitive)
+  // 🔎 Fast in-memory filter (name or region, case-insensitive) + favorites filter
   const filteredRoutes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return routes;
-    return routes.filter((r) => {
+    let base = routes;
+
+    if (showFavoritesOnly) {
+      base = base.filter((r) => favoriteIds.includes(r.id));
+    }
+
+    if (!q) return base;
+
+    return base.filter((r) => {
       const name = r.name?.toLowerCase() ?? "";
       const region = r.region?.toLowerCase() ?? "";
       return name.includes(q) || region.includes(q);
     });
-  }, [routes, query]);
+  }, [routes, query, showFavoritesOnly, favoriteIds]);
 
   if (loading) {
     return (
@@ -102,7 +157,48 @@ export default function RouteSelectScreen({ navigation }: any) {
 
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
+      {/* Title */}
       <Text style={globalStyles.headerText}>Select Routes</Text>
+
+      {/* Favorites toggle pill, right-aligned just under title */}
+      <View
+        style={{
+          alignItems: "flex-end",
+          marginTop: 6,
+          marginBottom: 4,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => setShowFavoritesOnly((prev) => !prev)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: showFavoritesOnly ? colors.accent : colors.border,
+          }}
+        >
+          <Text
+            style={{
+              marginRight: 4,
+              fontSize: 16,
+              color: showFavoritesOnly ? colors.accent : colors.textSecondary,
+            }}
+          >
+            {showFavoritesOnly ? "★" : "☆"}
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: showFavoritesOnly ? colors.accent : colors.textSecondary,
+            }}
+          >
+            Favorites
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 🔎 Search input */}
       <View style={globalStyles.input}>
@@ -145,7 +241,7 @@ export default function RouteSelectScreen({ navigation }: any) {
         <Text style={globalStyles.buttonText}>＋ Create / Upload Route</Text>
       </TouchableOpacity>
 
-   <FlatList
+      <FlatList
         data={filteredRoutes}
         keyExtractor={(item) => String(item.id)}
         style={{ width: "100%", marginTop: 8 }}
@@ -153,6 +249,7 @@ export default function RouteSelectScreen({ navigation }: any) {
         onRefresh={loadRoutes}
         renderItem={({ item }) => {
           const isSelected = selectedRouteIds.includes(item.id);
+          const isFavorite = favoriteIds.includes(item.id);
 
           return (
             <View
@@ -167,7 +264,7 @@ export default function RouteSelectScreen({ navigation }: any) {
                   : colors.backgroundAlt,
               }}
             >
-              {/* Top row: name/region + upvote */}
+              {/* Top row: name/region + actions */}
               <View
                 style={{
                   flexDirection: "row",
@@ -210,7 +307,7 @@ export default function RouteSelectScreen({ navigation }: any) {
                   )}
                 </TouchableOpacity>
 
-                {/* Right: upvote button + count */}
+                {/* Right: favorite star + upvote button + count */}
                 <View
                   style={{
                     paddingRight: 12,
@@ -218,6 +315,24 @@ export default function RouteSelectScreen({ navigation }: any) {
                     justifyContent: "center",
                   }}
                 >
+                  {/* Favorite star */}
+                  <TouchableOpacity
+                    onPress={() => toggleFavorite(item.id)}
+                    style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        color: isFavorite
+                          ? colors.accent
+                          : colors.textSecondary,
+                      }}
+                    >
+                      {isFavorite ? "★" : "☆"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Upvote arrow */}
                   <TouchableOpacity
                     onPress={() => handleUpvote(item.id)}
                     style={{ paddingHorizontal: 8, paddingVertical: 4 }}
