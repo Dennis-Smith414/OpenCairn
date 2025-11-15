@@ -28,6 +28,7 @@ type RouteItem = {
 };
 
 const FAVORITES_KEY = "favorite_route_ids";
+const NEARBY_OPTIONS = [10, 25, 50, 75]; // miles
 
 // Simple Haversine distance in miles
 function computeDistanceMi(
@@ -53,7 +54,7 @@ export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
 
-  // 🔍 real GPS location (same hook MapScreen uses)
+  // Real GPS location (same hook MapScreen uses)
   const { location, requestPermission, getCurrentLocation } = useGeolocation({
     enableHighAccuracy: true,
     distanceFilter: 10,
@@ -66,21 +67,22 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🔎 search
+  // Search
   const [query, setQuery] = useState("");
 
   const { selectedRouteIds, toggleRoute } = useRouteSelection();
 
-  // ⭐ favorites
+  // Favorites
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // 📍 nearby
+  // Nearby
   const [showNearbyOnly, setShowNearbyOnly] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [nearbyRadiusMi, setNearbyRadiusMi] = useState<number>(NEARBY_OPTIONS[1]); // default 25
 
   // Load favorites once
   useEffect(() => {
@@ -190,12 +192,12 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, []);
 
-  // 🔎 + Nearby + Favorites filter
+  // Search + Nearby + Favorites filter
   const filteredRoutes = useMemo(() => {
     const q = query.trim().toLowerCase();
     let base: RouteItem[] = routes;
 
-    // Nearby filter (15 mi) – only if we have a location
+    // Nearby filter – only if we have a location
     if (showNearbyOnly && currentLocation) {
       const { latitude, longitude } = currentLocation;
       base = base.filter((r) => {
@@ -206,7 +208,7 @@ export default function RouteSelectScreen({ navigation }: any) {
           r.start_lat,
           r.start_lng
         );
-        return dist <= 15;
+        return dist <= nearbyRadiusMi;
       });
     }
 
@@ -230,6 +232,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     favoriteIds,
     showNearbyOnly,
     currentLocation,
+    nearbyRadiusMi,
   ]);
 
   if (loading) {
@@ -253,12 +256,11 @@ export default function RouteSelectScreen({ navigation }: any) {
         style={{
           flexDirection: "row",
           justifyContent: "flex-start",
-          gap: 8,
           marginTop: 6,
           marginBottom: 4,
         }}
       >
-        {/* Nearby (15 mi) */}
+        {/* Nearby pill */}
         <TouchableOpacity
           onPress={() => setShowNearbyOnly((prev) => !prev)}
           style={{
@@ -272,6 +274,7 @@ export default function RouteSelectScreen({ navigation }: any) {
             backgroundColor: showNearbyOnly
               ? colors.accent + "22"
               : "transparent",
+            marginRight: 8,
           }}
         >
           <Text
@@ -280,11 +283,11 @@ export default function RouteSelectScreen({ navigation }: any) {
               color: showNearbyOnly ? colors.accent : colors.textSecondary,
             }}
           >
-            Nearby (15 mi)
+            Nearby ({nearbyRadiusMi} mi)
           </Text>
         </TouchableOpacity>
 
-        {/* Favorites */}
+        {/* Favorites pill */}
         <TouchableOpacity
           onPress={() => setShowFavoritesOnly((prev) => !prev)}
           style={{
@@ -320,7 +323,83 @@ export default function RouteSelectScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* 🔎 Search input */}
+      {/* Nearby distance options when pill is active */}
+      {showNearbyOnly && (
+        <View
+          style={{
+            marginBottom: 10,
+            paddingHorizontal: 4,
+            alignSelf: "stretch",
+          }}
+        >
+          {currentLocation ? (
+            <>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                Show routes within{" "}
+                <Text style={{ color: colors.accent }}>
+                  {nearbyRadiusMi} miles
+                </Text>{" "}
+                of your location
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                }}
+              >
+                {NEARBY_OPTIONS.map((mi) => {
+                  const selected = mi === nearbyRadiusMi;
+                  return (
+                    <TouchableOpacity
+                      key={mi}
+                      onPress={() => setNearbyRadiusMi(mi)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: selected ? colors.accent : colors.border,
+                        backgroundColor: selected
+                          ? colors.accent + "33"
+                          : "transparent",
+                        marginRight: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: selected ? colors.accent : colors.textSecondary,
+                        }}
+                      >
+                        {mi} mi
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <Text
+              style={{
+                fontSize: 12,
+                color: colors.textSecondary,
+              }}
+            >
+              Turn on location to use Nearby.
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Search input */}
       <View style={globalStyles.input}>
         <TextInput
           value={query}
