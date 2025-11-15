@@ -15,15 +15,44 @@ import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 
+// NOTE: extended with optional start_lat / start_lng
 type RouteItem = {
   id: number;
   slug: string;
   name: string;
   region?: string;
-  upvotes?: number; // from backend
+  upvotes?: number;
+  start_lat?: number | null;
+  start_lng?: number | null;
 };
 
 const FAVORITES_KEY = "favorite_route_ids";
+
+// Demo location near Shoreline Park / Googleplex (for Nearby pill)
+const DEMO_LOCATION = {
+  latitude: 37.423,   // adjust if you like
+  longitude: -122.087,
+};
+
+// Simple Haversine distance in miles
+function computeDistanceMi(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 3958.8; // miles
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
@@ -42,6 +71,13 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // 📍 nearby
+  const [showNearbyOnly, setShowNearbyOnly] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
   // Load favorites once
   useEffect(() => {
     (async () => {
@@ -57,6 +93,11 @@ export default function RouteSelectScreen({ navigation }: any) {
         console.warn("Failed to load favorite routes", e);
       }
     })();
+  }, []);
+
+  // Set demo location once (no real geolocation yet)
+  useEffect(() => {
+    setCurrentLocation(DEMO_LOCATION);
   }, []);
 
   const persistFavorites = useCallback(async (ids: number[]) => {
@@ -76,7 +117,6 @@ export default function RouteSelectScreen({ navigation }: any) {
         } else {
           next = [...prev, routeId];
         }
-        // fire and forget persist
         persistFavorites(next);
         return next;
       });
@@ -89,6 +129,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     try {
       setRefreshing(true);
       const list = await fetchRouteList();
+      console.log("[RouteSelect] sample route:", list[0]);
       setRoutes(list);
     } catch (e: any) {
       console.error("Failed to fetch routes:", e);
@@ -114,7 +155,6 @@ export default function RouteSelectScreen({ navigation }: any) {
 
       const result = await toggleRouteUpvote(routeId, token);
 
-      // Update only that route's upvote count
       setRoutes((prev) =>
         prev.map((r) =>
           r.id === routeId ? { ...r, upvotes: result.upvotes } : r
@@ -126,15 +166,32 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, []);
 
-  // 🔎 Fast in-memory filter (name or region, case-insensitive) + favorites filter
+  // 🔎 + Nearby + Favorites filter
   const filteredRoutes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let base = routes;
+    let base: RouteItem[] = routes;
 
+    // Nearby filter (15 mi) – only if we have a location
+    if (showNearbyOnly && currentLocation) {
+      const { latitude, longitude } = currentLocation;
+      base = base.filter((r) => {
+        if (r.start_lat == null || r.start_lng == null) return false;
+        const dist = computeDistanceMi(
+          latitude,
+          longitude,
+          r.start_lat,
+          r.start_lng
+        );
+        return dist <= 15;
+      });
+    }
+
+    // Favorites filter
     if (showFavoritesOnly) {
       base = base.filter((r) => favoriteIds.includes(r.id));
     }
 
+    // Text search
     if (!q) return base;
 
     return base.filter((r) => {
@@ -142,7 +199,14 @@ export default function RouteSelectScreen({ navigation }: any) {
       const region = r.region?.toLowerCase() ?? "";
       return name.includes(q) || region.includes(q);
     });
-  }, [routes, query, showFavoritesOnly, favoriteIds]);
+  }, [
+    routes,
+    query,
+    showFavoritesOnly,
+    favoriteIds,
+    showNearbyOnly,
+    currentLocation,
+  ]);
 
   if (loading) {
     return (
@@ -160,30 +224,62 @@ export default function RouteSelectScreen({ navigation }: any) {
       {/* Title */}
       <Text style={globalStyles.headerText}>Select Routes</Text>
 
-      {/* Favorites toggle pill, right-aligned just under title */}
+      {/* Nearby + Favorites pills */}
       <View
         style={{
-          alignItems: "flex-end",
+          flexDirection: "row",
+          justifyContent: "flex-start",
+          gap: 8,
           marginTop: 6,
           marginBottom: 4,
         }}
       >
+        {/* Nearby (15 mi) */}
+        <TouchableOpacity
+          onPress={() => setShowNearbyOnly((prev) => !prev)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: showNearbyOnly ? colors.accent : colors.border,
+            backgroundColor: showNearbyOnly
+              ? colors.accent + "22"
+              : "transparent",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 12,
+              color: showNearbyOnly ? colors.accent : colors.textSecondary,
+            }}
+          >
+            Nearby (15 mi)
+          </Text>
+        </TouchableOpacity>
+
+        {/* Favorites */}
         <TouchableOpacity
           onPress={() => setShowFavoritesOnly((prev) => !prev)}
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-            borderRadius: 16,
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 18,
             borderWidth: 1,
             borderColor: showFavoritesOnly ? colors.accent : colors.border,
+            backgroundColor: showFavoritesOnly
+              ? colors.accent + "22"
+              : "transparent",
           }}
         >
           <Text
             style={{
               marginRight: 4,
-              fontSize: 16,
+              fontSize: 14,
               color: showFavoritesOnly ? colors.accent : colors.textSecondary,
             }}
           >
@@ -264,14 +360,12 @@ export default function RouteSelectScreen({ navigation }: any) {
                   : colors.backgroundAlt,
               }}
             >
-              {/* Top row: name/region + actions */}
               <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
                 }}
               >
-                {/* Left: tap to select route */}
                 <TouchableOpacity
                   style={{ flex: 1, padding: 12 }}
                   onPress={() =>
@@ -307,7 +401,6 @@ export default function RouteSelectScreen({ navigation }: any) {
                   )}
                 </TouchableOpacity>
 
-                {/* Right: favorite star + upvote button + count */}
                 <View
                   style={{
                     paddingRight: 12,
@@ -315,7 +408,6 @@ export default function RouteSelectScreen({ navigation }: any) {
                     justifyContent: "center",
                   }}
                 >
-                  {/* Favorite star */}
                   <TouchableOpacity
                     onPress={() => toggleFavorite(item.id)}
                     style={{ paddingHorizontal: 4, paddingVertical: 2 }}
@@ -332,7 +424,6 @@ export default function RouteSelectScreen({ navigation }: any) {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Upvote arrow */}
                   <TouchableOpacity
                     onPress={() => handleUpvote(item.id)}
                     style={{ paddingHorizontal: 8, paddingVertical: 4 }}
@@ -353,7 +444,6 @@ export default function RouteSelectScreen({ navigation }: any) {
                 </View>
               </View>
 
-              {/* Bottom row: comments button (left aligned under region) */}
               <View
                 style={{
                   paddingHorizontal: 12,

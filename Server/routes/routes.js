@@ -30,14 +30,30 @@ const sql = `
     r.updated_at,
     COALESCE(wp.cnt, 0) AS waypoint_count,
     COALESCE(gx.cnt, 0) AS gpx_count,
-    COALESCE(uv.upvotes, 0) AS upvotes       -- ✅ FIXED
+    COALESCE(uv.upvotes, 0) AS upvotes,
+    st.start_lat,
+    st.start_lng
   FROM routes r
   LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS cnt FROM waypoints w WHERE w.route_id = r.id
+    SELECT COUNT(*)::int AS cnt
+    FROM waypoints w
+    WHERE w.route_id = r.id
   ) wp ON true
   LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS cnt FROM gpx g WHERE g.route_id = r.id
+    SELECT COUNT(*)::int AS cnt
+    FROM gpx g
+    WHERE g.route_id = r.id
   ) gx ON true
+  -- 🔹 NEW: grab a starting lat/lng from the first GPX geometry for this route
+  LEFT JOIN LATERAL (
+    SELECT
+      ST_Y(ST_StartPoint(g.geometry))::float  AS start_lat,
+      ST_X(ST_StartPoint(g.geometry))::float  AS start_lng
+    FROM gpx g
+    WHERE g.route_id = r.id
+    ORDER BY g.id ASC
+    LIMIT 1
+  ) st ON true
   LEFT JOIN (
     SELECT route_id, COUNT(*)::int AS upvotes
     FROM route_ratings
@@ -48,6 +64,7 @@ const sql = `
   ORDER BY r.updated_at DESC
   LIMIT $${params.length - 1} OFFSET $${params.length}
 `;
+
 
     const items = await db.all(sql, params);
     res.json({ ok: true, items, nextOffset: offset + items.length });
