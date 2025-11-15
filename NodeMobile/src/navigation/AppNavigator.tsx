@@ -91,25 +91,25 @@ function RoutesStack() {
    Main Tab Navigator
 ---------------------------- */
 function MainTabs() {
-  const { colors: c } = useThemeStyles(); // ← ADD
+  const { colors: c } = useThemeStyles();
 
   return (
     <Tab.Navigator
       initialRouteName="Account"
       backBehavior="history"
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: c.backgroundAlt,   // ← THEMED
+          backgroundColor: c.backgroundAlt,
           borderTopWidth: 1,
-          borderTopColor: c.border,           // ← THEMED
+          borderTopColor: c.border,
           height: 80,
           paddingTop: 15,
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: c.primary,     // ← THEMED
-        tabBarInactiveTintColor: c.textSecondary, // ← THEMED
-      }}
+        tabBarActiveTintColor: c.primary,
+        tabBarInactiveTintColor: c.textSecondary,
+      })}
     >
       <Tab.Screen
         name="Routes"
@@ -118,7 +118,12 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/RouteSelectLight.png")}
-              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
+              style={{
+                width: 48,
+                height: 48,
+                resizeMode: "contain",
+                tintColor: color,
+              }}
             />
           ),
         }}
@@ -130,7 +135,12 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/MapLight.png")}
-              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
+              style={{
+                width: 48,
+                height: 48,
+                resizeMode: "contain",
+                tintColor: color,
+              }}
             />
           ),
         }}
@@ -142,7 +152,12 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/AccountLight.png")}
-              style={{ width: 48, height: 48, resizeMode: "contain", tintColor: color }}
+              style={{
+                width: 48,
+                height: 48,
+                resizeMode: "contain",
+                tintColor: color,
+              }}
             />
           ),
         }}
@@ -154,7 +169,12 @@ function MainTabs() {
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/FilesLight.png")}
-              style={{ width: 44, height: 44, resizeMode: "contain", tintColor: color }}
+              style={{
+                width: 44,
+                height: 44,
+                resizeMode: "contain",
+                tintColor: color,
+              }}
             />
           ),
         }}
@@ -162,6 +182,7 @@ function MainTabs() {
     </Tab.Navigator>
   );
 }
+
 
 /* ----------------------------
    Root Stack (Auth + Main)
