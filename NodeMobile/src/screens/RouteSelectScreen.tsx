@@ -15,6 +15,8 @@ import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useAuth } from "../context/AuthContext";
+import { API_BASE } from "../config/env";
 
 // NOTE: extended with optional start_lat / start_lng
 type RouteItem = {
@@ -27,7 +29,7 @@ type RouteItem = {
   start_lng?: number | null;
 };
 
-const FAVORITES_KEY = "favorite_route_ids";
+const FAVORITES_KEY_BASE = "favorite_route_ids";
 const NEARBY_OPTIONS = [10, 25, 50, 75]; // miles
 
 // Simple Haversine distance in miles
@@ -53,6 +55,7 @@ function computeDistanceMi(
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
+  const { userToken } = useAuth();
 
   // Real GPS location (same hook MapScreen uses)
   const { location, requestPermission, getCurrentLocation } = useGeolocation({
@@ -82,24 +85,79 @@ export default function RouteSelectScreen({ navigation }: any) {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [nearbyRadiusMi, setNearbyRadiusMi] = useState<number>(NEARBY_OPTIONS[1]); // default 25
+  const [nearbyRadiusMi, setNearbyRadiusMi] = useState<number>(
+    NEARBY_OPTIONS[1] // default 25
+  );
 
-  // Load favorites once
+  // Per-user identity for favorites (from /api/users/me)
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Fetch current user to get a stable per-user ID
+  useEffect(() => {
+    if (!userToken) {
+      setUserId(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/users/me`, {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
+        if (!res.ok) throw new Error("Failed to load user profile");
+        const json = await res.json();
+        const id =
+          json.user?.id ??
+          json.user_id ??
+          json.id ??
+          null;
+
+        if (!cancelled && id != null) {
+          setUserId(String(id));
+        }
+      } catch (err) {
+        console.warn("Could not fetch user for favorites key:", err);
+        if (!cancelled) setUserId(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userToken]);
+
+  // Build a per-user favorites key
+  const favoritesKey = useMemo(
+    () =>
+      userId
+        ? `${FAVORITES_KEY_BASE}:${userId}` // e.g. favorite_route_ids:42
+        : `${FAVORITES_KEY_BASE}:anon`,
+    [userId]
+  );
+
+  // Load favorites when favoritesKey changes (user switch)
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+        const stored = await AsyncStorage.getItem(favoritesKey);
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
             setFavoriteIds(parsed);
+          } else {
+            setFavoriteIds([]);
           }
+        } else {
+          setFavoriteIds([]); // new user, no favorites yet
         }
       } catch (e) {
         console.warn("Failed to load favorite routes", e);
+        setFavoriteIds([]);
       }
     })();
-  }, []);
+  }, [favoritesKey]);
 
   // Ask for permission and grab one location fix
   useEffect(() => {
@@ -126,13 +184,16 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, [location]);
 
-  const persistFavorites = useCallback(async (ids: number[]) => {
-    try {
-      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
-    } catch (e) {
-      console.warn("Failed to save favorite routes", e);
-    }
-  }, []);
+  const persistFavorites = useCallback(
+    async (ids: number[]) => {
+      try {
+        await AsyncStorage.setItem(favoritesKey, JSON.stringify(ids));
+      } catch (e) {
+        console.warn("Failed to save favorite routes", e);
+      }
+    },
+    [favoritesKey]
+  );
 
   const toggleFavorite = useCallback(
     (routeId: number) => {
