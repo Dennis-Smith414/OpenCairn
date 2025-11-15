@@ -14,6 +14,7 @@ import { createGlobalStyles } from "../styles/globalStyles";
 import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
+import { useGeolocation } from "../hooks/useGeolocation";
 
 // NOTE: extended with optional start_lat / start_lng
 type RouteItem = {
@@ -27,12 +28,6 @@ type RouteItem = {
 };
 
 const FAVORITES_KEY = "favorite_route_ids";
-
-// Demo location near Shoreline Park / Googleplex (for Nearby pill)
-const DEMO_LOCATION = {
-  latitude: 37.423,   // adjust if you like
-  longitude: -122.087,
-};
 
 // Simple Haversine distance in miles
 function computeDistanceMi(
@@ -57,6 +52,15 @@ function computeDistanceMi(
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
+
+  // 🔍 real GPS location (same hook MapScreen uses)
+  const { location, requestPermission, getCurrentLocation } = useGeolocation({
+    enableHighAccuracy: true,
+    distanceFilter: 10,
+    interval: 10000,
+    showPermissionAlert: true,
+    showErrorAlert: false,
+  });
 
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,10 +99,30 @@ export default function RouteSelectScreen({ navigation }: any) {
     })();
   }, []);
 
-  // Set demo location once (no real geolocation yet)
+  // Ask for permission and grab one location fix
   useEffect(() => {
-    setCurrentLocation(DEMO_LOCATION);
-  }, []);
+    let mounted = true;
+
+    (async () => {
+      const ok = await requestPermission();
+      if (!ok || !mounted) return;
+      await getCurrentLocation();
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [requestPermission, getCurrentLocation]);
+
+  // Sync hook location into our currentLocation state
+  useEffect(() => {
+    if (location) {
+      setCurrentLocation({
+        latitude: location.lat,
+        longitude: location.lng,
+      });
+    }
+  }, [location]);
 
   const persistFavorites = useCallback(async (ids: number[]) => {
     try {
