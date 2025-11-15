@@ -84,31 +84,48 @@ export default function AccountScreen({ navigation }: any) {
 
   // ---- Fetch profile + content (used on initial mount AND focus) ----
   const loadAccountData = useCallback(async () => {
-    if (!userToken) return;
-    try {
-      const profileRes = await fetch(`${API_BASE}/api/users/me`, {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
-      if (!profileRes.ok) throw new Error("Failed to fetch profile data");
+  if (!userToken) {
+    // If logged out, clear data and bail
+    setProfile(null);
+    setUserRoutes([]);
+    setUserWaypoints([]);
+    setUserComments([]);
+    return;
+  }
 
-      const profileJson = await profileRes.json();
-      setProfile({
-        ...profileJson.user,
-        stats: profileJson.stats,
-      });
+  try {
+    const profileRes = await fetch(`${API_BASE}/api/users/me`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
 
-      const routesRes = await fetchUserRoutes(userToken);
-      if (routesRes.ok) setUserRoutes(routesRes.routes);
-
-      const waypointsRes = await fetchUserWaypoints(userToken);
-      if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
-
-      const commentsRes = await fetchUserComments(userToken);
-      if (commentsRes.ok) setUserComments(commentsRes.comments);
-    } catch (error) {
-      console.error("Failed to fetch profile data / routes:", error);
+    if (!profileRes.ok) {
+      console.warn("AccountScreen: profile request failed", profileRes.status);
+      // Optional: clear profile if 401 etc.
+      setProfile(null);
+      return;
     }
-  }, [userToken]);
+
+    const profileJson = await profileRes.json();
+    setProfile({
+      ...profileJson.user,
+      stats: profileJson.stats,
+    });
+
+    // These helpers already wrap fetch; just guard on .ok
+    const routesRes = await fetchUserRoutes(userToken);
+    if (routesRes.ok) setUserRoutes(routesRes.routes);
+
+    const waypointsRes = await fetchUserWaypoints(userToken);
+    if (waypointsRes.ok) setUserWaypoints(waypointsRes.waypoints);
+
+    const commentsRes = await fetchUserComments(userToken);
+    if (commentsRes.ok) setUserComments(commentsRes.comments);
+  } catch (error) {
+    // Use warn so we don’t trigger the redbox
+    console.warn("AccountScreen: network error loading account data:", error);
+  }
+}, [userToken]);
+
 
   // Run when screen is focused (and on first mount)
   useFocusEffect(
