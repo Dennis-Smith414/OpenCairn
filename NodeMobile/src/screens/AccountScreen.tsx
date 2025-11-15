@@ -42,8 +42,19 @@ if (
 ) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
 type DatePreset = "all" | "7" | "30" | "365";
+
+function safeDateLabel(raw?: string | null): string {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 
 export default function AccountScreen({ navigation }: any) {
   const { userToken } = useAuth();
@@ -266,11 +277,8 @@ export default function AccountScreen({ navigation }: any) {
       <Card title="Profile Statistics">
         <StatRow
           label="Member Since"
-          value={
-            profile
-              ? new Date(profile.created_at).toLocaleDateString()
-              : "—"
-          }
+value={profile ? safeDateLabel(profile.created_at) : "—"}
+
         />
         <StatRow
           label="Routes Created"
@@ -313,9 +321,10 @@ export default function AccountScreen({ navigation }: any) {
             <UserItemRow
               key={r.id}
               title={r.name}
-              subtitle={`${r.region || "—"} • ${new Date(
-                r.created_at
-              ).toLocaleDateString()}`}
+subtitle={`${r.region || "—"} • ${safeDateLabel(
+  r.created_at ?? r.create_time ?? r.createdAt ?? null
+)}`}
+
               onEdit={() => handleEditRoute(r.id)}
               onDelete={() => confirmDeleteRoute(r.id)}
             />
@@ -346,9 +355,10 @@ export default function AccountScreen({ navigation }: any) {
             <UserItemRow
               key={w.id}
               title={w.name}
-              subtitle={`${w.route_name} • ${w.type} • ${new Date(
-                w.created_at
-              ).toLocaleDateString()}`}
+subtitle={`${w.route_name} • ${w.type} • ${safeDateLabel(
+  w.created_at ?? w.create_time ?? w.createdAt ?? null
+)}`}
+
               onEdit={() => handleEditWaypoint(w.id)}
               onDelete={() => confirmDeleteWaypoint(w.id)}
             />
@@ -406,14 +416,15 @@ export default function AccountScreen({ navigation }: any) {
                     }}
                   />
                 ) : (
-                  <UserItemRow
-                    title={c.waypoint_name || c.route_name || "Unknown"}
-                    subtitle={`${new Date(
-                      c.create_time
-                    ).toLocaleDateString()} • ${c.content}`}
-                    onEdit={() => setEditingCommentId(c.id)}
-                    onDelete={() => confirmDeleteComment(c.id)}
-                  />
+<UserItemRow
+  title={c.waypoint_name || c.route_name || "Unknown"}
+  subtitle={`${safeDateLabel(
+    c.created_at ?? c.create_time ?? c.createdAt ?? null
+  )}${c.content ? ` • ${c.content}` : ""}`}
+  onEdit={() => setEditingCommentId(c.id)}
+  onDelete={() => confirmDeleteComment(c.id)}
+/>
+
                 )}
               </View>
             );

@@ -67,15 +67,15 @@ type Palette = {
 export const lightColors: Palette = {
   primary: "#40E0D0",
   secondary: "#008B8B",
-  accent: "#5F9EA0",
+  accent: "#40E0D0",          // ⬅ change this from "#5F9EA0"
   background: "#FFFFFF",
-  backgroundAlt: "#F8F9FA", // Light gray background for cards/sections
+  backgroundAlt: "#F8F9FA",
   textPrimary: "#222222",
   textSecondary: "#666666",
   placeholder: '#A9A9A9',
   buttonText: '#FFFFFF',
   border: '#D3D3D3',
-  danger: '#DC143C', // Red for errors
+  danger: '#DC143C',
   success: '#28a745',
   text: "#222222",
 };
@@ -83,7 +83,7 @@ export const lightColors: Palette = {
 export const darkColors: Palette = {
   primary: "#40E0D0",
   secondary: "#00A3A3",
-  accent: "#6FB0B5",
+  accent: "#40E0D0",          // ⬅ change this from "#6FB0B5"
   background: "#101214ff",
   backgroundAlt: "#1A1F23",
   textPrimary: "#EAEAEA",
@@ -95,6 +95,7 @@ export const darkColors: Palette = {
   success: '#28a745',
   text: "#EAEAEA",
 };
+
 
 /** ---------- Fonts ---------- */
 export const fonts = {

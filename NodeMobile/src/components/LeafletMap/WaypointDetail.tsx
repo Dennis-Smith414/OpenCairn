@@ -96,7 +96,6 @@ export const WaypointDetail: React.FC<WaypointDetailProps> = ({
     };
   }, [userToken]);
 
-// --- Voting handler ---
 const handleVote = async (val: 1 | -1) => {
   if (!id || !userToken || loadingVote) {
     console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
@@ -106,22 +105,24 @@ const handleVote = async (val: 1 | -1) => {
   setLoadingVote(true);
 
   try {
-    // 1) Send vote to backend (we ignore its returned total)
+    // 1) Send vote to backend
     await submitWaypointVote(id, val, userToken);
 
-    // 2) Immediately re-fetch the *real* total + user rating
+    // 2) Re-fetch the real total + user rating
     const latest = await fetchWaypointRating(id, userToken);
     console.log("[handleVote] refreshed rating:", latest);
 
-    setTotalVotes(latest.total ?? 0);
+    setVotes(latest.total ?? 0);          // ✅ use setVotes
     setUserRating(latest.user_rating ?? null);
   } catch (err) {
     console.error("❌ Vote failed or refresh failed:", err);
-    // (Optional) you could show an Alert here
+    // Optional: show an Alert
+    // Alert.alert("Error", "Could not submit your vote. Please try again.");
   } finally {
     setLoadingVote(false);
   }
 };
+
 
 
   // --- Formatters ---

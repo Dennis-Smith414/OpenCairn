@@ -200,9 +200,10 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
           <Text style={[styles.username, { color: theme.textPrimary }]}>
             {isOwner ? "You" : item.username}
           </Text>
-          <Text style={[styles.time, { color: theme.textSecondary }]}>
-            {formatRelativeTime(item.create_time)}
-          </Text>
+<Text style={[styles.time, { color: theme.textSecondary }]}>
+  {formatRelativeTime(item.created_at)}
+</Text>
+
         </View>
 
         {isEditing ? (
@@ -358,13 +359,22 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
 };
 
 // Relative time helper
-function formatRelativeTime(timestamp: string): string {
-  const diff = (Date.now() - new Date(timestamp).getTime()) / 1000;
+function formatRelativeTime(timestamp?: string | null): string {
+  if (!timestamp) return "";
+
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) {
+    // Bad date string – don't show "Invalid Date" to the user
+    return "";
+  }
+
+  const diff = (Date.now() - d.getTime()) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return new Date(timestamp).toLocaleDateString();
+  return d.toLocaleDateString();
 }
+
 
 //  Styles (left as-is)
 const styles = StyleSheet.create({
