@@ -1,6 +1,6 @@
 // src/components/TripTracker/TripTracker.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated } from 'react-native';
 import { useThemeStyles } from '../../styles/theme';
 import { createGlobalStyles } from '../../styles/globalStyles';
 
@@ -20,16 +20,23 @@ interface TripTrackerProps {
   currentPosition: [number, number] | null;
   tracks: any[];
   onStatsUpdate?: (stats: TripStats) => void;
+  hasActiveWaypoint?: boolean;
+  hasWaypointDetail?: boolean;
 }
 
 const TripTracker: React.FC<TripTrackerProps> = ({
   totalRouteDistance,
   currentPosition,
   tracks,
-  onStatsUpdate
+  onStatsUpdate,
+  hasActiveWaypoint = false,
+  hasWaypointDetail = false
 }) => {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
+  
+  // Animation for bottom position
+  const bottomAnim = useRef(new Animated.Value(8)).current;
 
   const [tripStats, setTripStats] = useState<TripStats>({
     distanceRemaining: totalRouteDistance,
@@ -69,7 +76,6 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     let nearestPointIndex = -1;
     let nearestTrackIndex = -1;
 
-    // Find the nearest point on any track
     tracks.forEach((track, trackIdx) => {
       const segments = Array.isArray(track.coords[0]) 
         ? track.coords as [number, number][][] 
@@ -88,29 +94,21 @@ const TripTracker: React.FC<TripTrackerProps> = ({
       });
     });
 
-    // If we're too far from the track (>50m), return full distance
-    // TODO
-    // If 15m off trail add a warning that you are off trail
     if (minDistance > 50) {
       return totalRouteDistance;
     }
 
-    // Calculate remaining distance from nearest point to end
     let remainingDistance = 0;
-    
-    // Get the track and segments
     const nearestTrack = tracks[nearestTrackIndex];
     const segments = Array.isArray(nearestTrack.coords[0]) 
       ? nearestTrack.coords as [number, number][][] 
       : [nearestTrack.coords as [number, number][]];
 
-    // Add distance from nearest point to end of current segment
     const currentSegment = segments[nearestSegmentIndex];
     for (let i = nearestPointIndex; i < currentSegment.length - 1; i++) {
       remainingDistance += calculateDistance(currentSegment[i], currentSegment[i + 1]);
     }
 
-    // Add distance from remaining segments in current track
     for (let s = nearestSegmentIndex + 1; s < segments.length; s++) {
       const segment = segments[s];
       for (let i = 0; i < segment.length - 1; i++) {
@@ -118,13 +116,12 @@ const TripTracker: React.FC<TripTrackerProps> = ({
       }
     }
 
-    // Add distance from remaining tracks
     for (let t = nearestTrackIndex + 1; t < tracks.length; t++) {
       const track = tracks[t];
       const trackSegments = Array.isArray(track.coords[0]) 
         ? track.coords as [number, number][][] 
         : [track.coords as [number, number][]];
-      
+
       trackSegments.forEach(segment => {
         for (let i = 0; i < segment.length - 1; i++) {
           remainingDistance += calculateDistance(segment[i], segment[i + 1]);
@@ -139,9 +136,8 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   const doUpdateStats = useCallback(() => {
     if (!currentPosition) return;
 
-    // Avoid too many state changes THIS was the damn problem!!!!
     const now = Date.now();
-    if (now - lastUpdateRef.current < 500) return; // Update at most every 500ms
+    if (now - lastUpdateRef.current < 500) return;
     lastUpdateRef.current = now;
 
     setTripStats(prevStats => {
@@ -164,9 +160,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
         averageSpeed: avgSpeed
       };
 
-      // callback outside of setState
       setTimeout(() => onStatsUpdate?.(newStats), 0);
-      
       return newStats;
     });
   }, [currentPosition, calculateRemainingDistance, totalRouteDistance, onStatsUpdate]);
@@ -175,9 +169,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   const startTrip = useCallback(() => {
     console.log('[TripTracker] Starting trip');
     const now = Date.now();
-    
     setTripStats(prev => {
-      console.log('[TripTracker] Start - prev.isPaused:', prev.isPaused);
       const newStats: TripStats = {
         ...prev,
         isPaused: false,
@@ -193,9 +185,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   const pauseTrip = useCallback(() => {
     console.log('[TripTracker] Pausing trip');
     const now = Date.now();
-    
     setTripStats(prev => {
-      console.log('[TripTracker] Pause - prev.isPaused:', prev.isPaused);
       const newStats: TripStats = {
         ...prev,
         isPaused: true,
@@ -211,7 +201,6 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 
   // Reset trip
   const resetTrip = useCallback(() => {
-    console.log('[TripTracker] Reset requested');
     Alert.alert(
       "Reset Trip",
       "Are you sure you want to reset all trip statistics?",
@@ -221,7 +210,6 @@ const TripTracker: React.FC<TripTrackerProps> = ({
           text: "Reset", 
           style: "destructive", 
           onPress: () => {
-            console.log('[TripTracker] Resetting trip');
             const newStats: TripStats = {
               distanceRemaining: totalRouteDistance,
               elapsedTime: 0,
@@ -247,16 +235,50 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     }
   }, [currentPosition, tripStats.isPaused, doUpdateStats]);
 
+  // Move the Tracker up out of the way when waypoint is selected
+  useEffect(() => {
+    Animated.timing(bottomAnim, {
+      toValue: hasActiveWaypoint ? 250 : 8,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [hasActiveWaypoint, bottomAnim]);
+
+  //Hide the stats if the waypoint detail is selected
+  useEffect(() => {
+    if (hasWaypointDetail) {
+      // Hide it by moving it way off screen
+      Animated.timing(bottomAnim, {
+        toValue: -500, // Move it off screen
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else if (hasActiveWaypoint) {
+    // Show it moved up for popup
+    Animated.timing(bottomAnim, {
+      toValue: 135,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    } else {
+      // Show it at normal position
+      Animated.timing(bottomAnim, {
+        toValue: 8,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [hasWaypointDetail, hasActiveWaypoint, bottomAnim]);
+
+
   // Timer for updating elapsed time
   useEffect(() => {
-    // Clear any existing timer
     if (tripTimerRef.current) {
       clearInterval(tripTimerRef.current);
       tripTimerRef.current = null;
     }
 
     if (!tripStats.isPaused && tripStats.lastResumeTime) {
-      console.log('[TripTracker] Starting update timer');
       tripTimerRef.current = setInterval(() => {
         doUpdateStats();
       }, 1000);
@@ -296,10 +318,16 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 
   const styles = createStyles(colors);
 
-  console.log('[TripTracker] Render - isPaused:', tripStats.isPaused);
-
   return (
-    <View style={styles.container}>
+    <Animated.View style={[
+      styles.container,
+      {
+        bottom: bottomAnim,
+        position: 'absolute',
+        left: 8,
+        right: 8,
+      }
+    ]}>
       <Text style={styles.title}>Trip Tracker</Text>
       
       <View style={styles.statsGrid}>
@@ -363,10 +391,10 @@ const TripTracker: React.FC<TripTrackerProps> = ({
           styles.statusText,
           { color: tripStats.isPaused ? colors.textSecondary : colors.success }
         ]}>
-          {tripStats.isPaused ? '⏸️ Paused' : '▶️ Tracking'}
+          {/* {tripStats.isPaused ? '⏸️ Paused' : '▶️ Tracking'} */}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -374,8 +402,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     backgroundColor: colors.backgroundAlt,
     borderRadius: 12,
-    padding: 16,
-    margin: 8,
+    padding: 5,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#000',
@@ -383,28 +410,28 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-    zIndex: 1,
+    zIndex: 1000,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: 12,
+    marginBottom: 3,
     textAlign: 'center',
   },
   statsGrid: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    //marginBottom: 16,
   },
   statItem: {
-    width: '48%',
+    width: '46%',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
@@ -416,12 +443,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   controls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 1,
     zIndex: 2,
   },
   controlButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 5,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -442,16 +469,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  statusBar: {
-    alignItems: 'center',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  // statusBar: {
+  //   alignItems: 'center',
+  //   paddingTop: 8,
+  //   borderTopWidth: 1,
+  //   borderTopColor: colors.border,
+  // },
+  // statusText: {
+  //   fontSize: 12,
+  //   fontWeight: '500',
+  // },
 });
 
 export default TripTracker;

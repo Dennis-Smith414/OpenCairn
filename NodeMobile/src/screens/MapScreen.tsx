@@ -256,6 +256,12 @@ const MapScreen: React.FC = () => {
     // LeafletHTML + LeafletMap handle temp marker + popup
   };
 
+  //Trigger to move TripTracker UI 
+  //const hasActiveWaypoint = (!!selectedWaypoint && !showWaypointDetail) || showWaypointDetail;
+
+  const hasActiveWaypoint = !!selectedWaypoint;
+  const hasWaypointDetail = !!showWaypointDetail;
+
   const handleExpandWaypoint = () => {
     if (selectedWaypoint?.name === "Marked Location") {
       navigation.navigate("WaypointCreate", {
@@ -304,6 +310,8 @@ const MapScreen: React.FC = () => {
           currentPosition={userLocation}
           tracks={tracks}
           onStatsUpdate={setTripStats}
+          hasActiveWaypoint={hasActiveWaypoint}
+          hasWaypointDetail={hasWaypointDetail} 
         />
       )}
 
