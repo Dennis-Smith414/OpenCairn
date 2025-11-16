@@ -2,6 +2,11 @@
 import React from "react";
 import { StyleSheet, Appearance, useColorScheme, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  DefaultTheme as NavDefaultTheme,
+  DarkTheme as NavDarkTheme,
+  Theme as NavTheme,
+} from "@react-navigation/native";
 
 /** ---------- Override store (no Provider needed) ---------- */
 export type ThemeOverride = "system" | "light" | "dark";
@@ -70,7 +75,7 @@ export const lightColors: Palette = {
   accent: "#40E0D0",          // ⬅ change this from "#5F9EA0"
   background: "#FFFFFF",
   backgroundAlt: "#F8F9FA",
-  textPrimary: "#222222",
+  textPrimary: "#111827",      // ← dark text for light mode
   textSecondary: "#666666",
   placeholder: '#A9A9A9',
   buttonText: '#FFFFFF',
@@ -86,7 +91,7 @@ export const darkColors: Palette = {
   accent: "#40E0D0",          // ⬅ change this from "#6FB0B5"
   background: "#101214ff",
   backgroundAlt: "#1A1F23",
-  textPrimary: "#EAEAEA",
+  textPrimary: "#F9FAFB",      // ← light text for dark mode
   textSecondary: "#A6A6A6",
   border: "#2B3137",
   placeholder: '#A9A9A9',
@@ -94,6 +99,31 @@ export const darkColors: Palette = {
   danger: '#DC143C',
   success: '#28a745',
   text: "#EAEAEA",
+};
+export const lightNavTheme: NavTheme = {
+  ...NavDefaultTheme,
+  colors: {
+    ...NavDefaultTheme.colors,
+    background: lightColors.background,
+    card: lightColors.backgroundAlt,
+    text: lightColors.textPrimary,
+    border: lightColors.border,
+    primary: lightColors.accent,
+    notification: lightColors.accent,
+  },
+};
+
+export const darkNavTheme: NavTheme = {
+  ...NavDarkTheme,
+  colors: {
+    ...NavDarkTheme.colors,
+    background: darkColors.background,
+    card: darkColors.backgroundAlt,
+    text: darkColors.textPrimary,
+    border: darkColors.border,
+    primary: darkColors.accent,
+    notification: darkColors.accent,
+  },
 };
 
 
@@ -190,7 +220,10 @@ export function useThemeStyles(override?: "light" | "dark") {
   if (override) {
     mode = override;
   } else if (_override === "system") {
-    const sys = (scheme ?? Appearance.getColorScheme() ?? "light") === "dark" ? "dark" : "light";
+    const sys =
+      (scheme ?? Appearance.getColorScheme() ?? "light") === "dark"
+        ? "dark"
+        : "light";
     mode = sys;
   } else {
     mode = _override;
@@ -198,8 +231,11 @@ export function useThemeStyles(override?: "light" | "dark") {
 
   const c = mode === "dark" ? darkColors : lightColors;
   const styles = makeBaseStyles(c);
-  return { colors: c, styles, isDark: mode === "dark" };
+  const navTheme = mode === "dark" ? darkNavTheme : lightNavTheme; // 👈
+
+  return { colors: c, styles, isDark: mode === "dark", navTheme };
 }
+
 
 // Non-hook getter (useful outside React)
 export function getThemed(override?: "light" | "dark") {

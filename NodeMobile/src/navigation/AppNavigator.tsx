@@ -183,12 +183,12 @@ function MainTabs() {
   );
 }
 
-
 /* ----------------------------
    Root Stack (Auth + Main)
 ---------------------------- */
 export default function AppNavigator() {
   const { userToken, isLoading } = useAuth();
+  const { navTheme } = useThemeStyles();
 
   if (isLoading) {
     return (
@@ -199,22 +199,22 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {userToken == null ? (
+        {userToken ? (
+          // Logged-in flow
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        ) : (
+          // Auth flow
           <>
             <Stack.Screen name="Landing" component={LandingScreen} />
-            <Stack.Screen name="CreateAccount" component={AccountCreationScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen
-              name="WaypointEdit"
-              component={WaypointEditScreen}
-              options={{ title: "Edit Waypoint", headerShown: false }}
+              name="AccountCreation"
+              component={AccountCreationScreen}
             />
+            {/* once they log in, you can navigate to MainTabs */}
+            <Stack.Screen name="MainTabs" component={MainTabs} />
           </>
         )}
       </Stack.Navigator>

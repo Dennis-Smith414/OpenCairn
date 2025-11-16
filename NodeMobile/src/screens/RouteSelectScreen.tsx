@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  StyleSheet,         
 } from "react-native";
+
 import { useThemeStyles } from "../styles/theme";
 import { createGlobalStyles } from "../styles/globalStyles";
 import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
@@ -16,7 +18,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../config/env";
 
 // NOTE: extended with optional start_lat / start_lng
 type RouteItem = {
@@ -51,11 +52,34 @@ function computeDistanceMi(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+const styles = StyleSheet.create({
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    marginTop: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  searchClear: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+});
+
 
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
-  const { userToken } = useAuth();
+
+  // auth
+  const { user, userToken } = useAuth();
 
   // Real GPS location (same hook MapScreen uses)
   const { location, requestPermission, getCurrentLocation } = useGeolocation({
@@ -89,55 +113,16 @@ export default function RouteSelectScreen({ navigation }: any) {
     NEARBY_OPTIONS[1] // default 25
   );
 
-  // Per-user identity for favorites (from /api/users/me)
-  const [userId, setUserId] = useState<string | null>(null);
-
-  // Fetch current user to get a stable per-user ID
-  useEffect(() => {
-    if (!userToken) {
-      setUserId(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/users/me`, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-        if (!res.ok) throw new Error("Failed to load user profile");
-        const json = await res.json();
-        const id =
-          json.user?.id ??
-          json.user_id ??
-          json.id ??
-          null;
-
-        if (!cancelled && id != null) {
-          setUserId(String(id));
-        }
-      } catch (err) {
-        console.warn("Could not fetch user for favorites key:", err);
-        if (!cancelled) setUserId(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userToken]);
-
-  // Build a per-user favorites key
+  // Per-user favorites key: different key for each logged-in user
   const favoritesKey = useMemo(
     () =>
-      userId
-        ? `${FAVORITES_KEY_BASE}:${userId}` // e.g. favorite_route_ids:42
+      user && user.id != null
+        ? `${FAVORITES_KEY_BASE}:user-${user.id}` // e.g. favorite_route_ids:user-4
         : `${FAVORITES_KEY_BASE}:anon`,
-    [userId]
+    [user]
   );
 
-  // Load favorites when favoritesKey changes (user switch)
+  // Load favorites whenever the key (i.e., active user) changes
   useEffect(() => {
     (async () => {
       try {
@@ -150,7 +135,8 @@ export default function RouteSelectScreen({ navigation }: any) {
             setFavoriteIds([]);
           }
         } else {
-          setFavoriteIds([]); // new user, no favorites yet
+          // brand-new user or no favorites yet
+          setFavoriteIds([]);
         }
       } catch (e) {
         console.warn("Failed to load favorite routes", e);
@@ -232,26 +218,31 @@ export default function RouteSelectScreen({ navigation }: any) {
   }, [loadRoutes]);
 
   // Upvote handler
-  const handleUpvote = useCallback(async (routeId: number) => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        Alert.alert("Login required", "You must be logged in to upvote routes.");
-        return;
+  const handleUpvote = useCallback(
+    async (routeId: number) => {
+      try {
+        if (!userToken) {
+          Alert.alert(
+            "Login required",
+            "You must be logged in to upvote routes."
+          );
+          return;
+        }
+
+        const result = await toggleRouteUpvote(routeId, userToken);
+
+        setRoutes((prev) =>
+          prev.map((r) =>
+            r.id === routeId ? { ...r, upvotes: result.upvotes } : r
+          )
+        );
+      } catch (e: any) {
+        console.error("Upvote failed:", e);
+        Alert.alert("Error", "Could not upvote route.");
       }
-
-      const result = await toggleRouteUpvote(routeId, token);
-
-      setRoutes((prev) =>
-        prev.map((r) =>
-          r.id === routeId ? { ...r, upvotes: result.upvotes } : r
-        )
-      );
-    } catch (e: any) {
-      console.error("Upvote failed:", e);
-      Alert.alert("Error", "Could not upvote route.");
-    }
-  }, []);
+    },
+    [userToken]
+  );
 
   // Search + Nearby + Favorites filter
   const filteredRoutes = useMemo(() => {
@@ -437,7 +428,9 @@ export default function RouteSelectScreen({ navigation }: any) {
                       <Text
                         style={{
                           fontSize: 12,
-                          color: selected ? colors.accent : colors.textSecondary,
+                          color: selected
+                            ? colors.accent
+                            : colors.textSecondary,
                         }}
                       >
                         {mi} mi
@@ -459,31 +452,38 @@ export default function RouteSelectScreen({ navigation }: any) {
           )}
         </View>
       )}
+{/* Search input */}
+<View
+  style={[
+    styles.searchContainer,
+    {
+      borderColor: colors.border,
+      backgroundColor: colors.backgroundAlt,
+    },
+  ]}
+>
+<TextInput
+  value={query}
+  onChangeText={setQuery}
+  placeholder="Search name / region…"
+  placeholderTextColor={colors.textSecondary ?? "#888"}
+  style={[
+    styles.searchInput,
+    { color: colors.textPrimary },  // ✅ theme-aware text color
+  ]}
+  returnKeyType="search"
+/>
 
-      {/* Search input */}
-      <View style={globalStyles.input}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search name / region…"
-          placeholderTextColor={colors.textSecondary}
-          style={{
-            flex: 1,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            color: colors.textPrimary,
-          }}
-          returnKeyType="search"
-        />
-        {!!query && (
-          <TouchableOpacity
-            onPress={() => setQuery("")}
-            style={{ paddingHorizontal: 12, paddingVertical: 10 }}
-          >
-            <Text style={{ color: colors.textSecondary }}>×</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+  {!!query && (
+    <TouchableOpacity
+      onPress={() => setQuery("")}
+      style={styles.searchClear}
+    >
+      <Text style={{ color: colors.textSecondary }}>×</Text>
+    </TouchableOpacity>
+  )}
+</View>
+
 
       {/* Create new route button */}
       <TouchableOpacity
