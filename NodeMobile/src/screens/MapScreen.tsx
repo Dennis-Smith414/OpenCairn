@@ -10,11 +10,14 @@ import { colors } from "../styles/theme";
 import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
+import TripTracker from '../components/TripTracker/TripTracker';
 
 // NEW: MapLibre map component (Leaflet-compatible props)
 import MapLibreMap, { LatLng, Track } from "../components/MapLibre/MapLibreMap";
 
-const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
+//43.075678763073164, -87.88565891395142
+
+const DEFAULT_CENTER: LatLng = [43.075678763073164, -87.88565891395142];
 const DEFAULT_ZOOM = 15;
 
 // Add distance calculation utility
@@ -112,6 +115,10 @@ const MapScreen: React.FC = () => {
         });
       }
       setTracks(nextTracks);
+
+      const totalDist = calculateTotalRouteDistance(nextTracks);
+      setRouteTotalDistance(totalDist);
+
     } catch (e: any) {
       setError(e?.message || "Failed to load routes");
     } finally {

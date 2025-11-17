@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   zoomGroup: {
     position: "absolute",
     right: 12,
-    bottom: 100,
+    bottom: 575,
     gap: 8,
   },
   zoomBtn: {
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
 centerBtn: {
   position: "absolute",
   right: 12,
-  bottom: 48,
+  bottom: 525,
   zIndex: 10,
   elevation: 4,
 },
