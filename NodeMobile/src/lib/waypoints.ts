@@ -1,6 +1,7 @@
 // src/lib/waypoints.ts
 //import { API_BASE } from "./api";
-import { API_BASE } from '../config/env';
+//import { API_BASE } from '../config/env';
+import { getBaseUrl } from "./api";
 
 export interface Waypoint {
   id?: number;
@@ -18,6 +19,7 @@ export interface Waypoint {
 
 //Get all waypoints for a route
 export async function fetchWaypoints(routeId: number): Promise<Waypoint[]> {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/waypoints/route/${routeId}`);
   const data = await res.json();
   return data.items ?? [];
@@ -25,6 +27,7 @@ export async function fetchWaypoints(routeId: number): Promise<Waypoint[]> {
 
 // GET one waypoint via waypoint id
 export async function fetchWaypoint(id: number): Promise<Waypoint> {
+  const API_BASE = getBaseUrl();
   const r = await fetch(`${API_BASE}/api/waypoints/${id}`);
   const text = await r.text();
   try {
@@ -41,6 +44,7 @@ export async function createWaypoint(
   token: string,
   waypoint: Omit<Waypoint, "id" | "created_at" | "user_id">
 ): Promise<Waypoint> {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/waypoints`, {
     method: "POST",
     headers: {
@@ -56,6 +60,7 @@ export async function createWaypoint(
 }
 
 export async function deleteWaypoint(waypointId: number, token: string) {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/waypoints/${waypointId}`, {
     method: "DELETE",
     headers: {
@@ -79,6 +84,7 @@ export async function updateWaypoint(
   id: number,
   payload: Partial<Pick<Waypoint, "route_id" | "name" | "description" | "lat" | "lon" | "type">>
 ): Promise<Waypoint> {
+  const API_BASE = getBaseUrl();
   const r = await fetch(`${API_BASE}/api/waypoints/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

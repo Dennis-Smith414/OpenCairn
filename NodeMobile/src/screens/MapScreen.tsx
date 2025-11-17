@@ -1,16 +1,18 @@
 // src/screens/MapScreen.tsx
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { StyleSheet, View, ActivityIndicator, Text } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { fetchRouteGeo } from "../lib/api";
 import { featureCollectionToSegments } from "../utils/geoUtils";
-import LeafletMap, { LatLng, Track } from "../components/LeafletMap/LeafletMap";
 import { colors } from "../styles/theme";
 import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
-import { WaypointPopup } from "../components/LeafletMap/WaypointPopup";
-import { WaypointDetail } from "../components/LeafletMap/WaypointDetail";
+import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
+import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
+
+// NEW: MapLibre map component (Leaflet-compatible props)
+import MapLibreMap, { LatLng, Track } from "../components/MapLibre/MapLibreMap";
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 15;
@@ -56,28 +58,19 @@ const MapScreen: React.FC = () => {
         return;
       }
 
-        const nextTracks: Track[] = [];
-        for (const id of selectedRouteIds) {
-          // fetchRouteGeo returns a FeatureCollection (server: /api/routes/:id/gpx)
-          const fc = await fetchRouteGeo(id);
-          if (!fc) continue;
-
-          // Keep segments separate: LatLng[][]
-          const segments = featureCollectionToSegments(fc); // LatLng[][]
-
-          if (segments.length === 0) {
-            // No GPX rows for this route; skip adding a track
-            continue;
-          }
-
-          nextTracks.push({
-            id,
-            // LeafletMap Track.coords accepts LatLng[] | LatLng[][]
-            coords: segments,
-            color: selectedRoutes.find(r => r.id === id)?.color,
-          });
-        }
-        setTracks(nextTracks);
+      const nextTracks: Track[] = [];
+      for (const id of selectedRouteIds) {
+        const fc = await fetchRouteGeo(id);
+        if (!fc) continue;
+        const segments = featureCollectionToSegments(fc); // LatLng[][]
+        if (segments.length === 0) continue;
+        nextTracks.push({
+          id,
+          coords: segments,
+          color: selectedRoutes.find((r) => r.id === id)?.color,
+        });
+      }
+      setTracks(nextTracks);
     } catch (e: any) {
       setError(e?.message || "Failed to load routes");
     } finally {
@@ -130,12 +123,10 @@ const MapScreen: React.FC = () => {
     };
   }, [requestPermission, startWatching, stopWatching, getCurrentLocation]);
 
-  // Track initial location load
   useEffect(() => {
     if (location && !initialLocationLoaded) setInitialLocationLoaded(true);
   }, [location, initialLocationLoaded]);
 
-  // Load routes when selected routes change
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -147,7 +138,6 @@ const MapScreen: React.FC = () => {
     };
   }, [loadRoutes]);
 
-  // Load waypoints when selected routes change
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -159,54 +149,41 @@ const MapScreen: React.FC = () => {
     };
   }, [loadWaypoints]);
 
-  // Refetch when the screen regains focus (after creating /editing a waypoint)
- useFocusEffect(
-   useCallback(() => {
-     let active = true;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        await loadWaypoints();
 
-     (async () => {
-       // Always refresh the waypoint list (e.g., counts/icons on map)
-       await loadWaypoints();
+        const id = selectedWaypoint?.id;
+        if (!id) return;
 
-       // If a waypoint is open/selected, refresh just that one
-       const id = selectedWaypoint?.id;
-       if (!id) return;
+        try {
+          const fresh = await fetchWaypoint(id);
+          if (!active) return;
 
-       try {
-         const fresh = await fetchWaypoint(id);
-         if (!active) return;
+          setWaypoints((prev) => prev.map((w) => (w.id === fresh.id ? { ...w, ...fresh } : w)));
+          setSelectedWaypoint((prev) => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
+        } catch (e) {
+          console.warn("[MapScreen] refresh selected waypoint failed:", e);
+        }
+      })();
 
-         // update the list item
-         setWaypoints((prev) =>
-           prev.map((w) => (w.id === fresh.id ? { ...w, ...fresh } : w))
-         );
+      return () => {
+        active = false;
+      };
+    }, [loadWaypoints, selectedWaypoint?.id])
+  );
 
-         // update the detail panel if it's the same waypoint
-         setSelectedWaypoint((prev) =>
-           prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev
-         );
-       } catch (e) {
-         // swallow—if fetch fails, keep what we had
-         console.warn("[MapScreen] refresh selected waypoint failed:", e);
-       }
-     })();
-
-     return () => {
-       active = false;
-     };
-   }, [loadWaypoints, selectedWaypoint?.id])
- );
-
-
-  // Derived values
   const userLocation = location ? ([location.lat, location.lng] as LatLng) : null;
   const mapCenter = userLocation || DEFAULT_CENTER;
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
   const handleMapLongPress = (lat: number, lon: number) => {
+    // MapLibreMap already constructs a Marked Location waypoint and calls onWaypointPress
+    // This callback remains for parity and any extra side effects.
     console.log("Long press at:", lat, lon);
-    // LeafletHTML + LeafletMap handle temp marker + popup
   };
 
   const handleExpandWaypoint = () => {
@@ -233,9 +210,10 @@ const MapScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <LeafletMap
+      <MapLibreMap
         tracks={tracks}
         userLocation={userLocation}
+        autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}
@@ -248,6 +226,7 @@ const MapScreen: React.FC = () => {
             setSelectedWaypoint(wp);
           }
         }}
+        showTrackingButton
       />
 
       {(loading || showLocationLoading) && (

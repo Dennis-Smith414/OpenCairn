@@ -5,6 +5,8 @@ import AppNavigator from "./src/navigation/AppNavigator";
 import { RouteSelectionProvider } from "./src/context/RouteSelectionContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
+import { OfflineBackendProvider } from "./src/context/OfflineContext";
+
 
 import {
   loadSavedThemeOverride,
@@ -80,6 +82,7 @@ export default function App() {
   }
 
   return (
+   <OfflineBackendProvider initialMode="online">
     <AuthProvider>
       <RouteSelectionProvider>
         <DistanceUnitProvider>
@@ -87,5 +90,6 @@ export default function App() {
         </DistanceUnitProvider>
       </RouteSelectionProvider>
     </AuthProvider>
+  </OfflineBackendProvider>
   );
 }
