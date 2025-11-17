@@ -34,6 +34,36 @@ export async function fetchRouteList() {
   return json.items ?? [];
 }
 
+export async function toggleRouteUpvote(
+  routeId: number,
+  token: string
+): Promise<{
+  ok: boolean;
+  routeId: number;
+  upvotes: number;
+  userHasUpvoted: boolean;
+}> {
+  const res = await fetch(`${API_BASE}/api/routes/${routeId}/upvote`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const text = await res.text();
+  const json = safeJson(text);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(
+      `Failed to toggle upvote (${res.status}) :: ${text.slice(0, 200)}`
+    );
+  }
+
+  return json;
+}
+
+
 /**
  * NEW: use GET /api/routes/:id/gpx
  * Returns FeatureCollection
@@ -105,4 +135,46 @@ export async function fetchCurrentUser(token: string) {
   if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
   const json = await res.json();
   return json.user;
+}
+
+
+
+// --- NEW: fetch comments for a route ---
+export async function fetchRouteComments(routeId: number) {
+  const res = await fetch(`${API_BASE}/api/routes/${routeId}/comments`);
+  const text = await res.text();
+  const json = safeJson(text);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(
+      `Failed to load comments (${res.status}) :: ${text.slice(0, 200)}`
+    );
+  }
+  return json.items ?? [];
+}
+
+// --- NEW: post a comment on a route ---
+export async function postRouteComment(
+  routeId: number,
+  content: string,
+  token: string
+) {
+  const res = await fetch(`${API_BASE}/api/routes/${routeId}/comments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  const text = await res.text();
+  const json = safeJson(text);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(
+      `Failed to post comment (${res.status}) :: ${text.slice(0, 200)}`
+    );
+  }
+  return json.comment;
 }

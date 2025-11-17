@@ -204,29 +204,42 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   }, [isReady, tracks]);
 
   // Blue location dot should NOT auto-pan (we only pan on pill)
-  useEffect(() => {
-    if (!isReady) return;
-    if (userLocation) {
-      const [lat, lng] = userLocation;
-      const lastLoc = lastLocationRef.current;
+// Update blue location dot.
+// If tracking is ON, also keep the map centered on the user.
+useEffect(() => {
+  if (!isReady) return;
 
-      // Only forward meaningful changes
-      const hasChanged =
-        !lastLoc ||
-        Math.abs(lastLoc[0] - lat) > 0.00001 ||
-        Math.abs(lastLoc[1] - lng) > 0.00001;
+  if (userLocation) {
+    const [lat, lng] = userLocation;
+    const lastLoc = lastLocationRef.current;
 
-      if (hasChanged) {
-        lastLocationRef.current = [lat, lng];
+    const hasChanged =
+      !lastLoc ||
+      Math.abs(lastLoc[0] - lat) > 0.00001 ||
+      Math.abs(lastLoc[1] - lng) > 0.00001;
+
+    if (hasChanged) {
+      lastLocationRef.current = [lat, lng];
+
+      // 1) always update the blue dot
+      webRef.current?.injectJavaScript(`
+        window.__setUserLocation(${lat}, ${lng});
+        true;
+      `);
+
+      // 2) only auto-pan if tracking is enabled (green pill)
+      if (tracking) {
         webRef.current?.injectJavaScript(`
-          window.__setUserLocation(${lat}, ${lng});
+          window.__panTo && window.__panTo(${lat}, ${lng});
           true;
         `);
       }
-    } else {
-      webRef.current?.injectJavaScript(`window.__removeUserLocation(); true;`);
     }
-  }, [isReady, userLocation, tracking]);
+  } else {
+    webRef.current?.injectJavaScript(`window.__removeUserLocation(); true;`);
+  }
+}, [isReady, userLocation, tracking]);
+
 
   // Push waypoint icons to WebView
   useEffect(() => {
