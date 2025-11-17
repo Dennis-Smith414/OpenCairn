@@ -71,4 +71,43 @@ router.post("/routes/:id/resync", async (req, res) => {
   }
 });
 
+// ------------------------------------------------------
+// POST /api/files/routes/:id/remove
+// -> Remove a route + its offline data from SQLite
+//    (after a successful sync to the online DB)
+// ------------------------------------------------------
+router.post("/routes/:id/remove", async (req, res) => {
+  const id = toInt(req.params.id);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "Invalid route id" });
+  }
+
+  try {
+    // Start transaction
+    await run("BEGIN");
+
+    // If your schema has ON DELETE CASCADE, you *could* just delete
+    // FROM routes and let SQLite handle the rest.
+    // Here we’re explicit for safety / clarity.
+    await run(`DELETE FROM comments WHERE route_id = ?`, [id]);
+    await run(`DELETE FROM waypoints WHERE route_id = ?`, [id]);
+    await run(`DELETE FROM routes WHERE id = ?`, [id]);
+
+    await run("COMMIT");
+
+    return res.json({ ok: true, removedId: id });
+  } catch (err) {
+    console.error("[offline] POST /files/routes/:id/remove error:", err);
+    try {
+      await run("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("[offline] ROLLBACK failed:", rollbackErr);
+    }
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to remove offline route" });
+  }
+});
+
+
 module.exports = router;

@@ -44,3 +44,17 @@ export async function requestRouteResync(routeId: number): Promise<boolean> {
   );
   return data.ok === true;
 }
+
+/**
+ * Remove a route and its offline data from SQLite.
+ * Expects offline server endpoint:
+ *   POST /api/files/routes/:id/remove
+ */
+export async function removeOfflineRoute(routeId: number): Promise<boolean> {
+  const data = await apiFetch<{ ok: boolean }>(
+    "offline",
+    `/api/files/routes/${routeId}/remove`,
+    { method: "POST" }
+  );
+  return data.ok === true;
+}

@@ -13,9 +13,11 @@ import {
 import { useThemeStyles } from "../styles/theme";
 import { createGlobalStyles } from "../styles/globalStyles";
 import { useOfflineBackend } from "../context/OfflineContext";
-import { fetchOfflineRoutes } from "../lib/files";
+import { fetchOfflineRoutes, removeOfflineRoute } from "../lib/files";
 import { syncRouteToOnline } from "../lib/syncOnline";
 import { useAuth } from "../context/AuthContext";
+import { OfflineRoutesList } from "../components/files/OfflineRoutesList";
+
 
 export default function FileManagerScreen() {
   const { colors } = useThemeStyles();
@@ -29,6 +31,7 @@ export default function FileManagerScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingRouteId, setSyncingRouteId] = useState<number | null>(null);
+  const [removingRouteId, setRemovingRouteId] = useState<number | null>(null);
 
   // ---------------------------------
   // Load offline routes
@@ -87,6 +90,25 @@ export default function FileManagerScreen() {
     }
   }
 
+  // ---------------------------------
+  // Handle Remove from offline DB
+  // ---------------------------------
+  async function handleRemove(routeId: number) {
+    try {
+      setRemovingRouteId(routeId);
+      await removeOfflineRoute(routeId);
+      await loadOfflineRoutes();
+    } catch (err: any) {
+      console.error("[FileManager] handleRemove error:", err);
+      Alert.alert(
+        "Remove failed",
+        String(err?.message ?? "Failed to remove offline route.")
+      );
+    } finally {
+      setRemovingRouteId(null);
+    }
+  }
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -127,55 +149,19 @@ export default function FileManagerScreen() {
               />
             </View>
 
-            <Text style={styles.modeHint}>
-              Current: {mode.toUpperCase()}
-            </Text>
+            <Text style={styles.modeHint}>Current: {mode.toUpperCase()}</Text>
           </View>
 
-          {/* Offline Route List */}
-          <View style={styles.routesContainer}>
-            <Text style={styles.sectionTitle}>Downloaded Routes</Text>
-
-            {loading && (
-              <ActivityIndicator size="large" color={colors.primary} />
-            )}
-
-            {!loading && routes.length === 0 && (
-              <Text style={styles.empty}>No offline routes found.</Text>
-            )}
-
-            {routes.map((r) => {
-              const isSyncing = syncingRouteId === r.id;
-              return (
-                <View key={r.id} style={styles.routeCard}>
-                  <Text style={styles.routeName}>{r.name}</Text>
-
-                  <Text style={styles.meta}>
-                    Waypoints: {r.waypoint_count} • Comments: {r.comment_count}
-                  </Text>
-
-                  <Text style={styles.meta}>
-                    Last Sync: {r.last_synced_at ?? "Never"}
-                  </Text>
-
-                  <TouchableOpacity
-                    onPress={() => handleResync(r.id)}
-                    style={[
-                      styles.syncButton,
-                      isSyncing && { opacity: 0.6 },
-                    ]}
-                    disabled={isSyncing}
-                  >
-                    {isSyncing ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.syncButtonText}>Sync Online</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </View>
+          {/* Offline Route List (extracted component) */}
+          <OfflineRoutesList
+            routes={routes}
+            loading={loading}
+            syncingRouteId={syncingRouteId}
+            removingRouteId={removingRouteId}
+            onResync={handleResync}
+            onRemove={handleRemove}
+            colors={colors}
+          />
         </View>
       </ScrollView>
     </View>
@@ -202,7 +188,12 @@ function ModeChip({ label, active, onPress, colors }: ModeChipProps) {
         },
       ]}
     >
-      <Text style={[chipStyles.label, { color: active ? "#fff" : colors.text }]}>
+      <Text
+        style={[
+          chipStyles.label,
+          { color: active ? "#fff" : colors.text },
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -235,53 +226,6 @@ const createStyles = (colors: any) =>
       fontSize: 13,
       color: colors.muted,
       marginTop: 4,
-    },
-    routesContainer: {
-      marginTop: 26,
-      width: "100%",
-      paddingHorizontal: 16,
-    },
-    sectionTitle: {
-      color: colors.text,
-      fontSize: 18,
-      fontWeight: "700",
-      marginBottom: 12,
-      textAlign: "center",
-    },
-    empty: {
-      color: colors.muted,
-      textAlign: "center",
-      marginTop: 10,
-    },
-    routeCard: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 14,
-      marginBottom: 16,
-      borderColor: colors.border,
-      borderWidth: 1,
-    },
-    routeName: {
-      fontSize: 17,
-      fontWeight: "600",
-      color: colors.text,
-      marginBottom: 4,
-    },
-    meta: {
-      fontSize: 13,
-      color: colors.muted,
-      marginBottom: 4,
-    },
-    syncButton: {
-      marginTop: 10,
-      backgroundColor: colors.primary,
-      paddingVertical: 8,
-      borderRadius: 8,
-      alignItems: "center",
-    },
-    syncButtonText: {
-      color: "#fff",
-      fontWeight: "600",
     },
   });
 
