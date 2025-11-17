@@ -23,6 +23,7 @@
     "@turf/bbox": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "haversine-distance": "^1.2.4",
+    "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
     "nodejs-mobile-react-native": "^18.20.4",
     "psql": "^0.0.1",

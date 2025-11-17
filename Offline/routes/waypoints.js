@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { all, get, run } = require("../db/queries");
+const authorize = require("../middleware/authorize");
 
 const toInt = (v) => {
   const n = Number(v);
@@ -10,13 +11,15 @@ const toInt = (v) => {
 
 // ===================================================================
 // GET /waypoints/route/:route_id
-// → Fetch all waypoints for a given route
+// → Fetch all NON-DELETED waypoints for a given route
 // ===================================================================
 router.get("/route/:route_id", async (req, res) => {
   try {
     const routeId = toInt(req.params.route_id);
     if (!routeId) {
-      return res.status(400).json({ ok: false, error: "Missing or invalid route_id." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing or invalid route_id." });
     }
 
     const result = await all(
@@ -27,12 +30,12 @@ router.get("/route/:route_id", async (req, res) => {
       FROM waypoints w
       LEFT JOIN routes r ON r.id = w.route_id
       WHERE w.route_id = ?
+        AND w.sync_status != 'deleted'
       ORDER BY w.created_at DESC
       `,
       [routeId]
     );
 
-    // Note: w.username is already denormalized in the schema
     res.json({ ok: true, items: result });
   } catch (err) {
     console.error("[offline] GET /waypoints/route error:", err);
@@ -42,13 +45,15 @@ router.get("/route/:route_id", async (req, res) => {
 
 // ===================================================================
 // GET /waypoints/:id
-// → Fetch a single waypoint by id
+// → Fetch a single NON-DELETED waypoint by id
 // ===================================================================
 router.get("/:id", async (req, res) => {
   try {
     const id = toInt(req.params.id);
     if (!id) {
-      return res.status(400).json({ ok: false, error: "Missing or invalid waypoint id." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing or invalid waypoint id." });
     }
 
     const waypoint = await get(
@@ -59,12 +64,15 @@ router.get("/:id", async (req, res) => {
       FROM waypoints w
       LEFT JOIN routes r ON r.id = w.route_id
       WHERE w.id = ?
+        AND w.sync_status != 'deleted'
       `,
       [id]
     );
 
     if (!waypoint) {
-      return res.status(404).json({ ok: false, error: "Waypoint not found." });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Waypoint not found." });
     }
 
     res.json({ ok: true, waypoint });
@@ -76,9 +84,10 @@ router.get("/:id", async (req, res) => {
 
 // ===================================================================
 // POST /waypoints  (create, offline)
-// Expect body: { route_id, name, description?, lat, lon, type?, user_id, username }
+// Expect body: { route_id, name, description?, lat, lon, type?, username? }
+// user_id comes from JWT
 // ===================================================================
-router.post("/", async (req, res) => {
+router.post("/", authorize, async (req, res) => {
   try {
     const route_id = toInt(req.body.route_id);
     const name = (req.body.name ?? "").trim();
@@ -90,8 +99,9 @@ router.post("/", async (req, res) => {
     const lon = req.body.lon != null ? Number(req.body.lon) : null;
     const type = (req.body.type ?? "generic").toString();
 
-    const user_id = toInt(req.body.user_id);
-    const username = (req.body.username ?? "").trim();
+    const user_id = toInt(req.user?.id);
+    const username =
+      (req.user?.username ?? req.body.username ?? "").trim();
 
     if (!route_id || !name || lat == null || lon == null) {
       return res.status(400).json({
@@ -99,10 +109,10 @@ router.post("/", async (req, res) => {
         error: "Missing required fields: route_id, name, lat, lon.",
       });
     }
-    if (!user_id || !username) {
-      return res.status(400).json({
+    if (!user_id) {
+      return res.status(401).json({
         ok: false,
-        error: "user_id and username are required offline.",
+        error: "Missing or invalid user id (JWT).",
       });
     }
 
@@ -119,14 +129,15 @@ router.post("/", async (req, res) => {
         lon,
         type,
         created_at,
-        updated_at
+        updated_at,
+        sync_status
       )
       VALUES (
         NULL,          -- let SQLite assign id
-        ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')
+        ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 'new'
       )
       `,
-      [route_id, user_id, username, name, description, lat, lon, type]
+      [route_id, user_id, username || "UnknownUser", name, description, lat, lon, type]
     );
 
     const insertedId = result.lastID;
@@ -152,18 +163,23 @@ router.post("/", async (req, res) => {
 
 // ===================================================================
 // PATCH /waypoints/:id  (owner-only, partial update, offline)
-// Expect body: { user_id, route_id?, name?, description?, lat?, lon?, type? }
+// Expect body: { route_id?, name?, description?, lat?, lon?, type? }
+// user_id comes from JWT
 // ===================================================================
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", authorize, async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const userId = toInt(req.body.user_id);
+    const userId = toInt(req.user?.id);
 
     if (!id) {
-      return res.status(400).json({ ok: false, error: "Invalid waypoint id." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid waypoint id." });
     }
     if (!userId) {
-      return res.status(401).json({ ok: false, error: "Missing or invalid user id." });
+      return res
+        .status(401)
+        .json({ ok: false, error: "Missing or invalid user id." });
     }
 
     // Allowed fields
@@ -194,10 +210,20 @@ router.patch("/:id", async (req, res) => {
     if (type != null) add("type = ?", type);
 
     if (sets.length === 0) {
-      return res.status(400).json({ ok: false, error: "No fields to update." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "No fields to update." });
     }
 
+    // Always bump updated_at
     sets.push("updated_at = datetime('now')");
+    // Mark as dirty unless it was still 'new'
+    sets.push(
+      `sync_status = CASE
+         WHEN sync_status = 'new' THEN 'new'
+         ELSE 'dirty'
+       END`
+    );
 
     const sql = `
       UPDATE waypoints
@@ -210,7 +236,9 @@ router.patch("/:id", async (req, res) => {
     const result = await run(sql, params);
 
     if (!result.changes) {
-      return res.status(403).json({ ok: false, error: "Not found or not permitted." });
+      return res
+        .status(403)
+        .json({ ok: false, error: "Not found or not permitted." });
     }
 
     const waypoint = await get(
@@ -234,31 +262,69 @@ router.patch("/:id", async (req, res) => {
 
 // ===================================================================
 // DELETE /waypoints/:id  (owner-only, offline)
-// Expect body: { user_id }
+// user id comes from JWT
 // ===================================================================
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authorize, async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const userId = toInt(req.body.user_id);
+    const userId = toInt(req.user?.id);
 
     if (!id) {
-      return res.status(400).json({ ok: false, error: "Missing or invalid waypoint id." });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing or invalid waypoint id." });
     }
     if (!userId) {
-      return res.status(401).json({ ok: false, error: "Missing or invalid user id." });
+      return res
+        .status(401)
+        .json({ ok: false, error: "Missing or invalid user id." });
     }
 
-    const result = await run(
+    // Fetch current sync_status to decide between hard delete vs tombstone
+    const existing = await get(
       `
-      DELETE FROM waypoints
-       WHERE id = ?
-         AND user_id = ?
+      SELECT sync_status
+      FROM waypoints
+      WHERE id = ?
+        AND user_id = ?
       `,
       [id, userId]
     );
 
-    if (!result.changes) {
-      return res.status(403).json({ ok: false, error: "Not found or not permitted." });
+    if (!existing) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Not found or not permitted." });
+    }
+
+    if (existing.sync_status === "new") {
+      // Never synced → hard delete, no need to inform remote
+      const result = await run(
+        `
+        DELETE FROM waypoints
+         WHERE id = ?
+           AND user_id = ?
+        `,
+        [id, userId]
+      );
+
+      if (!result.changes) {
+        return res
+          .status(403)
+          .json({ ok: false, error: "Not found or not permitted." });
+      }
+    } else {
+      // Already synced → tombstone for sync
+      await run(
+        `
+        UPDATE waypoints
+           SET sync_status = 'deleted',
+               updated_at  = datetime('now')
+         WHERE id = ?
+           AND user_id = ?
+        `,
+        [id, userId]
+      );
     }
 
     res.json({ ok: true, id });
