@@ -1,4 +1,5 @@
-import { API_BASE } from "../config/env";
+//import { API_BASE } from "../config/env";
+import { getBaseUrl } from "./api";
 import { uploadGpxToExistingRoute } from "./uploadGpx";
 
 export interface Route {
@@ -18,6 +19,7 @@ export async function createRoute(
   token: string,
   payload: { name: string; region?: string; slug?: string }
 ): Promise<Route> {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/routes`, {
     method: "POST",
     headers: {
@@ -33,6 +35,7 @@ export async function createRoute(
 
 /** Delete a route (owner only). */
 export async function deleteRoute(routeId: number, token: string) {
+  const API_BASE = getBaseUrl();
   const res = await fetch(`${API_BASE}/api/routes/${routeId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
@@ -53,6 +56,7 @@ export async function createRouteWithGpx(
   route: { name: string; region?: string },
   fileUri: string
 ) {
+  const API_BASE = getBaseUrl();
   const newRoute = await createRoute(token, route);
   const upload = await uploadGpxToExistingRoute(newRoute.id!, fileUri, token);
   return { route: newRoute, upload };

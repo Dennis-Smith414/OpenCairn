@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^10.4.0",
     "@react-native-documents/picker": "^10.1.7",
     "@xmldom/xmldom": "^0.8.11",
     "curl": "^0.1.4",

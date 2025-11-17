@@ -20,22 +20,52 @@ router.get("/", async (req, res) => {
 
     // counts are handy for UI
     params.push(limit, offset);
-    const sql = `
-      SELECT
-        r.id, r.slug, r.name, r.region, r.created_at, r.updated_at,
-        COALESCE(wp.cnt, 0) AS waypoint_count,
-        COALESCE(gx.cnt, 0) AS gpx_count
-      FROM routes r
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS cnt FROM waypoints w WHERE w.route_id = r.id
-      ) wp ON true
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS cnt FROM gpx g WHERE g.route_id = r.id
-      ) gx ON true
-      ${where}
-      ORDER BY r.updated_at DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    `;
+const sql = `
+  SELECT
+    r.id,
+    r.slug,
+    r.name,
+    r.region,
+    r.created_at,
+    r.updated_at,
+    COALESCE(wp.cnt, 0) AS waypoint_count,
+    COALESCE(gx.cnt, 0) AS gpx_count,
+    COALESCE(uv.upvotes, 0) AS upvotes,
+    st.start_lat,
+    st.start_lng
+  FROM routes r
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS cnt
+    FROM waypoints w
+    WHERE w.route_id = r.id
+  ) wp ON true
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS cnt
+    FROM gpx g
+    WHERE g.route_id = r.id
+  ) gx ON true
+  -- 🔹 NEW: grab a starting lat/lng from the first GPX geometry for this route
+  LEFT JOIN LATERAL (
+    SELECT
+      ST_Y(ST_StartPoint(g.geometry))::float  AS start_lat,
+      ST_X(ST_StartPoint(g.geometry))::float  AS start_lng
+    FROM gpx g
+    WHERE g.route_id = r.id
+    ORDER BY g.id ASC
+    LIMIT 1
+  ) st ON true
+  LEFT JOIN (
+    SELECT route_id, COUNT(*)::int AS upvotes
+    FROM route_ratings
+    WHERE val = 1
+    GROUP BY route_id
+  ) uv ON uv.route_id = r.id
+  ${where}
+  ORDER BY r.updated_at DESC
+  LIMIT $${params.length - 1} OFFSET $${params.length}
+`;
+
+
     const items = await db.all(sql, params);
     res.json({ ok: true, items, nextOffset: offset + items.length });
   } catch (e) {
@@ -199,5 +229,204 @@ router.delete("/:id", authorize, async (req, res) => {
     }
   });
 
+  // POST /api/routes/:id/upvote  (toggle per-user upvote)
+router.post("/:id/upvote", authorize, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const routeId = Number(req.params.id);
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+
+    // Check existing vote
+    const existing = await db.get(
+      `SELECT val FROM route_ratings
+        WHERE user_id = $1 AND route_id = $2`,
+      [userId, routeId]
+    );
+
+    let userHasUpvoted = false;
+
+    if (existing && existing.val === 1) {
+      // Already upvoted → remove
+      await db.run(
+        `DELETE FROM route_ratings
+          WHERE user_id = $1 AND route_id = $2`,
+        [userId, routeId]
+      );
+      userHasUpvoted = false;
+    } else {
+      // Insert or update
+      await db.run(
+        `INSERT INTO route_ratings (user_id, route_id, val)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (user_id, route_id)
+         DO UPDATE SET val = 1`,
+        [userId, routeId]
+      );
+      userHasUpvoted = true;
+    }
+
+    // New aggregate
+    const agg = await db.get(
+      `SELECT COUNT(*)::int AS upvotes
+         FROM route_ratings
+        WHERE route_id = $1 AND val = 1`,
+      [routeId]
+    );
+
+    res.json({
+      ok: true,
+      routeId,
+      upvotes: agg.upvotes,
+      userHasUpvoted,
+    });
+
+  } catch (e) {
+    console.error("POST /routes/:id/upvote failed:", e);
+    res.status(500).json({ ok: false, error: "upvote-failed" });
+  }
+});
+
+// ---------- GET /api/routes/:id/comments  (list comments for a route)
+router.get("/:id/comments", async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const limit = Math.min(parseInt(req.query.limit ?? "50", 10), 100);
+    const offset = Math.max(parseInt(req.query.offset ?? "0", 10), 0);
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+
+    // join users so we can show username next to comment
+    const comments = await db.all(
+      `
+      SELECT
+        c.id,
+        c.content,
+        c.created_at,
+        c.updated_at,
+        c.edited,
+        u.id   AS user_id,
+        u.username
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.kind = 'route' AND c.route_id = $1
+      ORDER BY c.created_at DESC
+      LIMIT $2 OFFSET $3
+      `,
+      [routeId, limit, offset]
+    );
+
+    res.json({
+      ok: true,
+      items: comments,
+      nextOffset: offset + comments.length,
+    });
+  } catch (e) {
+    console.error("GET /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comments-list-failed" });
+  }
+});
+
+// ---------- POST /api/routes/:id/comments  (add comment to route)
+router.post("/:id/comments", authorize, async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const userId = req.user.id;
+    const rawContent = (req.body.content ?? "").trim();
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+    if (!rawContent) {
+      return res.status(400).json({ ok: false, error: "content-required" });
+    }
+
+    // make sure route exists
+    const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
+    if (!route) {
+      return res.status(404).json({ ok: false, error: "route-not-found" });
+    }
+
+    const row = await db.get(
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'route', NULL, $2, $3)
+      RETURNING id, content, created_at, updated_at, edited
+      `,
+      [userId, routeId, rawContent]
+    );
+
+    // grab username for immediate UI display
+    const user = await db.get(
+      `SELECT username FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(201).json({
+      ok: true,
+      comment: {
+        ...row,
+        user_id: userId,
+        username: user?.username ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("POST /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comment-create-failed" });
+  }
+});
+
+// ---------- POST /api/routes/:id/comments  (add comment to route)
+router.post("/:id/comments", authorize, async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const userId = req.user.id;
+    const rawContent = (req.body.content ?? "").trim();
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+    if (!rawContent) {
+      return res.status(400).json({ ok: false, error: "content-required" });
+    }
+
+    // make sure route exists
+    const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
+    if (!route) {
+      return res.status(404).json({ ok: false, error: "route-not-found" });
+    }
+
+    const row = await db.get(
+      `
+      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
+      VALUES ($1, 'route', NULL, $2, $3)
+      RETURNING id, content, created_at, updated_at, edited
+      `,
+      [userId, routeId, rawContent]
+    );
+
+    // grab username for immediate UI display
+    const user = await db.get(
+      `SELECT username FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(201).json({
+      ok: true,
+      comment: {
+        ...row,
+        user_id: userId,
+        username: user?.username ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("POST /routes/:id/comments failed:", e);
+    res.status(500).json({ ok: false, error: "comment-create-failed" });
+  }
+});
 
 module.exports = router;
