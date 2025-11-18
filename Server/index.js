@@ -37,7 +37,6 @@ process.on("unhandledRejection", (err) => {
   try {
     // Ensure every connection has the right search_path
     // (you can also do this in Postgres.js via pool.on('connect', ...))
-    // await db.run("SET search_path TO public"); // not needed if you do it per-connection
 
     // Create/verify schema objects
     await db.init();

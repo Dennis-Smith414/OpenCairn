@@ -100,33 +100,36 @@ router.post("/push", authorize, async (req, res) => {
     /* -------------------------
      * RATINGS
      * ------------------------- */
-    const applyRating = async (table, r) => {
+
+    // r.target_id  => waypoint_id / route_id / comment_id
+    // r.rating     => val  (-1 or +1)
+    const applyRating = async (table, idColumn, r) => {
       if (r.sync_status === "new" || r.sync_status === "dirty") {
         await db.run(
-          `INSERT INTO ${table} (user_id, target_id, rating)
+          `INSERT INTO ${table} (user_id, ${idColumn}, val)
            VALUES ($1,$2,$3)
-           ON CONFLICT (user_id, target_id)
-           DO UPDATE SET rating=$3`,
+           ON CONFLICT (user_id, ${idColumn})
+           DO UPDATE SET val=$3`,
           [userId, r.target_id, r.rating]
         );
       } else if (r.sync_status === "deleted") {
         await db.run(
           `DELETE FROM ${table}
             WHERE user_id=$1
-              AND target_id=$2`,
+              AND ${idColumn}=$2`,
           [userId, r.target_id]
         );
       }
     };
 
     for (const r of ratings.waypoint) {
-      await applyRating("waypoint_rating", r);
+      await applyRating("waypoint_ratings", "waypoint_id", r);
     }
     for (const r of ratings.route) {
-      await applyRating("route_rating", r);
+      await applyRating("route_ratings", "route_id", r);
     }
     for (const r of ratings.comment) {
-      await applyRating("comment_rating", r);
+      await applyRating("comment_ratings", "comment_id", r);
     }
 
     res.json({

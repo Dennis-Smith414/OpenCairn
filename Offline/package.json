@@ -9,6 +9,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "pmtiles": "^4.3.0",
     "sqlite3": "^5.1.7"
   }
 }

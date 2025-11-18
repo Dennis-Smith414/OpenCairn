@@ -1,5 +1,5 @@
 // Server/Postgres.js
-require('dotenv').config();
+require("dotenv").config();
 
 const { Pool } = require("pg");
 
@@ -18,12 +18,12 @@ pool
     console.error("[Postgres] Connection error:", err.message);
   });
 
-  // enforce search_path per connection
-  pool.on('connect', (client) => {
-    client.query("SET search_path TO opencairn").catch(e => {
-      console.error("[Postgres] failed to set search_path:", e.message);
-    });
+// enforce search_path per connection
+pool.on("connect", (client) => {
+  client.query("SET search_path = opencairn;").catch((e) => {
+    console.error("[Postgres] failed to set search_path:", e.message);
   });
+});
 
 /** Write (INSERT/UPDATE/DELETE). Returns { rowCount, rows }. */
 async function run(sql, params = []) {
@@ -45,7 +45,14 @@ async function get(sql, params = []) {
 
 /** Ensure schema exists. Call this once from index.js before listening. */
 async function init() {
-  // Users
+  // POSTGIS extension (needed for gpx.geometry)
+  try {
+    await run(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+  } catch (e) {
+    console.warn("[Postgres] Could not create postgis extension:", e.message);
+  }
+
+  // USERS
   await run(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -54,11 +61,10 @@ async function init() {
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-
     )
   `);
 
-  // Routes
+  // ROUTES
   await run(`
     CREATE TABLE IF NOT EXISTS routes (
       id SERIAL PRIMARY KEY,
@@ -71,28 +77,59 @@ async function init() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_routes_user_id ON routes(user_id);`);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_routes_user_id ON routes(user_id);
+  `);
 
+  // WAYPOINTS
+  await run(`
+    CREATE TABLE IF NOT EXISTS waypoints (
+      id SERIAL PRIMARY KEY,
+      route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      lat DOUBLE PRECISION,
+      lon DOUBLE PRECISION,
+      type TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_waypoints_route_id ON waypoints(route_id);
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id);
+  `);
 
-  // Waypoints
-await run(`
-  CREATE TABLE IF NOT EXISTS waypoints (
-    id SERIAL PRIMARY KEY,
-    route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    user_id INT REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    lat DOUBLE PRECISION,
-    lon DOUBLE PRECISION,
-    type TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )
-`);
-await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_route_id ON waypoints(route_id);`);
-await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id);`);
+  // WAYPOINT RATINGS
+  await run(`
+    CREATE TABLE IF NOT EXISTS waypoint_ratings (
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      waypoint_id INT NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      val SMALLINT NOT NULL,
+      PRIMARY KEY (user_id, waypoint_id)
+    )
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_wp_ratings_waypoint_id ON waypoint_ratings(waypoint_id);
+  `);
 
-  // Comments
+  // ROUTE RATINGS
+  await run(`
+    CREATE TABLE IF NOT EXISTS route_ratings (
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      val SMALLINT NOT NULL,
+      PRIMARY KEY (user_id, route_id)
+    )
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id ON route_ratings(route_id);
+  `);
+
+  // COMMENTS
   await run(`
     CREATE TABLE IF NOT EXISTS comments (
       id          SERIAL PRIMARY KEY,
@@ -112,42 +149,22 @@ await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id
       edited      BOOLEAN     NOT NULL DEFAULT FALSE
     )
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_comments_waypoint_recent
-               ON comments (waypoint_id, created_at DESC)
-               WHERE kind = 'waypoint';
-  `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_comments_route_recent
-               ON comments (route_id, created_at DESC)
-               WHERE kind = 'route';
-  `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_comments_user_recent
-               ON comments (user_id, created_at DESC);
-  `);
-
-  //Waypoint ratings
   await run(`
-    CREATE TABLE IF NOT EXISTS waypoint_ratings (
-      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      waypoint_id INT NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      val SMALLINT NOT NULL,
-      PRIMARY KEY(user_id, waypoint_id)
-    )
+    CREATE INDEX IF NOT EXISTS idx_comments_waypoint_recent
+      ON comments (waypoint_id, created_at DESC)
+      WHERE kind = 'waypoint';
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_wp_ratings_waypoint_id ON waypoint_ratings(waypoint_id);`);
-
-
-    //Route ratings
   await run(`
-    CREATE TABLE IF NOT EXISTS route_ratings (
-      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
-      val SMALLINT NOT NULL,
-      PRIMARY KEY(user_id, route_id)
-    )
+    CREATE INDEX IF NOT EXISTS idx_comments_route_recent
+      ON comments (route_id, created_at DESC)
+      WHERE kind = 'route';
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id ON route_ratings(route_id);`);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_comments_user_recent
+      ON comments (user_id, created_at DESC);
+  `);
 
-    //Comment ratings
+  // COMMENT RATINGS
   await run(`
     CREATE TABLE IF NOT EXISTS comment_ratings (
       user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -156,9 +173,11 @@ await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id
       PRIMARY KEY (user_id, comment_id)
     )
   `);
-  await run(`CREATE INDEX IF NOT EXISTS idx_comment_ratings_cmt_id ON comment_ratings(comment_id);`);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_comment_ratings_cmt_id ON comment_ratings(comment_id);
+  `);
 
-  // GPX
+  // GPX FILES
   await run(`
     CREATE TABLE IF NOT EXISTS gpx (
       id SERIAL PRIMARY KEY,
@@ -167,12 +186,14 @@ await run(`CREATE INDEX IF NOT EXISTS idx_waypoints_user_id ON waypoints(user_id
       geometry geometry(LINESTRING, 4326) NOT NULL,
       file BYTEA NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await run(`CREATE INDEX IF NOT EXISTS idx_gpx_route_id ON gpx(route_id);`);
-    await run(`CREATE INDEX IF NOT EXISTS idx_gpx_geom_gist ON gpx USING GIST (geometry);`);
-
+    )
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_gpx_route_id ON gpx(route_id);
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_gpx_geom_gist ON gpx USING GIST (geometry);
+  `);
 }
-
 
 module.exports = { init, run, all, get };
