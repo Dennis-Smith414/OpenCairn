@@ -58,18 +58,21 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
   const { colors: theme } = useThemeStyles(); // ✅ ADDED
 
   // Load current user (for "You" badge + edit/delete auth)
-  useEffect(() => {
-    const loadUser = async () => {
-      if (!userToken) return;
-      try {
-        const userData = await fetchCurrentUser(userToken);
-        setCurrentUser(userData);
-      } catch (err) {
-        console.error("Failed to load current user:", err);
-      }
-    };
-    loadUser();
-  }, [userToken]);
+useEffect(() => {
+  const loadUser = async () => {
+    if (!userToken) return;
+    try {
+      const userData = await fetchCurrentUser(userToken);
+      setCurrentUser(userData);
+    } catch (err) {
+      // Don't trigger the red error screen – just log a warning
+      console.warn("[CommentList] Failed to load current user:", err);
+      // it's safe to leave currentUser as null – you just won't see the "You" styling
+    }
+  };
+  loadUser();
+}, [userToken]);
+
 
   //  Load comments & ratings
   const loadComments = useCallback(async () => {
@@ -152,18 +155,33 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
   };
 
   // Voting
-  const handleVote = async (commentId: number, val: 1 | -1) => {
-    if (!userToken) {
-      alert("You must be logged in to vote.");
-      return;
-    }
-    try {
-      const updated = await submitCommentVote(commentId, val, userToken);
-      setRatings((prev) => ({ ...prev, [commentId]: updated }));
-    } catch (err) {
-      console.error("Failed to vote on comment:", err);
-    }
-  };
+// Voting – send vote, then re-fetch rating so UI is always in sync
+const handleVote = async (commentId: number, val: 1 | -1) => {
+  if (!userToken) {
+    alert("You must be logged in to vote.");
+    return;
+  }
+
+  try {
+    // 1) Send the vote (backend handles toggle / undo logic)
+    await submitCommentVote(commentId, val, userToken);
+
+    // 2) Immediately re-fetch the latest rating for this comment
+    const latest = await fetchCommentRating(commentId, userToken);
+
+    // 3) Update just this comment's rating in state
+    setRatings((prev) => ({
+      ...prev,
+      [commentId]: {
+        total: latest.total ?? 0,
+        user_rating: latest.user_rating ?? null,
+      },
+    }));
+  } catch (err) {
+    console.error("[CommentList] Failed to vote on comment:", err);
+  }
+};
+
 
   // Render item
   const renderComment = ({ item }: { item: Comment }) => {
@@ -182,9 +200,10 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
           <Text style={[styles.username, { color: theme.textPrimary }]}>
             {isOwner ? "You" : item.username}
           </Text>
-          <Text style={[styles.time, { color: theme.textSecondary }]}>
-            {formatRelativeTime(item.create_time)}
-          </Text>
+<Text style={[styles.time, { color: theme.textSecondary }]}>
+  {formatRelativeTime(item.created_at)}
+</Text>
+
         </View>
 
         {isEditing ? (
@@ -219,30 +238,35 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
             </Text>
 
             <View style={styles.voteRow}>
-              <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
-                <Text
-                  style={[
-                    styles.voteButton,
-                    ratings[item.id]?.user_rating === 1 && { color: theme.accent || colors.accent },
-                  ]}
-                >
-                  ⬆️
-                </Text>
-              </TouchableOpacity>
-              <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
-                {rating.total}
-              </Text>
-              <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
-                <Text
-                  style={[
-                    styles.voteButton,
-                    ratings[item.id]?.user_rating === -1 && { color: theme.error || "#d33" },
-                  ]}
-                >
-                  ⬇️
-                </Text>
-              </TouchableOpacity>
-            </View>
+  <TouchableOpacity onPress={() => handleVote(item.id, 1)}>
+    <Text
+      style={[
+        styles.voteButton,
+        { color: theme.textPrimary },
+        rating.user_rating === 1 && { color: theme.accent || colors.accent },
+      ]}
+    >
+      ▲
+    </Text>
+  </TouchableOpacity>
+
+  <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
+    {rating.total}
+  </Text>
+
+  <TouchableOpacity onPress={() => handleVote(item.id, -1)}>
+    <Text
+      style={[
+        styles.voteButton,
+        { color: theme.textPrimary },
+        rating.user_rating === -1 && { color: theme.error || "#d33" },
+      ]}
+    >
+      ▼
+    </Text>
+  </TouchableOpacity>
+</View>
+
 
             {isOwner && (
               <View style={styles.buttonRow}>
@@ -335,13 +359,22 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
 };
 
 // Relative time helper
-function formatRelativeTime(timestamp: string): string {
-  const diff = (Date.now() - new Date(timestamp).getTime()) / 1000;
+function formatRelativeTime(timestamp?: string | null): string {
+  if (!timestamp) return "";
+
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) {
+    // Bad date string – don't show "Invalid Date" to the user
+    return "";
+  }
+
+  const diff = (Date.now() - d.getTime()) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return new Date(timestamp).toLocaleDateString();
+  return d.toLocaleDateString();
 }
+
 
 //  Styles (left as-is)
 const styles = StyleSheet.create({

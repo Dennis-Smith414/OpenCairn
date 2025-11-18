@@ -56,31 +56,46 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
   const [userRating, setUserRating] = useState<number | null>(null);
   const [loadingVote, setLoadingVote] = useState(false);
   const [totalVotes, setTotalVotes] = useState(0);
+const [ratingVersion, setRatingVersion] = useState(0);
 
   const { colors: theme } = useThemeStyles(); // ✅ ADDED
 
   // --- Load waypoint details when visible ---
-  useEffect(() => {
-    if (visible) {
-      setDisplayData({
-        name,
-        description,
-        type,
-        username,
-        dateUploaded,
-        distance,
-      });
+useEffect(() => {
+  if (!visible) return;
 
-      if (id && userToken) {
-        fetchWaypointRating(id, userToken)
-          .then((r) => {
-            setTotalVotes(r.total);
-            setUserRating(r.user_rating);
-          })
-          .catch((err) => console.warn("Failed to fetch rating:", err));
-      }
-    }
-  }, [visible, id, name, description, type, username, dateUploaded, distance, userToken]);
+  // basic display stuff
+  setDisplayData({
+    name,
+    description,
+    type,
+    username,
+    dateUploaded,
+    distance,
+  });
+
+  // pull rating every time popup opens OR ratingVersion changes
+  if (id && userToken) {
+    fetchWaypointRating(id, userToken)
+      .then((r) => {
+        setTotalVotes(r.total ?? 0);
+        setUserRating(r.user_rating ?? null);
+      })
+      .catch((err) => console.warn("Failed to fetch rating:", err));
+  }
+}, [
+  visible,
+  id,
+  name,
+  description,
+  type,
+  username,
+  dateUploaded,
+  distance,
+  userToken,
+  ratingVersion,   // 👈 IMPORTANT: re-run after each vote
+]);
+
 
   // --- Animate in/out ---
   useEffect(() => {
@@ -109,24 +124,32 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
 
   if (!visible && (slideAnim as any).__getValue?.() === 0) return null;
 
-  // --- Voting handler ---
-  const handleVote = async (val: 1 | -1) => {
-    if (!id || !userToken || loadingVote) {
-      console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
-      return;
-    }
-    setLoadingVote(true);
-    try {
-      const result = await submitWaypointVote(id, val, userToken);
-      setTotalVotes(result.total);
-      setUserRating(result.user_rating);
-    } catch (err) {
-      console.error("❌ Vote failed:", err);
-    } finally {
-      setLoadingVote(false);
-    }
-  };
 
+
+  const handleVote = async (val: 1 | -1) => {
+  if (!id || !userToken || loadingVote) {
+    console.warn("⚠️ Missing id/token or already voting", { id, userToken, loadingVote });
+    return;
+  }
+
+  setLoadingVote(true);
+  try {
+    // send vote to backend
+    await submitWaypointVote(id, val, userToken);
+
+    // force re-fetch via effect above
+    setRatingVersion((v) => v + 1);
+  } catch (err) {
+    console.error("❌ Vote failed:", err);
+  } finally {
+    setLoadingVote(false);
+  }
+};
+
+
+
+
+  
   // --- Formatting ---
   const formattedDate = displayData.dateUploaded
     ? new Date(displayData.dateUploaded).toLocaleDateString(undefined, {
@@ -161,11 +184,14 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
         >
           <View style={styles.infoSection}>
             {iconRequire ? (
-              <Image
-                source={iconRequire || require("../../assets/icons/waypoints/generic.png")}
-                style={styles.iconImage}
-                resizeMode="contain"
-              />
+<Image
+  source={
+    iconRequire || require("../../assets/icons/waypoints/generic.png")
+  }
+  style={[styles.iconImage, { tintColor: theme.textPrimary }]}
+  resizeMode="contain"
+/>
+
             ) : (
               <View
                 style={[
@@ -195,41 +221,42 @@ export const WaypointPopup: React.FC<WaypointPopupProps> = ({
 
         {/* === Voting Section === */}
         {!isMarkedLocation && (
-          <View style={styles.voteContainer}>
-            <TouchableOpacity
-              onPress={() => handleVote(1)}
-              disabled={loadingVote}
-            >
-              <Text
-                style={[
-                  styles.voteButton,
-                  { color: theme.textPrimary },                // ✅ ADDED
-                  userRating === 1 && { color: theme.accent }, // ✅ ADDED
-                ]}
-              >
-                ⬆️
-              </Text>
-            </TouchableOpacity>
+         <View style={styles.voteContainer}>
+  <TouchableOpacity
+    onPress={() => handleVote(1)}
+    disabled={loadingVote}
+  >
+    <Text
+      style={[
+        styles.voteButton,
+        { color: theme.textPrimary },
+        userRating === 1 && { color: theme.accent },   // highlight like route screen
+      ]}
+    >
+      ▲
+    </Text>
+  </TouchableOpacity>
 
-            <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
-              {totalVotes}
-            </Text>
+  <Text style={[styles.voteCount, { color: theme.textPrimary }]}>
+    {totalVotes}
+  </Text>
 
-            <TouchableOpacity
-              onPress={() => handleVote(-1)}
-              disabled={loadingVote}
-            >
-              <Text
-                style={[
-                  styles.voteButton,
-                  { color: theme.textPrimary },                    // ✅ ADDED
-                  userRating === -1 && { color: theme.error || "#d33" }, // ✅ ADDED
-                ]}
-              >
-                ⬇️
-              </Text>
-            </TouchableOpacity>
-          </View>
+  <TouchableOpacity
+    onPress={() => handleVote(-1)}
+    disabled={loadingVote}
+  >
+    <Text
+      style={[
+        styles.voteButton,
+        { color: theme.textPrimary },
+        userRating === -1 && { color: theme.error || "#d33" },
+      ]}
+    >
+      ▼
+    </Text>
+  </TouchableOpacity>
+</View>
+
         )}
       </View>
     </Animated.View>
