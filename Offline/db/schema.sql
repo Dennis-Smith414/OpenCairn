@@ -98,6 +98,18 @@ CREATE TABLE IF NOT EXISTS route_ratings (
 CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id
   ON route_ratings(route_id);
 
+-- Route favorites (offline mirror)
+CREATE TABLE IF NOT EXISTS route_favorites (
+  user_id     INTEGER NOT NULL,                         -- remote user id; no FK offline
+  route_id    INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  sync_status TEXT NOT NULL DEFAULT 'clean',
+  PRIMARY KEY (user_id, route_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_favorites_route_id
+  ON route_favorites(route_id);
+
 CREATE TABLE IF NOT EXISTS comment_ratings (
   user_id    INTEGER NOT NULL,                       -- remote user id; no FK offline
   comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE ON UPDATE CASCADE,

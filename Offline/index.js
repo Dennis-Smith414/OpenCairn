@@ -13,6 +13,7 @@ const downloadRoutes = require("./routes/download");
 const filesRoutes = require("./routes/files");
 const unsyncedRoutes = require("./routes/unsynced");
 const tilesRoutes = require("./routes/tiles");
+const favoritesRoutes = require("./routes/favorites");
 
 const PORT = process.env.OFFLINE_PORT || 5101;
 
@@ -43,6 +44,7 @@ async function start() {
     app.use("/api/files", filesRoutes);
     app.use("/api/sync", unsyncedRoutes);
     app.use("/", tilesRoutes);
+    app.use("/api/favorites", favoritesRoutes);
 
     // Optional: offline-specific health endpoint
     app.get("/api/health", (_req, res) => {

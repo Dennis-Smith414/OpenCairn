@@ -1,5 +1,5 @@
 //import { API_BASE } from "../config/env";
-import { getBaseUrl } from "./api";
+import { getBaseUrl, safeJson } from "./api";
 import { uploadGpxToExistingRoute } from "./uploadGpx";
 
 export interface Route {
@@ -13,6 +13,25 @@ export interface Route {
   created_at?: string;
   updated_at?: string;
 }
+
+
+
+/**
+ * GET /api/routes
+ * (shared online/offline)
+ */
+export async function fetchRouteList() {
+  const base = getBaseUrl();
+  const url = new URL(`${base}/api/routes`);
+  const res = await fetch(url.toString());
+  const text = await res.text();
+  const json = safeJson(text);
+  if (!res.ok || !json?.ok) {
+    throw new Error(`Failed to load routes (${res.status}) :: ${text.slice(0, 200)}`);
+  }
+  return json.items ?? [];
+}
+
 
 /** Create a route (owner = current user). */
 export async function createRoute(

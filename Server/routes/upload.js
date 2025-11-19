@@ -12,6 +12,7 @@ router.post("/push", authorize, async (req, res) => {
     waypoints = [],
     comments = [],
     ratings = { waypoint: [], route: [], comment: [] },
+    favorites = { route: [] },
   } = payload;
 
   try {
@@ -132,6 +133,35 @@ router.post("/push", authorize, async (req, res) => {
       await applyRating("comment_ratings", "comment_id", r);
     }
 
+    /* -------------------------
+     * FAVORITES (ROUTES)
+     * ------------------------- */
+
+    // f.target_id => route_id
+    const applyFavorite = async (table, idColumn, f) => {
+      if (f.sync_status === "new" || f.sync_status === "dirty") {
+        await db.run(
+          `INSERT INTO ${table} (user_id, ${idColumn}, created_at)
+           VALUES ($1,$2,NOW())
+           ON CONFLICT (user_id, ${idColumn}) DO NOTHING`,
+          [userId, f.target_id]
+        );
+      } else if (f.sync_status === "deleted") {
+        await db.run(
+          `DELETE FROM ${table}
+            WHERE user_id=$1
+              AND ${idColumn}=$2`,
+          [userId, f.target_id]
+        );
+      }
+    };
+
+    if (favorites && Array.isArray(favorites.route)) {
+      for (const f of favorites.route) {
+        await applyFavorite("route_favorites", "route_id", f);
+      }
+    }
+
     res.json({
       ok: true,
       applied: {
@@ -141,6 +171,7 @@ router.post("/push", authorize, async (req, res) => {
           ratings.waypoint.length +
           ratings.route.length +
           ratings.comment.length,
+        favorites: (favorites.route || []).length,
       },
     });
   } catch (err) {

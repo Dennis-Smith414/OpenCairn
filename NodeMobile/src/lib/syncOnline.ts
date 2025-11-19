@@ -50,6 +50,13 @@ export interface OfflineCommentRating {
   [key: string]: any;
 }
 
+export interface OfflineRouteFavorite {
+  user_id: number;
+  route_id: number;
+  sync_status: string;
+  [key: string]: any;
+}
+
 /**
  * Shape returned by OFFLINE route:
  *   GET /api/sync/route/:id/changes
@@ -67,6 +74,10 @@ export interface OfflineChangeBundle {
     route: OfflineRouteRating[];
     comment: OfflineCommentRating[];
   };
+
+  favorites?: {
+    route: OfflineRouteFavorite[];
+  };
 }
 
 /**
@@ -74,14 +85,20 @@ export interface OfflineChangeBundle {
  *   POST /api/upload/push
  *
  * This is based directly on server/routes/upload.js:
- *   const { waypoints, comments, ratings = { waypoint: [], route: [], comment: [] } } = payload;
+ *   const { waypoints, comments, ratings = {...}, favorites = {...} } = payload;
  *   applyRating(table, r) uses: r.sync_status, r.target_id, r.rating
+ *   applyFavorite(table, f) uses: f.sync_status, f.target_id
  */
 export interface UploadRatingsPayloadEntry {
   target_id: number;
   rating: number;
   sync_status: string;
-  // we can include extra fields if needed, but these three are required
+  [key: string]: any;
+}
+
+export interface UploadFavoritesPayloadEntry {
+  target_id: number;
+  sync_status: string;
   [key: string]: any;
 }
 
@@ -92,6 +109,9 @@ export interface UploadPayload {
     waypoint: UploadRatingsPayloadEntry[];
     route: UploadRatingsPayloadEntry[];
     comment: UploadRatingsPayloadEntry[];
+  };
+  favorites: {
+    route: UploadFavoritesPayloadEntry[];
   };
 }
 
@@ -115,11 +135,14 @@ export async function syncRouteToOnline(
     `/api/sync/route/${routeId}/changes`
   );
 
-  // Guard in case ratings object is missing for some reason
+  // Guard in case ratings/favorites objects are missing
   const ratings = changes.ratings || {
     waypoint: [],
     route: [],
     comment: [],
+  };
+  const favorites = changes.favorites || {
+    route: [],
   };
 
   // Short-circuit: nothing to do
@@ -131,7 +154,14 @@ export async function syncRouteToOnline(
     (ratings.route?.length ?? 0) > 0 ||
     (ratings.comment?.length ?? 0) > 0;
 
-  if (!hasWaypointChanges && !hasCommentChanges && !hasRatingChanges) {
+  const hasFavoriteChanges = (favorites.route?.length ?? 0) > 0;
+
+  if (
+    !hasWaypointChanges &&
+    !hasCommentChanges &&
+    !hasRatingChanges &&
+    !hasFavoriteChanges
+  ) {
     console.log("[syncRouteToOnline] no changes to push");
     return;
   }
@@ -143,24 +173,33 @@ export async function syncRouteToOnline(
   //   - waypoint_ratings: waypoint_id -> target_id, val -> rating
   //   - route_ratings:    route_id   -> target_id, val -> rating
   //   - comment_ratings:  comment_id -> target_id, val -> rating
+  //
+  // For favorites, we map:
+  //   - route_favorites:  route_id   -> target_id
   const uploadPayload: UploadPayload = {
     waypoints: changes.waypoints,
     comments: changes.comments,
     ratings: {
-      waypoint: ratings.waypoint.map((r) => ({
+      waypoint: (ratings.waypoint || []).map((r) => ({
         target_id: r.waypoint_id,
         rating: r.val,
         sync_status: r.sync_status,
       })),
-      route: ratings.route.map((r) => ({
+      route: (ratings.route || []).map((r) => ({
         target_id: r.route_id,
         rating: r.val,
         sync_status: r.sync_status,
       })),
-      comment: ratings.comment.map((r) => ({
+      comment: (ratings.comment || []).map((r) => ({
         target_id: r.comment_id,
         rating: r.val,
         sync_status: r.sync_status,
+      })),
+    },
+    favorites: {
+      route: (favorites.route || []).map((f) => ({
+        target_id: f.route_id,
+        sync_status: f.sync_status,
       })),
     },
   };

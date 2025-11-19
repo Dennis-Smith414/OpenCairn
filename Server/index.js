@@ -17,9 +17,10 @@ const userRoutes = require("./routes/users");
 const waypointRoutes = require("./routes/waypoints");
 const ratingRoutes = require("./routes/ratings");
 const commentsRoutes = require("./routes/comments");
-const gpxRoutes = require("./routes/gpx");       // now: uploads only
-const routesRoutes = require("./routes/routes"); // new: list/meta/geojson/CRUD
+const gpxRoutes = require("./routes/gpx");
+const routesRoutes = require("./routes/routes");
 const uploadRoutes = require("./routes/upload");
+const favoritesRoutes = require("./routes/favorites");
 
 const PORT = process.env.PORT || 5100;
 const app = express();
@@ -56,7 +57,7 @@ process.on("unhandledRejection", (err) => {
     // Route + GPX separation
     app.use("/api/routes", routesRoutes); // GET /, GET /:id, GET /:id/gpx, POST, PATCH, DELETE
     app.use("/api", gpxRoutes);           // POST /routes/:id/gpx, POST /routes/upload, ping
-
+    app.use("/api/favorites", favoritesRoutes);
     // health
     app.get("/api/health", (_req, res) => {
       res.json({ ok: true, db: true, startedAt: new Date().toISOString() });

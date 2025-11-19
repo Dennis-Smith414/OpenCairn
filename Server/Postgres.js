@@ -129,6 +129,20 @@ async function init() {
     CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id ON route_ratings(route_id);
   `);
 
+// ROUTE FAVORITES
+  await run(`
+    CREATE TABLE IF NOT EXISTS route_favorites (
+      user_id  INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      route_id INT NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, route_id)
+    )
+  `);
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_route_favorites_route_id
+      ON route_favorites(route_id);
+  `);
+
   // COMMENTS
   await run(`
     CREATE TABLE IF NOT EXISTS comments (

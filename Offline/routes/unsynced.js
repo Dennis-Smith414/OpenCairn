@@ -18,6 +18,8 @@ const toInt = (v) => {
  *      - waypoint         (from waypoint_ratings)
  *      - route            (from route_ratings)
  *      - comment          (from comment_ratings)
+ *  - favorites:
+ *      - route            (from route_favorites)
  *
  * Shape matches OfflineChangeBundle in src/lib/syncOnline.ts.
  */
@@ -81,6 +83,17 @@ router.get("/route/:id/changes", async (req, res) => {
       [routeId]
     );
 
+    // Route favorites for this route
+    const routeFavorites = await all(
+      `
+        SELECT *
+          FROM route_favorites
+         WHERE route_id = ?
+           AND sync_status != 'clean'
+      `,
+      [routeId]
+    );
+
     res.json({
       ok: true,
       route_id: routeId,
@@ -90,6 +103,9 @@ router.get("/route/:id/changes", async (req, res) => {
         waypoint: waypointRatings,
         route: routeRatings,
         comment: commentRatings,
+      },
+      favorites: {
+        route: routeFavorites,
       },
     });
   } catch (err) {
@@ -106,7 +122,7 @@ router.get("/route/:id/changes", async (req, res) => {
  * Called AFTER a successful upload of this route's changes.
  * Responsibilities:
  *  - For this route:
- *      • waypoints / comments / ratings:
+ *      • waypoints / comments / ratings / favorites:
  *          - delete rows with sync_status='deleted'
  *          - set sync_status='clean' for rows with 'new'/'dirty'
  *      • routes:
@@ -224,6 +240,25 @@ router.post("/route/:id/mark-clean", async (req, res) => {
        WHERE comment_id IN (
              SELECT id FROM comments WHERE route_id = ?
            )
+         AND sync_status IN ('new','dirty')
+      `,
+      [routeId]
+    );
+
+    // --- ROUTE FAVORITES (favorites for this route) ---
+    await run(
+      `
+      DELETE FROM route_favorites
+       WHERE route_id = ?
+         AND sync_status = 'deleted'
+      `,
+      [routeId]
+    );
+    await run(
+      `
+      UPDATE route_favorites
+         SET sync_status = 'clean'
+       WHERE route_id = ?
          AND sync_status IN ('new','dirty')
       `,
       [routeId]
