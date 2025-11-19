@@ -17,8 +17,6 @@ import { useRouteSelection } from "../context/RouteSelectionContext";
 import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
 import { useGeolocation } from "../hooks/useGeolocation";
-
-// ✅ canonical endpoints
 import { fetchRouteList } from "../lib/routes";
 import { submitRouteVote, fetchRouteRating } from "../lib/ratings";
 import {
