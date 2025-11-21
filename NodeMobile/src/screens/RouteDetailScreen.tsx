@@ -1,142 +1,256 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TextInput, TouchableOpacity, Alert } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// screens/RouteDetailScreen.tsx
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+
 import { useThemeStyles } from "../styles/theme";
 import { createGlobalStyles } from "../styles/globalStyles";
-import { fetchRouteComments, postRouteComment } from "../lib/api";
+import { fetchRouteDetail } from "../lib/routes";
+import { CommentList } from "../components/comments/CommentList";
+import { syncRouteToOffline } from "../lib/bringOffline";
+import { useAuth } from "../context/AuthContext";
 
-type RouteComment = {
-  id: number;
-  content: string;
-  created_at: string;
-  user_id?: number;
-  username?: string | null;
-};
-
-export default function RouteDetailScreen({ route }: any) {
-  const routeId = route.params.routeId;
+export default function RouteDetailScreen({ route, navigation }) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
+  const { user, userToken } = useAuth();
 
-  const [comments, setComments] = useState<RouteComment[]>([]);
-  const [newComment, setNewComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const { routeId, routeName } = route.params;
 
-  const loadComments = useCallback(async () => {
+  const [detail, setDetail] = useState<any>(null);
+  const [gpx, setGpx] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadDetail = useCallback(async () => {
     try {
-      const items = await fetchRouteComments(routeId);
-      setComments(items);
-    } catch (e: any) {
-      console.error("Failed to load comments:", e);
+      setLoading(true);
+      const { route: data, gpx } = await fetchRouteDetail(routeId, {
+        includeGpx: true,
+      });
+
+      console.log("[RouteDetail] loaded route:", data); // <- helpful for debugging username
+
+      setDetail(data);
+      setGpx(gpx);
+
+      if (data?.name) {
+        navigation.setOptions?.({ title: data.name });
+      }
+    } catch (err) {
+      console.error("[RouteDetail] load error:", err);
+    } finally {
+      setLoading(false);
     }
-  }, [routeId]);
+  }, [routeId, navigation]);
 
   useEffect(() => {
-    loadComments();
-  }, [loadComments]);
+    if (routeName) {
+      navigation.setOptions?.({ title: routeName });
+    }
+    loadDetail();
+  }, [loadDetail, routeName]);
 
-  const handleSubmit = useCallback(async () => {
-    const content = newComment.trim();
-    if (!content) return;
+  const gpxNames = useMemo(() => {
+    if (!gpx?.features) return [];
+    return gpx.features
+      .map((f) => f.properties?.name || null)
+      .filter((n) => n && n.trim().length > 0);
+  }, [gpx]);
+
+  const handleOfflineSave = async () => {
+    if (!userToken) {
+      Alert.alert(
+        "Login required",
+        "You must be logged in to save routes offline."
+      );
+      return;
+    }
 
     try {
-      setSubmitting(true);
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        Alert.alert("Login required", "You must be logged in to comment.");
-        return;
-      }
+      setSyncing(true);
+      await syncRouteToOffline(routeId, {
+        token: userToken,
+        currentUserId: user?.id,
+      });
 
-      const created = await postRouteComment(routeId, content, token);
-      // prepend new comment
-      setComments(prev => [created, ...prev]);
-      setNewComment("");
-    } catch (e: any) {
-      console.error("Post comment failed:", e);
-      Alert.alert("Error", "Could not post comment.");
+      Alert.alert("Offline Ready", `This route is now available offline.`);
+    } catch (err: any) {
+      console.error("sync offline error:", err);
+      Alert.alert("Sync failed", err?.message ?? "Couldn't sync route.");
     } finally {
-      setSubmitting(false);
+      setSyncing(false);
     }
-  }, [routeId, newComment]);
+  };
+
+  if (loading && !detail) {
+    return (
+      <View style={[globalStyles.container, { padding: 16 }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={[globalStyles.subText, { marginTop: 8 }]}>
+          Loading route…
+        </Text>
+      </View>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <View style={[globalStyles.container, { padding: 16 }]}>
+        <Text style={globalStyles.headerText}>Route not found</Text>
+        <Text style={[globalStyles.subText, { marginTop: 8 }]}>
+          Could not load this route.
+        </Text>
+      </View>
+    );
+  }
+
+  const createdStr = detail.created_at
+    ? new Date(detail.created_at).toLocaleDateString()
+    : "";
+  const updatedStr =
+    detail.updated_at && detail.updated_at !== detail.created_at
+      ? new Date(detail.updated_at).toLocaleDateString()
+      : "";
 
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
-      {/* ... your existing route details ... */}
+      {/* ------- TITLE ------- */}
+      <Text style={globalStyles.headerText}>{detail.name}</Text>
 
-      {/* Comment input */}
-      <View style={{ marginTop: 16 }}>
-        <Text style={globalStyles.subText}>Comments</Text>
-
-        <View
+      {/* Description directly under name */}
+      {detail.description ? (
+        <Text
           style={[
-            globalStyles.input,
-            { flexDirection: "row", alignItems: "center", marginTop: 8 },
+            globalStyles.bodyText,
+            {
+              color: colors.textPrimary,
+              marginTop: 6,
+              marginBottom: 4,
+            },
           ]}
         >
-          <TextInput
-            value={newComment}
-            onChangeText={setNewComment}
-            placeholder="Add a comment…"
-            placeholderTextColor={colors.textSecondary}
-            style={{ flex: 1, color: colors.textPrimary, paddingHorizontal: 8 }}
-            multiline
-          />
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={submitting || !newComment.trim()}
-            style={{ paddingHorizontal: 8, paddingVertical: 6 }}
-          >
-            <Text
-              style={{
-                color: submitting || !newComment.trim()
-                  ? colors.textSecondary
-                  : colors.accent,
-              }}
-            >
-              Post
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          {detail.description}
+        </Text>
+      ) : null}
 
-      {/* Comment list */}
-      <FlatList
-        style={{ marginTop: 12 }}
-        data={comments}
-        keyExtractor={(c) => String(c.id)}
-        renderItem={({ item }) => (
-          <View
-            style={{
-              paddingVertical: 8,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border ?? "#333",
-            }}
+      {/* ------- META CARD ------- */}
+      <View
+        style={{
+          marginTop: 6,
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 10,
+          backgroundColor: colors.card,
+        }}
+      >
+        {/* Region */}
+        {detail.region && (
+          <Text
+            style={[
+              globalStyles.bodyText,
+              { color: colors.textPrimary, marginBottom: 6 },
+            ]}
           >
-            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-              {item.username ?? "Unknown"} ·{" "}
-              {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-            <Text
-              style={{
-                color: colors.textPrimary,
-                marginTop: 4,
-              }}
-            >
-              {item.content}
-            </Text>
-          </View>
+            Region: <Text style={{ fontWeight: "600" }}>{detail.region}</Text>
+          </Text>
         )}
-        ListEmptyComponent={
+
+        {/* Creator username */}
+        <Text
+          style={[
+            globalStyles.subText,
+            { color: colors.textSecondary, marginBottom: 4 },
+          ]}
+        >
+          Created by:{" "}
+          <Text style={{ fontWeight: "600", color: colors.textPrimary }}>
+            {detail.username || "Unknown"}
+          </Text>
+        </Text>
+
+        {/* Dates */}
+        {createdStr ? (
+          <Text style={[globalStyles.subText, { color: colors.textSecondary }]}>
+            Created: {createdStr}
+          </Text>
+        ) : null}
+
+        {updatedStr ? (
           <Text
             style={[
               globalStyles.subText,
-              { marginTop: 8, color: colors.textSecondary },
+              { color: colors.textSecondary, marginTop: 4 },
             ]}
           >
-            No comments yet. Be the first!
+            Updated: {updatedStr}
           </Text>
-        }
-      />
+        ) : null}
+
+        {/* GPX File Names */}
+        {gpxNames.length > 0 && (
+          <View style={{ marginTop: 12 }}>
+            <Text
+              style={[
+                globalStyles.bodyText,
+                { color: colors.textPrimary, marginBottom: 4 },
+              ]}
+            >
+              GPX Files
+            </Text>
+
+            {gpxNames.map((name, idx) => (
+              <Text
+                key={idx}
+                style={[
+                  globalStyles.subText,
+                  { color: colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                • {name}
+              </Text>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ------- COMMENTS ------- */}
+      <View style={{ flex: 1, width: "100%" }}>
+        <Text
+          style={[
+            globalStyles.bodyText,
+            { color: colors.textPrimary, marginBottom: 6 },
+          ]}
+        >
+          Comments
+        </Text>
+
+        <CommentList routeId={detail.id} />
+      </View>
+
+      {/* ------- OFFLINE BUTTON ------- */}
+      <TouchableOpacity
+        onPress={handleOfflineSave}
+        disabled={syncing}
+        style={[
+          globalStyles.button,
+          {
+            backgroundColor: colors.accent,
+            marginTop: 16,
+            paddingVertical: 12,
+            opacity: syncing ? 0.6 : 1,
+          },
+        ]}
+      >
+        <Text style={globalStyles.buttonText}>
+          {syncing ? "Saving…" : "Save for Offline Use"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }

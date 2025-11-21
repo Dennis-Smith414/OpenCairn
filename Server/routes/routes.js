@@ -81,8 +81,10 @@ router.get("/:id", async (req, res) => {
     const includeGpx = String(req.query.include_gpx ?? "false").toLowerCase() === "true";
 
     const route = await db.get(
-      `SELECT id, slug, name, region, user_id, created_at, updated_at
-         FROM routes
+      `SELECT r.*, u.username, g.name
+         FROM routes r
+         LEFT JOIN users u on r.user_id = u.id
+         LEFT JOIN gpx g on g.route_id = r.id
         WHERE id = $1`,
       [id]
     );
