@@ -14,11 +14,14 @@ import { fetchRouteDetail } from "../lib/routes";
 import { CommentList } from "../components/comments/CommentList";
 import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
+import { useRouteSelection } from "../context/RouteSelectionContext"; // ✅ NEW
 
 export default function RouteDetailScreen({ route, navigation }) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
   const { user, userToken } = useAuth();
+
+  const { selectedRouteIds, toggleRoute } = useRouteSelection(); // ✅ NEW
 
   const { routeId, routeName } = route.params;
 
@@ -34,7 +37,7 @@ export default function RouteDetailScreen({ route, navigation }) {
         includeGpx: true,
       });
 
-      console.log("[RouteDetail] loaded route:", data); // <- helpful for debugging username
+      console.log("[RouteDetail] loaded route:", data);
 
       setDetail(data);
       setGpx(gpx);
@@ -88,6 +91,24 @@ export default function RouteDetailScreen({ route, navigation }) {
     }
   };
 
+  // ✅ NEW: toggle selection handler
+  const handleToggleSelected = () => {
+    if (!detail?.id) return;
+
+    toggleRoute({
+      id: detail.id,
+      name: detail.name,
+    });
+
+    const nowSelected = !selectedRouteIds.includes(detail.id);
+    Alert.alert(
+      nowSelected ? "Added to Map" : "Removed from Map",
+      nowSelected
+        ? "This route will now appear on your map."
+        : "This route was removed from your map."
+    );
+  };
+
   if (loading && !detail) {
     return (
       <View style={[globalStyles.container, { padding: 16 }]}>
@@ -118,12 +139,13 @@ export default function RouteDetailScreen({ route, navigation }) {
       ? new Date(detail.updated_at).toLocaleDateString()
       : "";
 
+  const isSelected = selectedRouteIds.includes(detail.id); // ✅ NEW
+
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
       {/* ------- TITLE ------- */}
       <Text style={globalStyles.headerText}>{detail.name}</Text>
 
-      {/* Description directly under name */}
       {detail.description ? (
         <Text
           style={[
@@ -149,7 +171,6 @@ export default function RouteDetailScreen({ route, navigation }) {
           backgroundColor: colors.card,
         }}
       >
-        {/* Region */}
         {detail.region && (
           <Text
             style={[
@@ -161,7 +182,6 @@ export default function RouteDetailScreen({ route, navigation }) {
           </Text>
         )}
 
-        {/* Creator username */}
         <Text
           style={[
             globalStyles.subText,
@@ -174,7 +194,6 @@ export default function RouteDetailScreen({ route, navigation }) {
           </Text>
         </Text>
 
-        {/* Dates */}
         {createdStr ? (
           <Text style={[globalStyles.subText, { color: colors.textSecondary }]}>
             Created: {createdStr}
@@ -192,7 +211,6 @@ export default function RouteDetailScreen({ route, navigation }) {
           </Text>
         ) : null}
 
-        {/* GPX File Names */}
         {gpxNames.length > 0 && (
           <View style={{ marginTop: 12 }}>
             <Text
@@ -233,6 +251,30 @@ export default function RouteDetailScreen({ route, navigation }) {
         <CommentList routeId={detail.id} />
       </View>
 
+      {/* ✅ NEW: SELECT/DESELECT ROUTE BUTTON */}
+      <TouchableOpacity
+        onPress={handleToggleSelected}
+        style={[
+          globalStyles.button,
+          {
+            backgroundColor: isSelected ? colors.card : colors.accent,
+            marginTop: 16,
+            paddingVertical: 12,
+            borderWidth: isSelected ? 1 : 0,
+            borderColor: colors.accent,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            globalStyles.buttonText,
+            { color: isSelected ? colors.accent : globalStyles.buttonText?.color },
+          ]}
+        >
+          {isSelected ? "Remove from Map" : "Add to Map"}
+        </Text>
+      </TouchableOpacity>
+
       {/* ------- OFFLINE BUTTON ------- */}
       <TouchableOpacity
         onPress={handleOfflineSave}
@@ -241,7 +283,7 @@ export default function RouteDetailScreen({ route, navigation }) {
           globalStyles.button,
           {
             backgroundColor: colors.accent,
-            marginTop: 16,
+            marginTop: 12,
             paddingVertical: 12,
             opacity: syncing ? 0.6 : 1,
           },

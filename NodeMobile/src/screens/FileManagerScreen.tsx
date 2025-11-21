@@ -124,7 +124,6 @@ export default function FileManagerScreen() {
       >
         <View style={globalStyles.filesContainer}>
           {/* Header */}
-          <Text style={globalStyles.icon}>📁</Text>
           <Text style={globalStyles.pageTitle}>File Manager</Text>
           <Text style={globalStyles.subtitle}>
             Manage your offline route data
