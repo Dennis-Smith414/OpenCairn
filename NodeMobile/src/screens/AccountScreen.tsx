@@ -6,12 +6,14 @@ import React, {
 import {
   View,
   Text,
+  StyleSheet,
   Platform,
   UIManager,
   LayoutAnimation,
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -60,6 +62,8 @@ export default function AccountScreen({ navigation }: any) {
   const { userToken } = useAuth();
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
+
+  const [refreshing, setRefreshing] = useState(false);
 
   const [profile, setProfile] = useState<any>(null);
   const [expanded, setExpanded] = useState({
@@ -133,6 +137,15 @@ export default function AccountScreen({ navigation }: any) {
       loadAccountData();
     }, [loadAccountData])
   );
+
+  async function onRefresh() {
+    try {
+      setRefreshing(true);
+      await loadOfflineRoutes();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const toggleSection = (key: keyof typeof expanded) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -274,6 +287,13 @@ export default function AccountScreen({ navigation }: any) {
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
+      refreshControl = {<RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+      }
     >
       <Text style={globalStyles.pageTitle}>My Account</Text>
 

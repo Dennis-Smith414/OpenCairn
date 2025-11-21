@@ -10,15 +10,17 @@ console.log("[boot] DATABASE_URL =", process.env.DATABASE_URL);
 
 const express = require("express");
 const cors = require("cors");
-const db = require("./Postgres"); // <- use the shared pool + init()
+const db = require("./Postgres");
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const waypointRoutes = require("./routes/waypoints");
 const ratingRoutes = require("./routes/ratings");
 const commentsRoutes = require("./routes/comments");
-const gpxRoutes = require("./routes/gpx");       // now: uploads only
-const routesRoutes = require("./routes/routes"); // new: list/meta/geojson/CRUD
+const gpxRoutes = require("./routes/gpx");
+const routesRoutes = require("./routes/routes");
+const uploadRoutes = require("./routes/upload");
+const favoritesRoutes = require("./routes/favorites");
 
 const PORT = process.env.PORT || 5100;
 const app = express();
@@ -36,7 +38,6 @@ process.on("unhandledRejection", (err) => {
   try {
     // Ensure every connection has the right search_path
     // (you can also do this in Postgres.js via pool.on('connect', ...))
-    // await db.run("SET search_path TO public"); // not needed if you do it per-connection
 
     // Create/verify schema objects
     await db.init();
@@ -51,11 +52,12 @@ process.on("unhandledRejection", (err) => {
     app.use("/api/waypoints", waypointRoutes);
     app.use("/api/ratings", ratingRoutes);
     app.use("/api/comments", commentsRoutes);
+    app.use("/api/upload", uploadRoutes);
 
     // Route + GPX separation
     app.use("/api/routes", routesRoutes); // GET /, GET /:id, GET /:id/gpx, POST, PATCH, DELETE
     app.use("/api", gpxRoutes);           // POST /routes/:id/gpx, POST /routes/upload, ping
-
+    app.use("/api/favorites", favoritesRoutes);
     // health
     app.get("/api/health", (_req, res) => {
       res.json({ ok: true, db: true, startedAt: new Date().toISOString() });

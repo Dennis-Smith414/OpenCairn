@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import { API_BASE, OFFLINE_API_BASE } from "../config/env";
 
-function safeJson(text: string) {
+export function safeJson(text: string) {
   try {
     return JSON.parse(text);
   } catch {
@@ -37,21 +37,10 @@ export function getBaseUrl() {
   return getBase();
 }
 
-/**
- * GET /api/routes
- * (shared online/offline)
- */
-export async function fetchRouteList() {
-  const base = getBase();
-  const url = new URL(`${base}/api/routes`);
-  const res = await fetch(url.toString());
-  const text = await res.text();
-  const json = safeJson(text);
-  if (!res.ok || !json?.ok) {
-    throw new Error(`Failed to load routes (${res.status}) :: ${text.slice(0, 200)}`);
-  }
-  return json.items ?? [];
-}
+
+
+
+
 
 export async function toggleRouteUpvote(
   routeId: number,

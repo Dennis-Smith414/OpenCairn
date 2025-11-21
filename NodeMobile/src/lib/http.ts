@@ -2,14 +2,14 @@
 //ONLY use for functions that target ONLINE and REMOTE at once
 //NOT for standard use, see api.ts and getBaseUrl() for that
 
-import { API_BASE, OFFLINE_BASE } from "../config/env";
+import { API_BASE, OFFLINE_API_BASE } from "../config/env";
 import { useAuth } from "../context/AuthContext";
 
 type Target = "remote" | "offline";
 
 const BASES: Record<Target, string> = {
   remote: API_BASE,
-  offline: OFFLINE_BASE,
+  offline: OFFLINE_API_BASE,
 };
 
 export async function apiFetch<T>(

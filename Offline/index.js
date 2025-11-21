@@ -1,4 +1,5 @@
 // offline/index.js
+require("dotenv").config({ path: __dirname + "/.env", override: true });
 const express = require("express");
 const { init, DB_PATH } = require("./db/init");
 
@@ -9,13 +10,17 @@ const ratingsRoutes = require("./routes/ratings");
 const routesRoutes = require("./routes/routes");
 const waypointsRoutes = require("./routes/waypoints");
 const downloadRoutes = require("./routes/download");
+const filesRoutes = require("./routes/files");
+const unsyncedRoutes = require("./routes/unsynced");
+const tilesRoutes = require("./routes/tiles");
+const favoritesRoutes = require("./routes/favorites");
 
 const PORT = process.env.OFFLINE_PORT || 5101;
 
 async function start() {
   try {
     // 1) Initialize the SQLite DB (creates file + schema if needed)
-    await init({ withSeed: true }); // set to false after testing
+    await init({ withSeed: false }); // set to false after testing
 
     // 2) Start HTTP server
     const app = express();
@@ -36,6 +41,10 @@ async function start() {
     app.use("/api/waypoints", waypointsRoutes);
     app.use("/api", gpxRoutes);
     app.use("/api/sync", downloadRoutes);
+    app.use("/api/files", filesRoutes);
+    app.use("/api/sync", unsyncedRoutes);
+    app.use("/", tilesRoutes);
+    app.use("/api/favorites", favoritesRoutes);
 
     // Optional: offline-specific health endpoint
     app.get("/api/health", (_req, res) => {

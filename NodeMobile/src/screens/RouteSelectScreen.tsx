@@ -8,29 +8,37 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  StyleSheet,         
+  StyleSheet,
 } from "react-native";
 
 import { useThemeStyles } from "../styles/theme";
 import { createGlobalStyles } from "../styles/globalStyles";
-import { fetchRouteList, toggleRouteUpvote } from "../lib/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouteSelection } from "../context/RouteSelectionContext";
-import { useGeolocation } from "../hooks/useGeolocation";
+import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
+import { useGeolocation } from "../hooks/useGeolocation";
+import { fetchRouteList } from "../lib/routes";
+import { submitRouteVote, fetchRouteRating } from "../lib/ratings";
+import {
+  getFavorites,
+  addToFavorites,
+  removeFromFavorites,
+} from "../lib/favorites";
 
-// NOTE: extended with optional start_lat / start_lng
 type RouteItem = {
   id: number;
   slug: string;
   name: string;
   region?: string;
-  upvotes?: number;
+  upvotes?: number; // legacy field if your list still returns it
   start_lat?: number | null;
   start_lng?: number | null;
+
+  // rating fields (from ratings system)
+  rating_total?: number;
+  user_rating?: 1 | -1 | null;
 };
 
-const FAVORITES_KEY_BASE = "favorite_route_ids";
 const NEARBY_OPTIONS = [10, 25, 50, 75]; // miles
 
 // Simple Haversine distance in miles
@@ -46,12 +54,11 @@ function computeDistanceMi(
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+
 const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
@@ -73,7 +80,6 @@ const styles = StyleSheet.create({
   },
 });
 
-
 export default function RouteSelectScreen({ navigation }: any) {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
@@ -94,14 +100,21 @@ export default function RouteSelectScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Search
+  // 🔎 search
   const [query, setQuery] = useState("");
 
   const { selectedRouteIds, toggleRoute } = useRouteSelection();
+  const [syncingRouteId, setSyncingRouteId] = useState<number | null>(null);
 
-  // Favorites
+  // ✅ route currently being voted on (avoid spam + double taps)
+  const [votingRouteId, setVotingRouteId] = useState<number | null>(null);
+
+  // Favorites (DB-backed)
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [updatingFavoriteId, setUpdatingFavoriteId] = useState<number | null>(
+    null
+  );
 
   // Nearby
   const [showNearbyOnly, setShowNearbyOnly] = useState(false);
@@ -113,37 +126,34 @@ export default function RouteSelectScreen({ navigation }: any) {
     NEARBY_OPTIONS[1] // default 25
   );
 
-  // Per-user favorites key: different key for each logged-in user
-  const favoritesKey = useMemo(
-    () =>
-      user && user.id != null
-        ? `${FAVORITES_KEY_BASE}:user-${user.id}` // e.g. favorite_route_ids:user-4
-        : `${FAVORITES_KEY_BASE}:anon`,
-    [user]
-  );
-
-  // Load favorites whenever the key (i.e., active user) changes
+  // ----- Load favorites from backend whenever userToken changes -----
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    const loadFavorites = async () => {
+      if (!userToken) {
+        setFavoriteIds([]);
+        return;
+      }
       try {
-        const stored = await AsyncStorage.getItem(favoritesKey);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            setFavoriteIds(parsed);
-          } else {
-            setFavoriteIds([]);
-          }
-        } else {
-          // brand-new user or no favorites yet
-          setFavoriteIds([]);
+        const ids = await getFavorites(userToken);
+        if (!cancelled) {
+          setFavoriteIds(ids);
         }
       } catch (e) {
-        console.warn("Failed to load favorite routes", e);
-        setFavoriteIds([]);
+        console.warn("Failed to load favorite routes from API", e);
+        if (!cancelled) {
+          setFavoriteIds([]);
+        }
       }
-    })();
-  }, [favoritesKey]);
+    };
+
+    loadFavorites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userToken]);
 
   // Ask for permission and grab one location fix
   useEffect(() => {
@@ -170,31 +180,38 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, [location]);
 
-  const persistFavorites = useCallback(
-    async (ids: number[]) => {
+  // ----- Toggle favorite via backend -----
+  const toggleFavorite = useCallback(
+    async (routeId: number) => {
+      if (!userToken) {
+        Alert.alert(
+          "Login required",
+          "You must be logged in to favorite routes."
+        );
+        return;
+      }
+
+      if (updatingFavoriteId === routeId) return;
+
+      setUpdatingFavoriteId(routeId);
       try {
-        await AsyncStorage.setItem(favoritesKey, JSON.stringify(ids));
+        const isFavorite = favoriteIds.includes(routeId);
+
+        if (isFavorite) {
+          await removeFromFavorites(routeId, userToken);
+          setFavoriteIds((prev) => prev.filter((id) => id !== routeId));
+        } else {
+          await addToFavorites(routeId, userToken);
+          setFavoriteIds((prev) => [...prev, routeId]);
+        }
       } catch (e) {
-        console.warn("Failed to save favorite routes", e);
+        console.warn("Failed to toggle favorite route", e);
+        Alert.alert("Error", "Could not update favorites.");
+      } finally {
+        setUpdatingFavoriteId(null);
       }
     },
-    [favoritesKey]
-  );
-
-  const toggleFavorite = useCallback(
-    (routeId: number) => {
-      setFavoriteIds((prev) => {
-        let next: number[];
-        if (prev.includes(routeId)) {
-          next = prev.filter((id) => id !== routeId);
-        } else {
-          next = [...prev, routeId];
-        }
-        persistFavorites(next);
-        return next;
-      });
-    },
-    [persistFavorites]
+    [favoriteIds, userToken, updatingFavoriteId]
   );
 
   // Fetch route list
@@ -217,31 +234,49 @@ export default function RouteSelectScreen({ navigation }: any) {
     loadRoutes();
   }, [loadRoutes]);
 
-  // Upvote handler
-  const handleUpvote = useCallback(
-    async (routeId: number) => {
-      try {
-        if (!userToken) {
-          Alert.alert(
-            "Login required",
-            "You must be logged in to upvote routes."
-          );
-          return;
-        }
+  // ✅ Upvote / Downvote handler using same pattern as WaypointPopup
+  const handleVote = useCallback(
+    async (routeId: number, val: 1 | -1) => {
+      if (!userToken) {
+        Alert.alert(
+          "Login required",
+          "You must be logged in to vote on routes."
+        );
+        return;
+      }
 
-        const result = await toggleRouteUpvote(routeId, userToken);
+      // prevent double-taps on the same row
+      if (votingRouteId === routeId) {
+        return;
+      }
+
+      setVotingRouteId(routeId);
+      try {
+        // send vote to backend
+        await submitRouteVote(routeId, val, userToken);
+
+        // then pull fresh rating (avoids "one behind" bug)
+        const rating = await fetchRouteRating(routeId, userToken);
 
         setRoutes((prev) =>
           prev.map((r) =>
-            r.id === routeId ? { ...r, upvotes: result.upvotes } : r
+            r.id === routeId
+              ? {
+                  ...r,
+                  rating_total: rating.total ?? 0,
+                  user_rating: rating.user_rating ?? null,
+                }
+              : r
           )
         );
       } catch (e: any) {
-        console.error("Upvote failed:", e);
-        Alert.alert("Error", "Could not upvote route.");
+        console.error("Route vote failed:", e);
+        Alert.alert("Error", "Could not submit route vote.");
+      } finally {
+        setVotingRouteId(null);
       }
     },
-    [userToken]
+    [userToken, votingRouteId]
   );
 
   // Search + Nearby + Favorites filter
@@ -287,6 +322,41 @@ export default function RouteSelectScreen({ navigation }: any) {
     nearbyRadiusMi,
   ]);
 
+  // basic handler for taking a route offline
+  const handleDownloadRoute = useCallback(
+    async (routeId: number, routeName: string) => {
+      if (!userToken) {
+        Alert.alert(
+          "Login required",
+          "You must be logged in to sync routes for offline use."
+        );
+        return;
+      }
+
+      try {
+        setSyncingRouteId(routeId);
+        await syncRouteToOffline(routeId, {
+          token: userToken,
+          currentUserId: user?.id,
+        });
+
+        Alert.alert(
+          "Offline ready",
+          `Route "${routeName}" has been synced to the offline database.`
+        );
+      } catch (err: any) {
+        console.error("syncRouteToOffline error:", err);
+        Alert.alert(
+          "Sync failed",
+          err?.message ?? "Failed to sync route for offline use."
+        );
+      } finally {
+        setSyncingRouteId(null);
+      }
+    },
+    [userToken, user?.id]
+  );
+
   if (loading) {
     return (
       <View style={[globalStyles.container, { padding: 16 }]}>
@@ -300,7 +370,6 @@ export default function RouteSelectScreen({ navigation }: any) {
 
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
-      {/* Title */}
       <Text style={globalStyles.headerText}>Select Routes</Text>
 
       {/* Nearby + Favorites pills */}
@@ -452,38 +521,38 @@ export default function RouteSelectScreen({ navigation }: any) {
           )}
         </View>
       )}
-{/* Search input */}
-<View
-  style={[
-    styles.searchContainer,
-    {
-      borderColor: colors.border,
-      backgroundColor: colors.backgroundAlt,
-    },
-  ]}
->
-<TextInput
-  value={query}
-  onChangeText={setQuery}
-  placeholder="Search name / region…"
-  placeholderTextColor={colors.textSecondary ?? "#888"}
-  style={[
-    styles.searchInput,
-    { color: colors.textPrimary },  // ✅ theme-aware text color
-  ]}
-  returnKeyType="search"
-/>
 
-  {!!query && (
-    <TouchableOpacity
-      onPress={() => setQuery("")}
-      style={styles.searchClear}
-    >
-      <Text style={{ color: colors.textSecondary }}>×</Text>
-    </TouchableOpacity>
-  )}
-</View>
+      {/* Search input */}
+      <View
+        style={[
+          styles.searchContainer,
+          {
+            borderColor: colors.border,
+            backgroundColor: colors.backgroundAlt,
+          },
+        ]}
+      >
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search name / region…"
+          placeholderTextColor={colors.textSecondary ?? "#888"}
+          style={[
+            styles.searchInput,
+            { color: colors.textPrimary }, // theme-aware text color
+          ]}
+          returnKeyType="search"
+        />
 
+        {!!query && (
+          <TouchableOpacity
+            onPress={() => setQuery("")}
+            style={styles.searchClear}
+          >
+            <Text style={{ color: colors.textSecondary }}>×</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Create new route button */}
       <TouchableOpacity
@@ -509,11 +578,19 @@ export default function RouteSelectScreen({ navigation }: any) {
         onRefresh={loadRoutes}
         renderItem={({ item }) => {
           const isSelected = selectedRouteIds.includes(item.id);
+          const isSyncing = syncingRouteId === item.id;
           const isFavorite = favoriteIds.includes(item.id);
+
+          const score = item.rating_total ?? item.upvotes ?? 0;
+          const isUpvoted = item.user_rating === 1;
+          const isDownvoted = item.user_rating === -1;
+          const isVoting = votingRouteId === item.id;
+          const isFavUpdating = updatingFavoriteId === item.id;
 
           return (
             <View
               style={{
+                padding: 12,
                 marginVertical: 6,
                 marginHorizontal: 16,
                 borderRadius: 12,
@@ -572,13 +649,16 @@ export default function RouteSelectScreen({ navigation }: any) {
                     justifyContent: "center",
                   }}
                 >
+                  {/* Favorite toggle (DB-backed) */}
                   <TouchableOpacity
                     onPress={() => toggleFavorite(item.id)}
+                    disabled={isFavUpdating}
                     style={{ paddingHorizontal: 4, paddingVertical: 2 }}
                   >
                     <Text
                       style={{
                         fontSize: 18,
+                        opacity: isFavUpdating ? 0.5 : 1,
                         color: isFavorite
                           ? colors.accent
                           : colors.textSecondary,
@@ -588,14 +668,41 @@ export default function RouteSelectScreen({ navigation }: any) {
                     </Text>
                   </TouchableOpacity>
 
+                  {/* Upvote / Downvote controls (match WaypointPopup behavior) */}
                   <TouchableOpacity
-                    onPress={() => handleUpvote(item.id)}
-                    style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+                    onPress={() => handleVote(item.id, 1)}
+                    disabled={isVoting}
+                    style={{ paddingHorizontal: 8, paddingVertical: 2 }}
                   >
-                    <Text style={{ color: colors.accent, fontSize: 18 }}>
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        color: isUpvoted
+                          ? colors.accent
+                          : colors.textSecondary,
+                      }}
+                    >
                       ▲
                     </Text>
                   </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => handleVote(item.id, -1)}
+                    disabled={isVoting}
+                    style={{ paddingHorizontal: 8, paddingVertical: 2 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        color: isDownvoted
+                          ? colors.error || "#d33"
+                          : colors.textSecondary,
+                      }}
+                    >
+                      ▼
+                    </Text>
+                  </TouchableOpacity>
+
                   <Text
                     style={{
                       color: colors.textSecondary,
@@ -603,7 +710,7 @@ export default function RouteSelectScreen({ navigation }: any) {
                       marginTop: -2,
                     }}
                   >
-                    {item.upvotes ?? 0}
+                    {score}
                   </Text>
                 </View>
               </View>

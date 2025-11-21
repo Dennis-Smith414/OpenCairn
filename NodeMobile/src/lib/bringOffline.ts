@@ -63,6 +63,11 @@ interface CommentsResponse {
   comments: RemoteComment[];
 }
 
+interface RemoteFavoriteRouteResponse {
+  ok: boolean;
+  favorite: boolean;
+}
+
 /** Rating summaries returned by ratings.js */
 interface RatingSummary {
   total: number;
@@ -136,6 +141,13 @@ export interface RouteSyncPayload {
   gpx: OfflineGpxRow[];
   waypoints: OfflineWaypointRow[];
   comments: OfflineCommentRow[];
+    favorites?: {
+      route: {
+        user_id: number;
+        route_id: number;
+        sync_status: "clean" | "new" | "dirty" | "deleted";
+      }[];
+    };
 }
 
 /* ============================
@@ -284,6 +296,30 @@ async function remoteFetchCommentRating(
   };
 }
 
+// GET /api/favorites/routes/:routeId  (REMOTE, requires auth)
+async function remoteFetchRouteFavorite(
+  routeId: number,
+  token: string
+): Promise<boolean> {
+  const res = await apiFetch<RemoteFavoriteRouteResponse>(
+    "remote",
+    `/api/favorites/routes/${routeId}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  if (!res.ok) {
+    // If endpoint is missing or user not logged in we can just say "not favorite"
+    console.warn(
+      `remoteFetchRouteFavorite: failed for route ${routeId}, defaulting to false`
+    );
+    return false;
+  }
+
+  return !!res.favorite;
+}
+
 /* ============================
  *  Transform REMOTE → OFFLINE
  * ============================ */
@@ -352,14 +388,14 @@ function toOfflineCommentRow(
 export async function syncRouteToOffline(
   routeId: number,
   opts: {
-    token: string;          // required for ratings
-    currentUserId?: number; // reserved for future use if you want to fill *_ratings tables
+    token: string;
+    currentUserId?: number;
   }
 ): Promise<void> {
-  const { token } = opts;
+  const { token, currentUserId } = opts;
   if (!token) {
     throw new Error(
-      "syncRouteToOffline: token is required (ratings endpoints are auth-protected)."
+      "syncRouteToOffline: token is required (ratings/favorites endpoints are auth-protected)."
     );
   }
 
@@ -368,13 +404,19 @@ export async function syncRouteToOffline(
   //    - waypoints for route
   //    - route rating
   //    - route comments
-  const [routeWithGeo, waypoints, routeRatingSummary, routeComments] =
-    await Promise.all([
-      remoteFetchRouteWithGeo(routeId),
-      remoteFetchWaypoints(routeId),
-      remoteFetchRouteRating(routeId, token),
-      remoteFetchRouteComments(routeId),
-    ]);
+const [
+    routeWithGeo,
+    waypoints,
+    routeRatingSummary,
+    routeComments,
+    isFavorite,
+  ] = await Promise.all([
+    remoteFetchRouteWithGeo(routeId),
+    remoteFetchWaypoints(routeId),
+    remoteFetchRouteRating(routeId, token),
+    remoteFetchRouteComments(routeId),
+    currentUserId ? remoteFetchRouteFavorite(routeId, token) : Promise.resolve(false),
+  ]);
 
   const { route, geojson } = routeWithGeo;
 
@@ -422,11 +464,25 @@ export async function syncRouteToOffline(
     },
   ];
 
+    const favorites =
+        currentUserId && isFavorite
+          ? {
+              route: [
+                {
+                  user_id: currentUserId,
+                  route_id: route.id,
+                  sync_status: "clean" as const,
+                },
+              ],
+            }
+          : { route: [] };
+
   const payload: RouteSyncPayload = {
     route: offlineRoute,
     gpx: offlineGpx,
     waypoints: offlineWaypoints,
     comments: offlineComments,
+    favorites,
   };
 
   // 6. POST to the offline server to upsert into SQLite

@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS routes (
   region      TEXT,
   rating      INTEGER NOT NULL DEFAULT 0,   -- aggregated score: sum of votes
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  last_synced_at TEXT,
+  sync_status TEXT NOT NULL DEFAULT 'clean'
 );
 
 CREATE INDEX IF NOT EXISTS idx_routes_user_id ON routes(user_id);
@@ -41,7 +43,8 @@ CREATE TABLE IF NOT EXISTS waypoints (
   type        TEXT,
   rating      INTEGER NOT NULL DEFAULT 0,   -- aggregated score
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  sync_status TEXT NOT NULL DEFAULT 'clean'
 );
 
 CREATE INDEX IF NOT EXISTS idx_waypoints_route_id ON waypoints(route_id);
@@ -56,10 +59,11 @@ CREATE TABLE IF NOT EXISTS comments (
   waypoint_id INTEGER REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
   route_id    INTEGER REFERENCES routes(id)   ON DELETE CASCADE ON UPDATE CASCADE,
   content     TEXT NOT NULL,
-  rating      INTEGER NOT NULL DEFAULT 0,        -- aggregated score
+  rating      INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  edited      INTEGER NOT NULL DEFAULT 0,        -- boolean: 0 = false, 1 = true
+  edited      INTEGER NOT NULL DEFAULT 0,
+  sync_status TEXT NOT NULL DEFAULT 'clean'
 
   CHECK (
     (kind = 'waypoint' AND waypoint_id IS NOT NULL AND route_id IS NULL) OR
@@ -75,7 +79,8 @@ CREATE INDEX IF NOT EXISTS idx_comments_user_id     ON comments(user_id);
 CREATE TABLE IF NOT EXISTS waypoint_ratings (
   user_id     INTEGER NOT NULL,                      -- remote user id; no FK offline
   waypoint_id INTEGER NOT NULL REFERENCES waypoints(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  val         INTEGER NOT NULL,  -- ideally -1 or 1; app logic enforces this
+  val         INTEGER NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'clean',
   PRIMARY KEY (user_id, waypoint_id)
 );
 
@@ -86,16 +91,30 @@ CREATE TABLE IF NOT EXISTS route_ratings (
   user_id  INTEGER NOT NULL,                         -- remote user id; no FK offline
   route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
   val      INTEGER NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'clean',
   PRIMARY KEY (user_id, route_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_route_ratings_route_id
   ON route_ratings(route_id);
 
+-- Route favorites (offline mirror)
+CREATE TABLE IF NOT EXISTS route_favorites (
+  user_id     INTEGER NOT NULL,                         -- remote user id; no FK offline
+  route_id    INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  sync_status TEXT NOT NULL DEFAULT 'clean',
+  PRIMARY KEY (user_id, route_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_favorites_route_id
+  ON route_favorites(route_id);
+
 CREATE TABLE IF NOT EXISTS comment_ratings (
   user_id    INTEGER NOT NULL,                       -- remote user id; no FK offline
   comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE ON UPDATE CASCADE,
   val        INTEGER NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'clean',
   PRIMARY KEY (user_id, comment_id)
 );
 

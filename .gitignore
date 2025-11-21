@@ -110,3 +110,6 @@ pids
 *.seed
 *.pid.lock
 .idea/workspace.xml
+Offline/offline.db
+/Offline/tiledata
+/Offline/tiledata

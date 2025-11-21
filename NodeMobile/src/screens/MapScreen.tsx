@@ -229,8 +229,6 @@ const MapScreen: React.FC = () => {
   const showError = error || (locationError && !initialLocationLoaded);
 
   const handleMapLongPress = (lat: number, lon: number) => {
-    // MapLibreMap already constructs a Marked Location waypoint and calls onWaypointPress
-    // This callback remains for parity and any extra side effects.
     console.log("Long press at:", lat, lon);
   };
 

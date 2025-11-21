@@ -8,7 +8,7 @@ import {
   Image,
 } from "react-native";
 import { colors } from "../../styles/theme";
-import { useThemeStyles } from "../../styles/theme"; // ✅ ADDED
+import { useThemeStyles } from "../../styles/theme";
 import { useDistanceUnit } from "../../context/DistanceUnitContext";
 import { useAuth } from "../../context/AuthContext";
 import { fetchWaypointRating, submitWaypointVote } from "../../lib/ratings";
@@ -93,7 +93,7 @@ useEffect(() => {
   dateUploaded,
   distance,
   userToken,
-  ratingVersion,   // 👈 IMPORTANT: re-run after each vote
+  ratingVersion,
 ]);
 
 

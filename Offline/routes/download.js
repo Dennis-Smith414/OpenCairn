@@ -21,7 +21,7 @@ const toInt = (v) => {
 
 router.post("/route", async (req, res) => {
   const payload = req.body || {};
-  const { route, gpx, waypoints, comments } = payload;
+  const { route, gpx, waypoints, comments, favorites } = payload;
 
   try {
     if (!route || !route.id) {
@@ -40,6 +40,8 @@ router.post("/route", async (req, res) => {
     const gpxRows = Array.isArray(gpx) ? gpx : [];
     const waypointRows = Array.isArray(waypoints) ? waypoints : [];
     const commentRows = Array.isArray(comments) ? comments : [];
+     const favoriteRouteRows =
+          favorites && Array.isArray(favorites.route) ? favorites.route : [];
 
     // Start transaction
     await run("BEGIN");
@@ -115,6 +117,37 @@ router.post("/route", async (req, res) => {
         updated_at || new Date().toISOString(),
       ]
     );
+
+    // -------------------------------------------------
+    // 2b) Upsert route_favorites for this route
+    // -------------------------------------------------
+    // Our offline schema:
+    // route_favorites(user_id, route_id, sync_status)
+
+    // Clear any existing favorites for this route
+    await run(
+      `
+        DELETE FROM route_favorites
+         WHERE route_id = ?
+      `,
+      [routeId]
+    );
+
+    // Insert any favorites we got from the remote payload
+    for (const fav of favoriteRouteRows) {
+      const uid = toInt(fav.user_id);
+      if (!uid) continue;
+
+      await run(
+        `
+        INSERT INTO route_favorites (user_id, route_id, sync_status)
+        VALUES (?, ?, 'clean')
+        ON CONFLICT(user_id, route_id) DO UPDATE SET
+          sync_status = 'clean'
+        `,
+        [uid, routeId]
+      );
+    }
 
     // -------------------------------------------------
     // 3) Insert GPX rows
