@@ -19,11 +19,11 @@ pool
   });
 
 // enforce search_path per connection
-pool.on("connect", (client) => {
-  client.query("SET search_path = opencairn;").catch((e) => {
-    console.error("[Postgres] failed to set search_path:", e.message);
-  });
-});
+//pool.on("connect", (client) => {
+//  client.query("SET search_path = opencairn;").catch((e) => {
+//    console.error("[Postgres] failed to set search_path:", e.message);
+//  });
+//});
 
 /** Write (INSERT/UPDATE/DELETE). Returns { rowCount, rows }. */
 async function run(sql, params = []) {

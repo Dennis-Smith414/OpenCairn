@@ -10,7 +10,7 @@ console.log("[boot] DATABASE_URL =", process.env.DATABASE_URL);
 
 const express = require("express");
 const cors = require("cors");
-const db = require("./Postgres"); // <- use the shared pool + init()
+const db = require("./Postgres");
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");

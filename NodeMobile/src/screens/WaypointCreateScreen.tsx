@@ -44,9 +44,10 @@ export default function WaypointCreateScreen({ navigation }: any) {
     { label: "Campsite", value: "campsite" },
     { label: "Road / Access Point", value: "road-access-point" },
     { label: "Intersection", value: "intersection" },
+    {label: "Navigation", value: "navigation"},
     { label: "Hazard", value: "hazard" },
     { label: "Landmark", value: "landmark" },
-    { label: "Parking / Trailhead", value: "parking-trailhead" },
+    { label: "Parking / Trailhead", value: "parking-trailhead" }
   ];
 
   const handleSubmit = async () => {
