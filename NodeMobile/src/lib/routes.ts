@@ -12,8 +12,13 @@ export interface Route {
   distance_km?: number;
   created_at?: string;
   updated_at?: string;
+  username?: string;
 }
 
+export interface RouteDetail {
+  route: Route;
+  gpx?: any;
+}
 
 
 /**
@@ -79,4 +84,39 @@ export async function createRouteWithGpx(
   const newRoute = await createRoute(token, route);
   const upload = await uploadGpxToExistingRoute(newRoute.id!, fileUri, token);
   return { route: newRoute, upload };
+}
+
+/**
+ * GET /api/routes/:id
+ * Optional: include_gpx=true to fetch GeoJSON FeatureCollection.
+ */
+export async function fetchRouteDetail(
+  id: number,
+  options?: { includeGpx?: boolean }
+): Promise<RouteDetail> {
+  const base = getBaseUrl();
+  const url = new URL(`${base}/api/routes/${id}`);
+
+  if (options?.includeGpx) {
+    url.searchParams.set("include_gpx", "true");
+  }
+
+  const res = await fetch(url.toString());
+  const text = await res.text();
+  const json = safeJson(text);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(
+      `Failed to load route ${id} (${res.status}) :: ${text.slice(0, 200)}`
+    );
+  }
+
+  if (!json.route) {
+    throw new Error(`Route ${id} not found`);
+  }
+
+  return {
+    route: json.route as Route,
+    gpx: json.gpx,
+  };
 }

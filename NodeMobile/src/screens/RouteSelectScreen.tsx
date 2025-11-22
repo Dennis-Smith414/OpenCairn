@@ -13,31 +13,18 @@ import {
 
 import { useThemeStyles } from "../styles/theme";
 import { createGlobalStyles } from "../styles/globalStyles";
-import { useRouteSelection } from "../context/RouteSelectionContext";
+// import { useRouteSelection } from "../context/RouteSelectionContext"; // no longer used for card press
 import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { fetchRouteList } from "../lib/routes";
 import { submitRouteVote, fetchRouteRating } from "../lib/ratings";
+import RouteCard, { RouteCardItem } from "../components/routes/RouteCard";
 import {
   getFavorites,
   addToFavorites,
   removeFromFavorites,
 } from "../lib/favorites";
-
-type RouteItem = {
-  id: number;
-  slug: string;
-  name: string;
-  region?: string;
-  upvotes?: number; // legacy field if your list still returns it
-  start_lat?: number | null;
-  start_lng?: number | null;
-
-  // rating fields (from ratings system)
-  rating_total?: number;
-  user_rating?: 1 | -1 | null;
-};
 
 const NEARBY_OPTIONS = [10, 25, 50, 75]; // miles
 
@@ -96,14 +83,14 @@ export default function RouteSelectScreen({ navigation }: any) {
     showErrorAlert: false,
   });
 
-  const [routes, setRoutes] = useState<RouteItem[]>([]);
+  const [routes, setRoutes] = useState<RouteCardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // 🔎 search
   const [query, setQuery] = useState("");
 
-  const { selectedRouteIds, toggleRoute } = useRouteSelection();
+  // const { selectedRouteIds, toggleRoute } = useRouteSelection(); // no longer used for card press
   const [syncingRouteId, setSyncingRouteId] = useState<number | null>(null);
 
   // ✅ route currently being voted on (avoid spam + double taps)
@@ -282,7 +269,7 @@ export default function RouteSelectScreen({ navigation }: any) {
   // Search + Nearby + Favorites filter
   const filteredRoutes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let base: RouteItem[] = routes;
+    let base: RouteCardItem[] = routes;
 
     // Nearby filter – only if we have a location
     if (showNearbyOnly && currentLocation) {
@@ -577,170 +564,34 @@ export default function RouteSelectScreen({ navigation }: any) {
         refreshing={refreshing}
         onRefresh={loadRoutes}
         renderItem={({ item }) => {
-          const isSelected = selectedRouteIds.includes(item.id);
-          const isSyncing = syncingRouteId === item.id;
           const isFavorite = favoriteIds.includes(item.id);
-
           const score = item.rating_total ?? item.upvotes ?? 0;
-          const isUpvoted = item.user_rating === 1;
-          const isDownvoted = item.user_rating === -1;
           const isVoting = votingRouteId === item.id;
           const isFavUpdating = updatingFavoriteId === item.id;
 
           return (
-            <View
-              style={{
-                padding: 12,
-                marginVertical: 6,
-                marginHorizontal: 16,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.accent,
-                backgroundColor: isSelected
-                  ? colors.primary
-                  : colors.backgroundAlt,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <TouchableOpacity
-                  style={{ flex: 1, padding: 12 }}
-                  onPress={() =>
-                    toggleRoute({ id: item.id, name: item.name })
-                  }
-                >
-                  <Text
-                    style={[
-                      globalStyles.bodyText,
-                      {
-                        color: isSelected
-                          ? colors.background
-                          : colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {item.name}
-                  </Text>
-                  {item.region && (
-                    <Text
-                      style={[
-                        globalStyles.subText,
-                        {
-                          color: isSelected
-                            ? colors.background
-                            : colors.textSecondary,
-                          marginTop: 2,
-                        },
-                      ]}
-                    >
-                      {item.region}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <View
-                  style={{
-                    paddingRight: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {/* Favorite toggle (DB-backed) */}
-                  <TouchableOpacity
-                    onPress={() => toggleFavorite(item.id)}
-                    disabled={isFavUpdating}
-                    style={{ paddingHorizontal: 4, paddingVertical: 2 }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        opacity: isFavUpdating ? 0.5 : 1,
-                        color: isFavorite
-                          ? colors.accent
-                          : colors.textSecondary,
-                      }}
-                    >
-                      {isFavorite ? "★" : "☆"}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Upvote / Downvote controls (match WaypointPopup behavior) */}
-                  <TouchableOpacity
-                    onPress={() => handleVote(item.id, 1)}
-                    disabled={isVoting}
-                    style={{ paddingHorizontal: 8, paddingVertical: 2 }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        color: isUpvoted
-                          ? colors.accent
-                          : colors.textSecondary,
-                      }}
-                    >
-                      ▲
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleVote(item.id, -1)}
-                    disabled={isVoting}
-                    style={{ paddingHorizontal: 8, paddingVertical: 2 }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        color: isDownvoted
-                          ? colors.error || "#d33"
-                          : colors.textSecondary,
-                      }}
-                    >
-                      ▼
-                    </Text>
-                  </TouchableOpacity>
-
-                  <Text
-                    style={{
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                      marginTop: -2,
-                    }}
-                  >
-                    {score}
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={{
-                  paddingHorizontal: 12,
-                  paddingBottom: 8,
-                  paddingTop: 4,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation.navigate("RouteComments", {
-                      routeId: item.id,
-                      routeName: item.name,
-                    })
-                  }
-                >
-                  <Text
-                    style={{
-                      color: colors.accent,
-                      fontSize: 13,
-                    }}
-                  >
-                    View comments
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <RouteCard
+              item={item}
+              isFavorite={isFavorite}
+              isFavUpdating={isFavUpdating}
+              isVoting={isVoting}
+              score={score}
+              onToggleFavorite={() => toggleFavorite(item.id)}
+              onVoteUp={() => handleVote(item.id, 1)}
+              onVoteDown={() => handleVote(item.id, -1)}
+              onOpenComments={() =>
+                navigation.navigate("RouteComments", {
+                  routeId: item.id,
+                  routeName: item.name,
+                })
+              }
+              onOpenDetail={() =>
+                navigation.navigate("RouteDetail", {
+                  routeId: item.id,
+                  routeName: item.name,
+                })
+              }
+            />
           );
         }}
         ListEmptyComponent={

@@ -19,7 +19,7 @@ import RouteCreateScreen from "../screens/RouteCreateScreen";
 import WaypointCreateScreen from "../screens/WaypointCreateScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import WaypointEditScreen from "../screens/WaypointEditScreen";
-
+import RouteDetailScreen from "../screens/RouteDetailScreen";
 // Navigators
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -67,6 +67,10 @@ function RoutesStack() {
         name="RouteCreate"
         component={RouteCreateScreen}
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <RoutesStackNav.Screen
+        name="RouteDetail"
+        component={RouteDetailScreen}
       />
     </RoutesStackNav.Navigator>
   );

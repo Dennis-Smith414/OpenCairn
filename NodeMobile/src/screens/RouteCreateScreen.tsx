@@ -22,6 +22,7 @@ export default function RouteCreateScreen({ navigation }: any) {
   
   const [name, setName] = useState("");
   const [region, setRegion] = useState("");
+  const [description, setDescription] = useState("");
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const { userToken } = useAuth();
@@ -73,6 +74,7 @@ export default function RouteCreateScreen({ navigation }: any) {
       const route = await createRoute(userToken, {
         name: name.trim(),
         region: region.trim() || undefined,
+        description: description.trim() || undefined,
       });
 
       // Sequential uploads; switch to Promise.all for parallel if desired
@@ -126,6 +128,17 @@ export default function RouteCreateScreen({ navigation }: any) {
             editable={!uploading}
           />
 
+          {/* Description field */}
+          <Text style={globalStyles.label}>Description (Optional)</Text>
+          <TextInput
+            style={[globalStyles.input, { minHeight: 90, textAlignVertical: "top" }]}
+            placeholder="Enter description"
+            placeholderTextColor={colors.textSecondary}
+            value={description}
+            onChangeText={setDescription}
+            editable={!uploading}
+            multiline
+          />
           {/* Primary picker */}
           <TouchableOpacity
             style={[globalStyles.fileButton, files.length > 0 && globalStyles.fileButtonSelected]}

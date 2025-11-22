@@ -24,7 +24,7 @@ async function start() {
 
     // 2) Start HTTP server
     const app = express();
-    app.use(express.json());
+    app.use(express.json({limit : "50mb"}));
 
     // Simple health check endpoint for the React Native app
     app.get("/ping", (_req, res) => {
