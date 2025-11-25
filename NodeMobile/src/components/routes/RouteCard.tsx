@@ -3,6 +3,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useThemeStyles } from "../../styles/theme";
 import { createGlobalStyles } from "../../styles/globalStyles";
+import RouteThumbnail from "./RouteThumbnail";
 
 export type RouteCardItem = {
   id: number;
@@ -28,7 +29,7 @@ type Props = {
   onVoteUp: () => void;
   onVoteDown: () => void;
   onOpenComments: () => void;
-  onOpenDetail: () => void; // 👉 navigate to RouteDetailScreen
+  onOpenDetail: () => void;
 };
 
 export const RouteCard: React.FC<Props> = ({
@@ -69,9 +70,11 @@ export const RouteCard: React.FC<Props> = ({
                 color: colors.textPrimary,
               },
             ]}
+            numberOfLines={1}
           >
             {item.name}
           </Text>
+
           {item.region && (
             <Text
               style={[
@@ -81,11 +84,17 @@ export const RouteCard: React.FC<Props> = ({
                   marginTop: 2,
                 },
               ]}
+              numberOfLines={1}
             >
               {item.region}
             </Text>
           )}
         </TouchableOpacity>
+
+        {/* MIDDLE: tiny trail outline */}
+        <View style={styles.thumbnailWrapper}>
+          <RouteThumbnail routeId={item.id} width={70} height={40} />
+        </View>
 
         {/* RIGHT: favorites + votes */}
         <View style={styles.rightColumn}>
@@ -106,7 +115,7 @@ export const RouteCard: React.FC<Props> = ({
             </Text>
           </TouchableOpacity>
 
-          {/* Upvote / Downvote */}
+          {/* Upvote */}
           <TouchableOpacity
             onPress={onVoteUp}
             disabled={isVoting}
@@ -122,6 +131,7 @@ export const RouteCard: React.FC<Props> = ({
             </Text>
           </TouchableOpacity>
 
+          {/* Downvote */}
           <TouchableOpacity
             onPress={onVoteDown}
             disabled={isVoting}
@@ -139,6 +149,7 @@ export const RouteCard: React.FC<Props> = ({
             </Text>
           </TouchableOpacity>
 
+          {/* Score */}
           <Text
             style={{
               color: colors.textSecondary,
@@ -183,6 +194,12 @@ const styles = StyleSheet.create({
   titleArea: {
     flex: 1,
     padding: 12,
+  },
+  thumbnailWrapper: {
+    width: 80,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 8,
   },
   rightColumn: {
     paddingRight: 12,
