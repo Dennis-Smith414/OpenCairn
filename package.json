@@ -3,6 +3,7 @@
     "@maplibre/maplibre-react-native": "^10.4.0",
     "@react-native-documents/picker": "^10.1.7",
     "@xmldom/xmldom": "^0.8.11",
+    "basic-ftp": "^5.0.5",
     "curl": "^0.1.4",
     "dotenv": "^17.2.2",
     "pg": "^8.16.3",

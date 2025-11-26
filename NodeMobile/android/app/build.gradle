@@ -2,6 +2,27 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// === VERSION CONFIGURATION ===
+def versionPropertiesFile = rootProject.file('version.properties')
+def versionProperties = new Properties()
+
+if (versionPropertiesFile.exists()) {
+    versionProperties.load(new FileInputStream(versionPropertiesFile))
+} else {
+    versionProperties['VERSION_MAJOR'] = '1'
+    versionProperties['VERSION_MINOR'] = '0'
+    versionProperties['VERSION_PATCH'] = '0'
+    versionProperties.store(versionPropertiesFile.newWriter(), "App version properties")
+}
+
+def versionMajor = Integer.parseInt(versionProperties['VERSION_MAJOR'])
+def versionMinor = Integer.parseInt(versionProperties['VERSION_MINOR']) 
+def versionPatch = Integer.parseInt(versionProperties['VERSION_PATCH'])
+
+project.ext.versionName = "${versionMajor}.${versionMinor}.${versionPatch}"
+project.ext.versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
+// === END VERSION CONFIGURATION ===
+
 //For bundling NodeMobile APKs
 project.ext.react = [
     enableHermes: true,
@@ -92,8 +113,18 @@ android {
         applicationId "com.nodemobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode = versionCode
+        versionName = versionName 
+
+        buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
+        buildConfigField "int", "VERSION_CODE", project.versionCode.toString()
+}
+    applicationVariants.all { variant ->
+        if (variant.buildType.name == "release") {
+            variant.outputs.all { output ->
+                output.outputFileName = "OpenCairnV${project.versionName}.apk"
+            }
+        }
     }
     signingConfigs {
         release {
@@ -134,5 +165,104 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
+    }
+}
+
+// === VERSION TASKS ===
+task printVersion {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def major = Integer.parseInt(props['VERSION_MAJOR'])
+        def minor = Integer.parseInt(props['VERSION_MINOR'])
+        def patch = Integer.parseInt(props['VERSION_PATCH'])
+        def name = "${major}.${minor}.${patch}"
+        def code = major * 10000 + minor * 100 + patch
+        
+        println "Version Name: ${name}"
+        println "Version Code: ${code}"
+    }
+}
+
+task getVersionName {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def major = Integer.parseInt(props['VERSION_MAJOR'])
+        def minor = Integer.parseInt(props['VERSION_MINOR'])
+        def patch = Integer.parseInt(props['VERSION_PATCH'])
+        println "${major}.${minor}.${patch}"
+    }
+}
+
+task getVersionCode {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def major = Integer.parseInt(props['VERSION_MAJOR'])
+        def minor = Integer.parseInt(props['VERSION_MINOR'])
+        def patch = Integer.parseInt(props['VERSION_PATCH'])
+        def code = major * 10000 + minor * 100 + patch
+        println code
+    }
+}
+
+task incrementPatch {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def major = Integer.parseInt(props['VERSION_MAJOR'])
+        def minor = Integer.parseInt(props['VERSION_MINOR'])
+        def currentPatch = Integer.parseInt(props['VERSION_PATCH'])
+        def newPatch = currentPatch + 1
+        
+        props['VERSION_PATCH'] = newPatch.toString()
+        props.store(file.newWriter(), "App version properties")
+        
+        println "✅ Incremented patch: ${major}.${minor}.${currentPatch} → ${major}.${minor}.${newPatch}"
+    }
+}
+
+task incrementMinor {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def major = Integer.parseInt(props['VERSION_MAJOR'])
+        def currentMinor = Integer.parseInt(props['VERSION_MINOR'])
+        def newMinor = currentMinor + 1
+        
+        props['VERSION_MINOR'] = newMinor.toString()
+        props['VERSION_PATCH'] = '0'
+        props.store(file.newWriter(), "App version properties")
+        
+        println "✅ Incremented minor: ${major}.${currentMinor}.x → ${major}.${newMinor}.0"
+    }
+}
+
+task incrementMajor {
+    doLast {
+        def props = new Properties()
+        def file = rootProject.file('version.properties')
+        props.load(new FileInputStream(file))
+        
+        def currentMajor = Integer.parseInt(props['VERSION_MAJOR'])
+        def newMajor = currentMajor + 1
+        
+        props['VERSION_MAJOR'] = newMajor.toString()
+        props['VERSION_MINOR'] = '0'
+        props['VERSION_PATCH'] = '0'
+        props.store(file.newWriter(), "App version properties")
+        
+        println "✅ Incremented major: ${currentMajor}.x.x → ${newMajor}.0.0"
     }
 }
