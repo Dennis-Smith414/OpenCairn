@@ -18,18 +18,18 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS routes (
-  id            INTEGER PRIMARY KEY,
-  user_id       INTEGER,
-  username      TEXT,
-  slug          TEXT NOT NULL UNIQUE,
-  name          TEXT NOT NULL,
-  description   TEXT,
-  region        TEXT,
-  rating        INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  id             INTEGER PRIMARY KEY,
+  user_id        INTEGER,
+  username       TEXT,
+  slug           TEXT NOT NULL UNIQUE,
+  name           TEXT NOT NULL,
+  description    TEXT,
+  region         TEXT,
+  rating         INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   last_synced_at TEXT,
-  sync_status   TEXT NOT NULL DEFAULT 'clean'
+  sync_status    TEXT NOT NULL DEFAULT 'clean'
 );
 
 CREATE INDEX IF NOT EXISTS idx_routes_user_id ON routes(user_id);
@@ -131,6 +131,18 @@ CREATE TABLE IF NOT EXISTS gpx (
 
 CREATE INDEX IF NOT EXISTS idx_gpx_route_id ON gpx(route_id);
 
+CREATE TABLE IF NOT EXISTS offline_basemaps (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  path        TEXT NOT NULL,
+  size_bytes  INTEGER,
+  min_zoom    INTEGER,
+  max_zoom    INTEGER,
+  bounds_json TEXT,
+  is_active   INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS sync_state (
   key   TEXT PRIMARY KEY,
   value TEXT
@@ -148,64 +160,42 @@ export interface InitOptions {
   withSeed?: boolean;
 }
 
-/**
- * Initialize the offline SQLite database.
- * - opens offline.db (via react-native-sqlite-storage)
- * - enforces foreign keys
- * - runs schema SQL (idempotent)
- * - optionally runs seed SQL
- */
 export async function initOfflineDb(options: InitOptions = {}): Promise<void> {
   const { withSeed = false } = options;
   console.log("[offline-db] initOfflineDb() called, withSeed =", withSeed);
 
   const db = await getDb();
 
-  // Enforce foreign keys
+  // Enforce foreign keys (outside of schema loop is fine)
   await db.executeSql("PRAGMA foreign_keys = ON;");
 
-  // Apply schema (wrap in a transaction for safety)
-  await db.transaction(async (tx) => {
-    const statements = SCHEMA_SQL.split(";")
+  const runBatch = async (sql: string, label: string) => {
+    const statements = sql
+      .split(";")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
     for (const stmt of statements) {
-      await new Promise<void>((resolve, reject) => {
-        tx.executeSql(
-          stmt,
-          [],
-          () => resolve(),
-          (_tx, error) => {
-            console.error("[offline-db] schema error:", error.message, "\nSQL:", stmt);
-            reject(error);
-            return false;
-          }
+      try {
+        console.log("[offline-db]", label, "exec:", stmt.slice(0, 80));
+        await db.executeSql(stmt, []);
+      } catch (error: any) {
+        console.error(
+          `[offline-db] ${label} error:`,
+          error?.message || error,
+          "\nSQL:",
+          stmt
         );
-      });
-    }
-
-    if (withSeed && SEED_SQL.trim().length > 0) {
-      const seedStatements = SEED_SQL.split(";")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      for (const stmt of seedStatements) {
-        await new Promise<void>((resolve, reject) => {
-          tx.executeSql(
-            stmt,
-            [],
-            () => resolve(),
-            (_tx, error) => {
-              console.error("[offline-db] seed error:", error.message, "\nSQL:", stmt);
-              reject(error);
-              return false;
-            }
-          );
-        });
+        throw error;
       }
     }
-  });
+  };
+
+  await runBatch(SCHEMA_SQL, "schema");
+
+  if (withSeed && SEED_SQL.trim().length > 0) {
+    await runBatch(SEED_SQL, "seed");
+  }
 
   console.log("[offline-db] Init complete (schema" + (withSeed ? " + seed" : "") + ")");
 }

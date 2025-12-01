@@ -1,5 +1,11 @@
 // src/components/MapLibre/MapLibreMap.tsx
-import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
 import {
   MapView,
@@ -12,13 +18,15 @@ import {
   RasterLayer,
   Images,
   SymbolLayer,
-  VectorSource,
-  FillLayer,
 } from "@maplibre/maplibre-react-native";
 import { getDistanceMeters, boundsFromTracks } from "../../utils/geoUtils";
 import { colors } from "../../styles/theme";
 import { useOfflineBackend } from "../../context/OfflineContext";
-import {OFFLINE_API_BASE as OFFLINE_BASE} from "../../config/env"; //Delete / refactor later
+import { OFFLINE_API_BASE as OFFLINE_BASE } from "../../config/env"; // will point at NodeMobile backend
+import {
+  listBasemapsOffline,
+  OfflineBasemap,
+} from "../../offline/basemaps";
 
 export type LatLng = [number, number];
 
@@ -31,7 +39,7 @@ export interface Waypoint {
   type?: string;
   username?: string;
   created_at?: string;
-  distance?: number;   // meters
+  distance?: number; // meters
   iconRequire?: any;
   user_id?: number;
 }
@@ -77,7 +85,47 @@ const MapLibreMap: React.FC<Props> = ({
   const lastUserLocRef = useRef<LatLng | null>(null);
   const { mode } = useOfflineBackend();
   const isOfflineMode = mode === "offline";
-  const [markedLocation, setMarkedLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [markedLocation, setMarkedLocation] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+
+  // 🔹 Active offline basemap (from offline_basemaps table)
+  const [activeBasemap, setActiveBasemap] = useState<OfflineBasemap | null>(
+    null
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadActiveBasemap() {
+      if (!isOfflineMode) {
+        setActiveBasemap(null);
+        return;
+      }
+
+      try {
+        const all = await listBasemapsOffline();
+        if (cancelled) return;
+        const active = all.find((b) => b.is_active === 1) || null;
+        setActiveBasemap(active);
+        console.log(
+          "[MapLibreMap] offline basemap:",
+          active ? `${active.name} (id=${active.id})` : "none"
+        );
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[MapLibreMap] failed to load basemaps:", err);
+          setActiveBasemap(null);
+        }
+      }
+    }
+
+    loadActiveBasemap();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOfflineMode]);
 
   // Icons (keeps your popup UI parity)
   const rnIcons = useMemo(
@@ -98,10 +146,11 @@ const MapLibreMap: React.FC<Props> = ({
   // Convert tracks → MultiLineString features (lon,lat order)
   const routeFeatures = useMemo(() => {
     return tracks.map((t) => {
-      const multi: number[][][] =
-        Array.isArray(t.coords[0])
-          ? (t.coords as LatLng[][]).map((seg) => seg.map(([lat, lon]) => [lon, lat]))
-          : [[(t.coords as LatLng[]).map(([lat, lon]) => [lon, lat])]];
+      const multi: number[][][] = Array.isArray(t.coords[0])
+        ? (t.coords as LatLng[][]).map((seg) =>
+            seg.map(([lat, lon]) => [lon, lat])
+          )
+        : [[(t.coords as LatLng[]).map(([lat, lon]) => [lon, lat])]];
       return {
         id: `route-${t.id}`,
         feature: {
@@ -145,15 +194,21 @@ const MapLibreMap: React.FC<Props> = ({
     }
   }, [userLocation]);
 
-  // Zoom buttons (imperative only)
+  // Zoom buttons
   const zoomIn = useCallback(() => {
     zoomRef.current = Math.min(22, (zoomRef.current ?? DEFAULT_ZOOM) + 1);
-    cameraRef.current?.setCamera({ zoomLevel: zoomRef.current, animationDuration: 250 });
+    cameraRef.current?.setCamera({
+      zoomLevel: zoomRef.current,
+      animationDuration: 250,
+    });
   }, []);
 
   const zoomOut = useCallback(() => {
     zoomRef.current = Math.max(2, (zoomRef.current ?? DEFAULT_ZOOM) - 1);
-    cameraRef.current?.setCamera({ zoomLevel: zoomRef.current, animationDuration: 250 });
+    cameraRef.current?.setCamera({
+      zoomLevel: zoomRef.current,
+      animationDuration: 250,
+    });
   }, []);
 
   // Long-press → “Marked Location”
@@ -177,7 +232,10 @@ const MapLibreMap: React.FC<Props> = ({
         iconRequire: rnIcons.generic,
       };
       if (userLocation) {
-        wp.distance = getDistanceMeters([userLocation[0], userLocation[1]], [lat, lon]);
+        wp.distance = getDistanceMeters(
+          [userLocation[0], userLocation[1]],
+          [lat, lon]
+        );
       }
 
       onMapLongPress?.(lat, lon);
@@ -194,9 +252,10 @@ const MapLibreMap: React.FC<Props> = ({
       const p = f.properties || {};
       const g = f.geometry;
 
+      // ignore cluster bubble taps
       if (p.point_count != null) {
-            return;
-          }
+        return;
+      }
 
       const typeKey = p.type || "generic";
       const iconRequire =
@@ -226,7 +285,10 @@ const MapLibreMap: React.FC<Props> = ({
       };
 
       if (userLocation) {
-        wp.distance = getDistanceMeters([userLocation[0], userLocation[1]], [lat, lon]);
+        wp.distance = getDistanceMeters(
+          [userLocation[0], userLocation[1]],
+          [lat, lon]
+        );
       }
 
       onWaypointPress?.(wp);
@@ -234,7 +296,7 @@ const MapLibreMap: React.FC<Props> = ({
     [onWaypointPress, rnIcons, userLocation]
   );
 
-  //DEBUG useEffect
+  // DEBUG
   useEffect(() => {
     console.log(
       "[MapLibreMap] mode =",
@@ -246,7 +308,6 @@ const MapLibreMap: React.FC<Props> = ({
       console.log("[MapLibreMap] first wp:", waypoints[0]);
     }
   }, [isOfflineMode, waypoints]);
-
 
   // “Map ready” ping
   useEffect(() => {
@@ -262,7 +323,7 @@ const MapLibreMap: React.FC<Props> = ({
     }
   }, []);
 
-  //Center on tracks
+  // Center on tracks
   useEffect(() => {
     if (!tracks?.length || !cameraRef.current || !autoFitOnTracks) return;
     const bb = boundsFromTracks(tracks);
@@ -271,8 +332,8 @@ const MapLibreMap: React.FC<Props> = ({
     cameraRef.current.fitBounds(
       [bb.sw[1], bb.sw[0]],
       [bb.ne[1], bb.ne[0]],
-      40,   // padding px
-      400   // duration ms
+      40,
+      400
     );
   }, [tracks, autoFitOnTracks]);
 
@@ -302,18 +363,33 @@ const MapLibreMap: React.FC<Props> = ({
     setMarkedLocation(null);
   }, [onWaypointPress]);
 
+  // 🔹 Build tile URL for active PMTiles basemap
+  const offlineTileUrlTemplates = useMemo(() => {
+    if (!activeBasemap) return null;
+
+    // Adjust this path to whatever your NodeMobile backend exposes:
+    // e.g.  http://127.0.0.1:5050/pmtiles/:id/{z}/{x}/{y}.png
+    return [
+      `${OFFLINE_BASE}/pmtiles/${activeBasemap.id}/{z}/{x}/{y}.png`,
+    ];
+  }, [activeBasemap]);
+
   return (
     <View style={styles.container}>
-        <MapView
-          key={isOfflineMode ? "offline-map" : "online-map"}
-          style={StyleSheet.absoluteFill}
-          logoEnabled={false}
-          compassEnabled
-          onPress={onMapPress}
-          onLongPress={onLongPress}
-          onMapError={onMapError}
-          onDidFinishLoadingStyle={onStyleLoaded}
-        >
+      <MapView
+        key={
+          isOfflineMode
+            ? `offline-map-${activeBasemap?.id ?? "none"}`
+            : "online-map"
+        }
+        style={StyleSheet.absoluteFill}
+        logoEnabled={false}
+        compassEnabled
+        onPress={onMapPress}
+        onLongPress={onLongPress}
+        onMapError={onMapError}
+        onDidFinishLoadingStyle={onStyleLoaded}
+      >
         <Images
           images={{
             generic: require("../../assets/icons/waypoints/generic.png"),
@@ -328,63 +404,31 @@ const MapLibreMap: React.FC<Props> = ({
           }}
         />
 
-        {/* Base map: OSM raster tiles */}
-        {/* Base map */}
+        {/* 🌐 Online basemap: OSM raster tiles */}
         {!isOfflineMode && (
-          // 🌐 Online: OSM raster tiles
           <RasterSource
             id="osm"
-            tileUrlTemplates={["https://tile.openstreetmap.org/{z}/{x}/{y}.png"]}
+            tileUrlTemplates={[
+              "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            ]}
             tileSize={256}
           >
             <RasterLayer id="osm-layer" />
           </RasterSource>
         )}
 
-        {isOfflineMode && (
-          <VectorSource
+        {/* 📦 Offline basemap: PMTiles (if available) */}
+        {isOfflineMode && offlineTileUrlTemplates && (
+          <RasterSource
             id="offline-basemap"
-            tileUrlTemplates={[`${OFFLINE_BASE}/tiles/{z}/{x}/{y}.mvt`]}
-            minZoomLevel={4}
-            maxZoomLevel={14}
+            tileUrlTemplates={offlineTileUrlTemplates}
+            tileSize={256}
           >
-            <FillLayer
-              id="offline-water"
-              sourceLayerID="water"
-              style={{
-                fillColor: "#a0c8f0",
-                fillOpacity: 1,
-              }}
-            />
-            <FillLayer
-              id="offline-landuse"
-              sourceLayerID="landuse"
-              style={{
-                fillColor: "#dcd9d0",
-                fillOpacity: 1,
-              }}
-            />
-            <LineLayer
-              id="offline-roads"
-              sourceLayerID="transportation"
-              style={{
-                lineColor: "#c0a26b",
-                lineWidth: 1.0,
-              }}
-            />
-            <SymbolLayer
-              id="offline-places"
-              sourceLayerID="place"
-              style={{
-                textField: ["get", "name"],
-                textSize: 12,
-                textHaloColor: "#ffffff",
-                textHaloWidth: 1,
-              }}
-            />
-          </VectorSource>
+            <RasterLayer id="offline-basemap-layer" />
+          </RasterSource>
         )}
 
+        {/* Camera */}
         <Camera
           ref={cameraRef}
           defaultSettings={{
@@ -410,7 +454,7 @@ const MapLibreMap: React.FC<Props> = ({
           </ShapeSource>
         ))}
 
-        {/* Waypoints (clustered circles) */}
+        {/* Waypoints (clustered) */}
         <ShapeSource
           id="waypoints"
           shape={waypointFC}
@@ -418,68 +462,72 @@ const MapLibreMap: React.FC<Props> = ({
           clusterRadius={40}
           onPress={onWaypointPressInternal}
         >
-        <CircleLayer
-          id="wp-cluster"
-          filter={["has", "point_count"]}
-          style={{
-            circleRadius: [
-              "interpolate",
-              ["linear"],
-              ["get", "point_count"],
-              5, 10,
-              50, 24
-            ],
-            circleColor: "rgba(0,0,0,0.25)",  // softer, greyish
-            circleOpacity: 0.4,
-            circleStrokeColor: "#ffffff",
-            circleStrokeWidth: 1.2,
-          }}
-        />
-           <SymbolLayer
-             id="wp-point"
-             filter={["!", ["has", "point_count"]]}
-             style={{
-               iconImage: [
-                 "coalesce",
-                 ["get", "type"],  // use e.g. "water", "campsite", "road-access-point", etc.
-                 "generic",
-               ],
-               iconAllowOverlap: true,
-               iconIgnorePlacement: true,
-               iconSize: 0.8,         // adjust to taste
-             }}
-           />
+          <CircleLayer
+            id="wp-cluster"
+            filter={["has", "point_count"]}
+            style={{
+              circleRadius: [
+                "interpolate",
+                ["linear"],
+                ["get", "point_count"],
+                5,
+                10,
+                50,
+                24,
+              ],
+              circleColor: "rgba(0,0,0,0.25)",
+              circleOpacity: 0.4,
+              circleStrokeColor: "#ffffff",
+              circleStrokeWidth: 1.2,
+            }}
+          />
+          <SymbolLayer
+            id="wp-point"
+            filter={["!", ["has", "point_count"]]}
+            style={{
+              iconImage: [
+                "coalesce",
+                ["get", "type"], // "water", "campsite", etc.
+                "generic",
+              ],
+              iconAllowOverlap: true,
+              iconIgnorePlacement: true,
+              iconSize: 0.8,
+            }}
+          />
         </ShapeSource>
+
+        {/* Marked location from long-press */}
         {markedLocation && (
-                  <ShapeSource
-                    id="marked-location"
-                    shape={{
-                      type: "FeatureCollection",
-                      features: [
-                        {
-                          type: "Feature",
-                          geometry: {
-                            type: "Point",
-                            coordinates: [markedLocation.lon, markedLocation.lat], // [lon, lat]
-                          },
-                          properties: {
-                            type: "generic",
-                          },
-                        },
-                      ],
-                    }}
-                  >
-                    <SymbolLayer
-                      id="marked-location-icon"
-                      style={{
-                        iconImage: "generic",
-                        iconAllowOverlap: true,
-                        iconIgnorePlacement: true,
-                        iconSize: 0.9,
-                      }}
-                    />
-                  </ShapeSource>
-                )}
+          <ShapeSource
+            id="marked-location"
+            shape={{
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  geometry: {
+                    type: "Point",
+                    coordinates: [markedLocation.lon, markedLocation.lat],
+                  },
+                  properties: {
+                    type: "generic",
+                  },
+                },
+              ],
+            }}
+          >
+            <SymbolLayer
+              id="marked-location-icon"
+              style={{
+                iconImage: "generic",
+                iconAllowOverlap: true,
+                iconIgnorePlacement: true,
+                iconSize: 0.9,
+              }}
+            />
+          </ShapeSource>
+        )}
       </MapView>
 
       {/* Zoom controls */}
@@ -492,14 +540,17 @@ const MapLibreMap: React.FC<Props> = ({
         </TouchableOpacity>
       </View>
 
-        {/* Center-on-user */}
-        <TouchableOpacity
-          style={[styles.zoomBtn, styles.centerBtn, { backgroundColor: colors.primary }]}
-          onPress={centerOnUserNow}
-        >
-          <Text style={[styles.zoomTxt]}>◎</Text>
-        </TouchableOpacity>
-
+      {/* Center-on-user */}
+      <TouchableOpacity
+        style={[
+          styles.zoomBtn,
+          styles.centerBtn,
+          { backgroundColor: colors.primary },
+        ]}
+        onPress={centerOnUserNow}
+      >
+        <Text style={styles.zoomTxt}>◎</Text>
+      </TouchableOpacity>
 
       {/* Follow-me pill */}
       {showTrackingButton && (
@@ -508,8 +559,12 @@ const MapLibreMap: React.FC<Props> = ({
           activeOpacity={0.85}
           style={[styles.pill, tracking ? styles.pillOn : styles.pillOff]}
         >
-          <View style={[styles.dot, tracking ? styles.dotOn : styles.dotOff]} />
-          <Text style={styles.pillText}>{tracking ? "Tracking" : "Enable Tracking"}</Text>
+          <View
+            style={[styles.dot, tracking ? styles.dotOn : styles.dotOff]}
+          />
+          <Text style={styles.pillText}>
+            {tracking ? "Tracking" : "Enable Tracking"}
+          </Text>
         </TouchableOpacity>
       )}
     </View>
@@ -564,13 +619,13 @@ const styles = StyleSheet.create({
   },
   zoomTxt: { fontSize: 22, fontWeight: "700" },
 
-centerBtn: {
-  position: "absolute",
-  right: 12,
-  bottom: 525,
-  zIndex: 10,
-  elevation: 4,
-},
+  centerBtn: {
+    position: "absolute",
+    right: 12,
+    bottom: 525,
+    zIndex: 10,
+    elevation: 4,
+  },
 
   centerTxt: { fontSize: 18, fontWeight: "700" },
 });
