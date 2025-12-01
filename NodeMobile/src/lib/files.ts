@@ -1,60 +1,44 @@
 // src/lib/files.ts
-import { apiFetch } from "./http";
+//
+// Offline File Manager API (React Native version)
+// Replaces the old apiFetch("offline") HTTP calls with direct SQLite access.
+//
 
-export interface OfflineRouteInfo {
-  id: number;
-  user_id?: number | null;
-  username?: string | null;
-  slug?: string;
-  name: string;
-  description?: string | null;
-  region?: string | null;
-  rating?: number;
+import {
+  listOfflineRoutes,
+  resyncOfflineRoute,
+  deleteOfflineRoute,
+  OfflineRouteRow,
+} from "../offline/routes/files";
 
-  waypoint_count: number;
-  comment_count: number;
-
-  last_synced_at: string | null;
-  created_at?: string;
-  updated_at?: string;
-
-  sync_status?: string;
-}
+// This interface is still used by screens, so we keep it.
+// It simply mirrors the shape returned by listOfflineRoutes().
+export interface OfflineRouteInfo extends OfflineRouteRow {}
 
 /**
  * Fetch all offline routes from SQLite.
- * Uses apiFetch("offline") → always hits offline server.
+ * Previously hit `/api/files/routes` via the offline Express server.
+ * Now uses RN SQLite directly.
  */
 export async function fetchOfflineRoutes(): Promise<OfflineRouteInfo[]> {
-  const data = await apiFetch<{ ok: boolean; routes: OfflineRouteInfo[] }>(
-    "offline",
-    "/api/files/routes"
-  );
-  return data.routes ?? [];
+  const rows = await listOfflineRoutes();
+  return rows as OfflineRouteInfo[];
 }
 
 /**
- * Mark a route as resynced (currently just updates last_synced_at).
+ * Mark a route as resynced (updates last_synced_at).
+ * Returns boolean to match previous behavior.
  */
 export async function requestRouteResync(routeId: number): Promise<boolean> {
-  const data = await apiFetch<{ ok: boolean }>(
-    "offline",
-    `/api/files/routes/${routeId}/resync`,
-    { method: "POST" }
-  );
-  return data.ok === true;
+  const updated = await resyncOfflineRoute(routeId);
+  return !!updated;
 }
 
 /**
  * Remove a route and its offline data from SQLite.
- * Expects offline server endpoint:
- *   POST /api/files/routes/:id/remove
+ * Matches the same return type (boolean) as before.
  */
 export async function removeOfflineRoute(routeId: number): Promise<boolean> {
-  const data = await apiFetch<{ ok: boolean }>(
-    "offline",
-    `/api/files/routes/${routeId}/remove`,
-    { method: "POST" }
-  );
-  return data.ok === true;
+  await deleteOfflineRoute(routeId);
+  return true;
 }

@@ -1,5 +1,6 @@
 // src/lib/api.ts
 import { API_BASE, OFFLINE_API_BASE } from "../config/env";
+import { getRouteGeoOffline } from "../offline/routes/routes";
 
 export function safeJson(text: string) {
   try {
@@ -37,44 +38,20 @@ export function getBaseUrl() {
   return getBase();
 }
 
-
-
-
-
-
-export async function toggleRouteUpvote(
-  routeId: number,
-  token: string
-): Promise<{
-  ok: boolean;
-  routeId: number;
-  upvotes: number;
-  userHasUpvoted: boolean;
-}> {
-  const base = getBase();
-  const res = await fetch(`${API_BASE}/api/routes/${routeId}/upvote`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  const text = await res.text();
-  const json = safeJson(text);
-  if (!res.ok || !json?.ok) {
-    throw new Error(
-      `Failed to toggle upvote (${res.status}) :: ${text.slice(0, 200)}`
-    );
-  }
-  return json;
-}
-
 /**
  * GET /api/routes/:id/gpx
  * Returns FeatureCollection (shared online/offline)
  */
 export async function fetchRouteGeo(id: number) {
   const base = getBase();
+
+  // OFFLINE → SQLite (React Native DB)
+  if (base === OFFLINE_API_BASE) {
+    // Use the offline helper instead of HTTP
+    return await getRouteGeoOffline(id);
+  }
+
+  // ONLINE → HTTP
   const res = await fetch(`${base}/api/routes/${id}/gpx`);
   const text = await res.text();
   const json = safeJson(text);
@@ -149,8 +126,7 @@ export async function fetchCurrentUser(token: string) {
   return json.user;
 }
 
-//curl http://184.58.146.190:5100/api/comments/routes/25
-// --- NEW: fetch comments for a route ---
+// --- fetch comments for a route ---
 export async function fetchRouteComments(routeId: number) {
   const base = getBase();
   const res = await fetch(`${base}/api/comments/routes/${routeId}`);
@@ -164,7 +140,7 @@ export async function fetchRouteComments(routeId: number) {
   return json.items ?? [];
 }
 
-// --- NEW: post a comment on a route ---
+// --- post a comment on a route ---
 export async function postRouteComment(
   routeId: number,
   content: string,

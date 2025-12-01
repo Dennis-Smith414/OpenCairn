@@ -6,7 +6,7 @@ import { RouteSelectionProvider } from "./src/context/RouteSelectionContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
 import { OfflineBackendProvider } from "./src/context/OfflineContext";
-
+import { OfflineDbProvider } from "./src/offline/OfflineDbProvider";
 
 import {
   loadSavedThemeOverride,
@@ -45,13 +45,13 @@ import { API_BASE } from "./src/config/env";
 
 export default function App() {
   const startedRef = useRef(false);
-  const [themeReady, setThemeReady] = useState(false); // 👈 new
+  const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      // ✅ load saved override BEFORE rendering navigation
+      // load saved override BEFORE rendering navigation
       await loadSavedThemeOverride();
       startSystemThemeListener();
 
@@ -61,7 +61,7 @@ export default function App() {
       }
 
       if (!cancelled) {
-        setThemeReady(true);  // 👈 now it’s safe to show UI
+        setThemeReady(true);
       }
     })();
 
@@ -82,6 +82,7 @@ export default function App() {
   }
 
   return (
+  <OfflineDbProvider withSeed = {false}>
    <OfflineBackendProvider initialMode="online">
     <AuthProvider>
       <RouteSelectionProvider>
@@ -91,5 +92,6 @@ export default function App() {
       </RouteSelectionProvider>
     </AuthProvider>
   </OfflineBackendProvider>
+ </OfflineDbProvider>
   );
 }

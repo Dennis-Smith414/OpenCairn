@@ -1,10 +1,14 @@
 // src/lib/syncOnline.ts
 import { apiFetch } from "./http";
+import {
+  getRouteChangesForRoute,
+  markRouteCleanForRoute,
+  OfflineChangeBundle,
+} from "../offline/routes/unsynced";
 
 /**
  * Types reflecting what the OFFLINE server returns.
- * These are based directly on your offline SQLite schema
- * and offline/routes/unsynced.js response shape.
+ * (We keep these here for now; they structurally match the unsynced module.)
  */
 
 export interface OfflineWaypoint {
@@ -83,11 +87,6 @@ export interface OfflineChangeBundle {
 /**
  * Payload shape expected by REMOTE upload endpoint:
  *   POST /api/upload/push
- *
- * This is based directly on server/routes/upload.js:
- *   const { waypoints, comments, ratings = {...}, favorites = {...} } = payload;
- *   applyRating(table, r) uses: r.sync_status, r.target_id, r.rating
- *   applyFavorite(table, f) uses: f.sync_status, f.target_id
  */
 export interface UploadRatingsPayloadEntry {
   target_id: number;
@@ -129,11 +128,8 @@ export async function syncRouteToOnline(
     throw new Error("syncRouteToOnline: token is required.");
   }
 
-  // 1) Ask OFFLINE server for all unsynced changes on this route
-  const changes = await apiFetch<OfflineChangeBundle>(
-    "offline",
-    `/api/sync/route/${routeId}/changes`
-  );
+  // 1) Ask OFFLINE DB (not HTTP) for all unsynced changes on this route
+  const changes = await getRouteChangesForRoute(routeId);
 
   // Guard in case ratings/favorites objects are missing
   const ratings = changes.ratings || {
@@ -167,15 +163,6 @@ export async function syncRouteToOnline(
   }
 
   // 2) Build payload for REMOTE upload endpoint
-  //
-  // For waypoints and comments, we can forward the offline rows directly.
-  // For ratings, we must map SQLite schema -> upload.js expectations:
-  //   - waypoint_ratings: waypoint_id -> target_id, val -> rating
-  //   - route_ratings:    route_id   -> target_id, val -> rating
-  //   - comment_ratings:  comment_id -> target_id, val -> rating
-  //
-  // For favorites, we map:
-  //   - route_favorites:  route_id   -> target_id
   const uploadPayload: UploadPayload = {
     waypoints: changes.waypoints,
     comments: changes.comments,
@@ -213,15 +200,8 @@ export async function syncRouteToOnline(
     },
   });
 
-  // 4) Mark all those rows as "clean" on the OFFLINE server
-  await apiFetch<void>(
-    "offline",
-    `/api/sync/route/${routeId}/mark-clean`,
-    {
-      method: "POST",
-      body: JSON.stringify({ route_id: routeId }),
-    }
-  );
+  // 4) Mark all those rows as "clean" in the OFFLINE DB
+  await markRouteCleanForRoute(routeId);
 
   console.log("[syncRouteToOnline] sync complete for route", routeId);
 }

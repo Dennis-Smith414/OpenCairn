@@ -1,17 +1,74 @@
 // src/lib/comments.ts
 import { getBaseUrl } from "./api";
+import { OFFLINE_API_BASE } from "../config/env";
+import {
+  fetchRouteCommentsOffline,
+  fetchWaypointCommentsOffline,
+  createRouteCommentOffline,
+  createWaypointCommentOffline,
+  updateCommentOffline as updateCommentOfflineDb,
+  deleteCommentOffline as deleteCommentOfflineDb,
+} from "../offline/routes/comments";
 
 type CommentKind = "waypoint" | "route";
 type RateValue = -1 | 0 | 1;
 
+// ---------- MODE DETECTION ----------
+
+function isOfflineBase(apiBase: string): boolean {
+  return apiBase === OFFLINE_API_BASE;
+}
+
+interface JwtPayload {
+  id?: number;
+  username?: string;
+  [key: string]: any;
+}
+
+/**
+ * Very simple JWT decoder to recover user id / username from the token.
+ * This mirrors what your offline Node `authorize` middleware did.
+ * If decoding fails, we just return null.
+ */
+function decodeUserFromToken(token: string): JwtPayload | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1];
+
+    // Handle URL-safe base64
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded =
+      typeof atob === "function"
+        ? atob(normalized)
+        : Buffer.from(normalized, "base64").toString("utf8");
+
+    return JSON.parse(decoded);
+  } catch (e) {
+    console.warn("[comments] Failed to decode JWT payload", e);
+    return null;
+  }
+}
+
 // ---------- INTERNAL HELPERS ----------
-// Core fetcher, with optional token so the backend can return user_rating
+
 async function fetchCommentsInternal(
   id: number,
   kind: CommentKind,
   token?: string
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE path → use SQLite layer directly
+  if (isOfflineBase(API_BASE)) {
+    if (kind === "route") {
+      return fetchRouteCommentsOffline(id);
+    } else {
+      return fetchWaypointCommentsOffline(id);
+    }
+  }
+
+  // REMOTE path (as before)
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -23,7 +80,6 @@ async function fetchCommentsInternal(
   try {
     const json = JSON.parse(text);
     if (!json.ok) throw new Error(json.error || "Failed to fetch comments");
-    // Expect json.comments = Comment[]
     return json.comments;
   } catch (err) {
     console.error(`Error fetching ${kind} comments:`, err, text);
@@ -31,7 +87,6 @@ async function fetchCommentsInternal(
   }
 }
 
-// Core poster
 async function postCommentInternal(
   id: number,
   content: string,
@@ -39,6 +94,32 @@ async function postCommentInternal(
   kind: CommentKind
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE path → write directly to SQLite
+  if (isOfflineBase(API_BASE)) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user id from token while in offline mode."
+      );
+    }
+
+    if (kind === "route") {
+      return createRouteCommentOffline(id, {
+        userId: user.id,
+        username: user.username,
+        content,
+      });
+    } else {
+      return createWaypointCommentOffline(id, {
+        userId: user.id,
+        username: user.username,
+        content,
+      });
+    }
+  }
+
+  // REMOTE path (original behavior)
   const res = await fetch(`${API_BASE}/api/comments/${kind}s/${id}`, {
     method: "POST",
     headers: {
@@ -59,12 +140,11 @@ async function postCommentInternal(
 }
 
 // ---------- PUBLIC API (GENERAL) ----------
-// Original generic fetch (no auth) – keep for existing callers
+
 export async function fetchComments(id: number, kind: CommentKind) {
   return fetchCommentsInternal(id, kind);
 }
 
-// Original generic post – keep for existing callers
 export async function postComment(
   id: number,
   content: string,
@@ -77,6 +157,20 @@ export async function postComment(
 // Delete a comment (author only)
 export async function deleteComment(commentId: number, token: string) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE path
+  if (isOfflineBase(API_BASE)) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user id from token while in offline mode."
+      );
+    }
+    const deletedId = await deleteCommentOfflineDb(commentId, user.id);
+    return deletedId;
+  }
+
+  // REMOTE path (original behavior)
   const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
     method: "DELETE",
     headers: {
@@ -101,8 +195,24 @@ export async function updateComment(
   token: string
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE path
+  if (isOfflineBase(API_BASE)) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user id from token while in offline mode."
+      );
+    }
+
+    // Returns updated comment, or null if unchanged
+    const updated = await updateCommentOfflineDb(commentId, user.id, content);
+    return updated;
+  }
+
+  // REMOTE path (original behavior)
   const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
-    method: "PATCH", // change to PUT if your server expects that
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -113,7 +223,6 @@ export async function updateComment(
   try {
     const json = JSON.parse(text);
     if (!json.ok) throw new Error(json.error || "Failed to update comment");
-    // Expect json.comment (updated)
     return json.comment;
   } catch (err) {
     console.error("Error updating comment:", err, text);
@@ -122,6 +231,7 @@ export async function updateComment(
 }
 
 // ---------- ROUTE / WAYPOINT CONVENIENCE HELPERS ----------
+
 export async function fetchRouteComments(routeId: number, token?: string) {
   return fetchCommentsInternal(routeId, "route", token);
 }
@@ -147,10 +257,13 @@ export async function postWaypointComment(
 }
 
 // ---------- RATING (UPVOTE / DOWNVOTE) ----------
+
 /**
  * Rate a comment.
  * value: 1 = upvote, -1 = downvote, 0 = clear vote
- * Returns whatever the server sends – ideally { score, user_rating }.
+ *
+ * NOTE: Still goes to the *remote* server. If you want
+ * offline ratings too, we’ll port the offline ratings route next.
  */
 export async function rateComment(
   commentId: number,
@@ -170,8 +283,6 @@ export async function rateComment(
   try {
     const json = JSON.parse(text);
     if (!json.ok) throw new Error(json.error || "Failed to rate comment");
-    // Support both shapes:
-    // { ok, score, user_rating } OR { ok, comment: {...} }
     if (json.comment) {
       return {
         score: json.comment.score,

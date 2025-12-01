@@ -1,5 +1,13 @@
 // src/lib/bringOffline.ts
 import { apiFetch } from "./http";
+import {
+  OfflineRouteRow,
+  OfflineWaypointRow,
+  OfflineCommentRow,
+  OfflineGpxRow,
+  OfflineRouteBundle,
+} from "../offline/types";
+import { saveRouteBundleToOffline } from "../offline/routes/download";
 
 type Target = "remote" | "offline";
 
@@ -78,76 +86,6 @@ interface RatingResponse {
   ok: boolean;
   total: number;
   user_rating: number | null;
-}
-
-/* ============================
- *  Offline row shapes
- * ============================ */
-
-export interface OfflineRouteRow {
-  id: number;
-  user_id: number | null;
-  slug: string;
-  name: string;
-  description: string | null;
-  region: string | null;
-  rating: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// SQLite schema:
-// id, route_id, user_id, username, name, description, lat, lon, type, rating, created_at, updated_at
-export interface OfflineWaypointRow {
-  id: number;
-  route_id: number;
-  user_id: number | null;
-  username: string | null;
-  name: string;
-  description: string | null;
-  lat: number;
-  lon: number;
-  type: string | null;
-  rating: number;      // aggregated rating
-  created_at: string;
-  updated_at: string;
-}
-
-export interface OfflineCommentRow {
-  id: number;
-  user_id: number | null;
-  username: string | null;
-  kind: "waypoint" | "route";
-  waypoint_id: number | null;
-  route_id: number | null;
-  content: string;
-  rating: number;       // aggregated score
-  created_at: string;
-  updated_at: string;
-  edited: number;       // 0/1 in SQLite
-}
-
-export interface OfflineGpxRow {
-  id?: number;
-  route_id: number;
-  name: string | null;
-  geometry: string;      // stored as TEXT (GeoJSON string)
-  file: string | null;   // we’ll just store GeoJSON for now
-  created_at: string;
-}
-
-export interface RouteSyncPayload {
-  route: OfflineRouteRow;
-  gpx: OfflineGpxRow[];
-  waypoints: OfflineWaypointRow[];
-  comments: OfflineCommentRow[];
-    favorites?: {
-      route: {
-        user_id: number;
-        route_id: number;
-        sync_status: "clean" | "new" | "dirty" | "deleted";
-      }[];
-    };
 }
 
 /* ============================
@@ -404,7 +342,7 @@ export async function syncRouteToOffline(
   //    - waypoints for route
   //    - route rating
   //    - route comments
-const [
+  const [
     routeWithGeo,
     waypoints,
     routeRatingSummary,
@@ -415,7 +353,9 @@ const [
     remoteFetchWaypoints(routeId),
     remoteFetchRouteRating(routeId, token),
     remoteFetchRouteComments(routeId),
-    currentUserId ? remoteFetchRouteFavorite(routeId, token) : Promise.resolve(false),
+    currentUserId
+      ? remoteFetchRouteFavorite(routeId, token)
+      : Promise.resolve(false),
   ]);
 
   const { route, geojson } = routeWithGeo;
@@ -444,7 +384,10 @@ const [
 
   // 5. Transform to offline rows
 
-  const offlineRoute = toOfflineRouteRow(route, routeRatingSummary);
+  const offlineRoute: OfflineRouteRow = toOfflineRouteRow(
+    route,
+    routeRatingSummary
+  );
 
   const offlineWaypoints: OfflineWaypointRow[] = waypointBundles.map(
     ({ wp, rating }) => toOfflineWaypointRow(wp, rating)
@@ -464,20 +407,20 @@ const [
     },
   ];
 
-    const favorites =
-        currentUserId && isFavorite
-          ? {
-              route: [
-                {
-                  user_id: currentUserId,
-                  route_id: route.id,
-                  sync_status: "clean" as const,
-                },
-              ],
-            }
-          : { route: [] };
+  const favorites =
+    currentUserId && isFavorite
+      ? {
+          route: [
+            {
+              user_id: currentUserId,
+              route_id: route.id,
+              sync_status: "clean" as const,
+            },
+          ],
+        }
+      : { route: [] };
 
-  const payload: RouteSyncPayload = {
+  const payload: OfflineRouteBundle = {
     route: offlineRoute,
     gpx: offlineGpx,
     waypoints: offlineWaypoints,
@@ -485,10 +428,6 @@ const [
     favorites,
   };
 
-  // 6. POST to the offline server to upsert into SQLite
-    // bringOffline.ts (inside syncRouteToOffline)
-    await apiFetch<void>("offline", `/api/sync/route`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  // 6. Save directly into the RN offline DB
+  await saveRouteBundleToOffline(payload);
 }
