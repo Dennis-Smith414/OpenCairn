@@ -56,7 +56,13 @@ export default function App() {
       startSystemThemeListener();
 
       if (!startedRef.current) {
-        // nodejs.start("sqlite-server.js");
+        try {
+            console.log("[App] Starting NodeMobile with pmtiles-server.js");
+            nodejs.start("pmtiles-server.js");
+        }
+        catch (e) {
+            console.log("[App] nodejs.start error:", e);
+        }
         startedRef.current = true;
       }
 

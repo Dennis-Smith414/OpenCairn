@@ -1,5 +1,6 @@
 // src/offline/basemaps.ts
 import RNFS from "react-native-fs";
+import nodejs from "nodejs-mobile-react-native";
 import { dbAll, dbGet, dbRun } from "./sqlite";
 
 export interface OfflineBasemap {
@@ -12,6 +13,20 @@ export interface OfflineBasemap {
   bounds_json: string | null;
   is_active: 0 | 1;
   created_at: string;
+}
+
+/** Internal helper: tell Node pmtiles-server which path to use */
+function notifyNodeOfActiveBasemap(path: string | null) {
+  try {
+    nodejs.channel.send(
+      JSON.stringify({
+        type: "set-basemap",
+        path,
+      })
+    );
+  } catch (err) {
+    console.warn("[pmtiles] Failed to notify Node of active basemap:", err);
+  }
 }
 
 /**
@@ -90,22 +105,36 @@ export async function importBasemapFromUri(params: {
     throw new Error("Basemap not found after insert.");
   }
 
+  // Optional: auto-activate newly imported basemap
+  // await setActiveBasemap(basemap.id);
+
   return basemap;
 }
 
 /**
  * Set the active basemap by id.
  * Pass null to clear all (no active basemap).
+ * Also notifies the Node pmtiles-server.
  */
 export async function setActiveBasemap(id: number | null): Promise<void> {
   // Clear all first
   await dbRun(`UPDATE offline_basemaps SET is_active = 0`);
 
+  let path: string | null = null;
+
   if (id != null) {
     await dbRun(`UPDATE offline_basemaps SET is_active = 1 WHERE id = ?`, [
       id,
     ]);
+
+    const row = await dbGet<Pick<OfflineBasemap, "path">>(
+      `SELECT path FROM offline_basemaps WHERE id = ?`,
+      [id]
+    );
+    path = row?.path ?? null;
   }
+
+  notifyNodeOfActiveBasemap(path);
 }
 
 /**
@@ -130,6 +159,15 @@ export async function getActiveBasemap(): Promise<OfflineBasemap | null> {
     `
   );
   return row ?? null;
+}
+
+/**
+ * Sync the currently active basemap (if any) to the Node server.
+ * You can call this on app start or when loading the basemaps list.
+ */
+export async function syncActiveBasemapToNode(): Promise<void> {
+  const active = await getActiveBasemap();
+  notifyNodeOfActiveBasemap(active?.path ?? null);
 }
 
 /**

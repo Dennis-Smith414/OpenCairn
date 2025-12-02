@@ -22,7 +22,7 @@ import {
 import { getDistanceMeters, boundsFromTracks } from "../../utils/geoUtils";
 import { colors } from "../../styles/theme";
 import { useOfflineBackend } from "../../context/OfflineContext";
-import { OFFLINE_API_BASE as OFFLINE_BASE } from "../../config/env"; // will point at NodeMobile backend
+import { PMTILES_BASE } from "../../config/env";
 import {
   listBasemapsOffline,
   OfflineBasemap,
@@ -66,6 +66,21 @@ interface Props {
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
 const DEFAULT_ZOOM = 13;
+const EMPTY_STYLE: any = {
+  version: 8,
+  name: "opencairn-empty",
+  sources: {},
+  layers: [
+    {
+      id: "background",
+      type: "background",
+      paint: {
+        "background-color": "rgba(0,0,0,1)", // or 0 for transparent
+      },
+    },
+  ],
+};
+
 
 const MapLibreMap: React.FC<Props> = ({
   tracks = [],
@@ -127,7 +142,7 @@ const MapLibreMap: React.FC<Props> = ({
     };
   }, [isOfflineMode]);
 
-  // Icons (keeps your popup UI parity)
+  // Icons
   const rnIcons = useMemo(
     () => ({
       generic: require("../../assets/icons/waypoints/generic.png"),
@@ -367,10 +382,9 @@ const MapLibreMap: React.FC<Props> = ({
   const offlineTileUrlTemplates = useMemo(() => {
     if (!activeBasemap) return null;
 
-    // Adjust this path to whatever your NodeMobile backend exposes:
-    // e.g.  http://127.0.0.1:5050/pmtiles/:id/{z}/{x}/{y}.png
+    // Adjust this path to match your NodeMobile PMTile route.
     return [
-      `${OFFLINE_BASE}/pmtiles/${activeBasemap.id}/{z}/{x}/{y}.png`,
+      `${PMTILES_BASE}/pmtiles/${activeBasemap.id}/{z}/{x}/{y}.png`,
     ];
   }, [activeBasemap]);
 
@@ -389,6 +403,7 @@ const MapLibreMap: React.FC<Props> = ({
         onLongPress={onLongPress}
         onMapError={onMapError}
         onDidFinishLoadingStyle={onStyleLoaded}
+        mapStyle={EMPTY_STYLE}
       >
         <Images
           images={{
