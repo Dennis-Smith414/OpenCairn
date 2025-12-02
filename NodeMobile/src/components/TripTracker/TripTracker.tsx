@@ -22,6 +22,7 @@ interface TripTrackerProps {
   onStatsUpdate?: (stats: TripStats) => void;
   hasActiveWaypoint?: boolean;
   hasWaypointDetail?: boolean;
+  visible?: boolean;
 }
 
 const TripTracker: React.FC<TripTrackerProps> = ({
@@ -30,7 +31,8 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   tracks,
   onStatsUpdate,
   hasActiveWaypoint = false,
-  hasWaypointDetail = false
+  hasWaypointDetail = false,
+  visible = true
 }) => {
   const { colors } = useThemeStyles();
   const globalStyles = createGlobalStyles(colors);
@@ -235,41 +237,50 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     }
   }, [currentPosition, tripStats.isPaused, doUpdateStats]);
 
-  // Move the Tracker up out of the way when waypoint is selected
   useEffect(() => {
-    Animated.timing(bottomAnim, {
-      toValue: hasActiveWaypoint ? 250 : 8,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [hasActiveWaypoint, bottomAnim]);
+    let targetValue = -200; // Default to hidden (off-screen)
 
-  //Hide the stats if the waypoint detail is selected
-  useEffect(() => {
-    if (hasWaypointDetail) {
-      // Hide it by moving it way off screen
-      Animated.timing(bottomAnim, {
-        toValue: -500, // Move it off screen
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
-    } else if (hasActiveWaypoint) {
-    // Show it moved up for popup
-    Animated.timing(bottomAnim, {
-      toValue: 135,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
+    if (visible) {
+      // If it should be visible, determine height based on waypoints
+      if (hasWaypointDetail) {
+        targetValue = 200; 
+      } else if (hasActiveWaypoint) {
+        targetValue = 100;
+      } else {
+        targetValue = 8; // Normal visible position
+      }
     } else {
-      // Show it at normal position
-      Animated.timing(bottomAnim, {
-        toValue: 8,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
+      // If not visible, move it off screen to hide it
+      targetValue = -300; 
     }
-  }, [hasWaypointDetail, hasActiveWaypoint, bottomAnim]);
 
+    Animated.timing(bottomAnim, {
+      toValue: targetValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [visible, hasWaypointDetail, hasActiveWaypoint, bottomAnim]);
+  
+  useEffect(() => {
+    let targetValue = 8; // Default position (bottom: 8)
+
+    if (hasWaypointDetail) {
+      // The WaypointDetail screen is large/full-screen. Move the tracker high up.
+      targetValue = 200; 
+    } else if (hasActiveWaypoint) {
+      // The smaller WaypointPopup is visible. Move the tracker up to clear it.
+      targetValue = 100; // Adjusted value to clear the popup.
+    } else {
+      // No active waypoint. Stay at the default bottom position.
+      targetValue = 8; 
+    }
+
+    Animated.timing(bottomAnim, {
+      toValue: targetValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [hasWaypointDetail, hasActiveWaypoint, bottomAnim]);
 
   // Timer for updating elapsed time
   useEffect(() => {
