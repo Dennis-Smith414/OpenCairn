@@ -1,11 +1,14 @@
+// src/lib/uploadGpx.ts
 import RNFS from "react-native-fs";
-//import { API_BASE } from "../config/env";
 import { getBaseUrl } from "./api";
+import { OFFLINE_API_BASE } from "../config/env";
 
 /** Low-level: build FormData for a local file URI. */
 function buildGpxFormData(fileUri: string) {
   if (!fileUri) throw new Error("Invalid file URI");
-  const safeUri = fileUri.startsWith("file://") ? fileUri : `file://${fileUri}`;
+  const safeUri = fileUri.startsWith("file://")
+    ? fileUri
+    : `file://${fileUri}`;
   const filename = safeUri.split("/").pop() || "route.gpx";
 
   const form = new FormData();
@@ -26,8 +29,16 @@ export async function uploadGpxToExistingRoute(
   fileUri: string,
   token: string
 ) {
-  const { form, filename } = buildGpxFormData(fileUri);
   const API_BASE = getBaseUrl();
+
+  // OFFLINE: not supported (matches old offline gpx.js behavior)
+  if (API_BASE === OFFLINE_API_BASE) {
+    throw new Error(
+      "GPX upload is not supported in offline mode. Upload GPX to the online server instead."
+    );
+  }
+
+  const { form } = buildGpxFormData(fileUri);
   const res = await fetch(`${API_BASE}/api/routes/${routeId}/gpx`, {
     method: "POST",
     headers: {
@@ -39,14 +50,20 @@ export async function uploadGpxToExistingRoute(
 
   const text = await res.text();
   let json: any;
-  try { json = JSON.parse(text); } catch {
+  try {
+    json = JSON.parse(text);
+  } catch {
     console.error("[uploadGpxToExistingRoute] Non-JSON:", text);
     throw new Error(`Unexpected server response: ${text}`);
   }
-  if (!res.ok || !json.ok) throw new Error(json?.error || `Upload failed (${res.status})`);
+  if (!res.ok || !json.ok)
+    throw new Error(json?.error || `Upload failed (${res.status})`);
 
   // Server returns: { ok: true, route_id, segments }
-  return { routeId: json.route_id as number, segments: json.segments as number };
+  return {
+    routeId: json.route_id as number,
+    segments: json.segments as number,
+  };
 }
 
 /**
@@ -55,8 +72,15 @@ export async function uploadGpxToExistingRoute(
  * Returns { id, slug, name, segments }.
  */
 export async function uploadGpxAndCreateRoute(fileUri: string, token: string) {
-  const { form, filename } = buildGpxFormData(fileUri);
   const API_BASE = getBaseUrl();
+
+  if (API_BASE === OFFLINE_API_BASE) {
+    throw new Error(
+      "GPX upload is not supported in offline mode. Upload GPX to the online server instead."
+    );
+  }
+
+  const { form } = buildGpxFormData(fileUri);
   const res = await fetch(`${API_BASE}/api/routes/upload`, {
     method: "POST",
     headers: {
@@ -68,11 +92,14 @@ export async function uploadGpxAndCreateRoute(fileUri: string, token: string) {
 
   const text = await res.text();
   let json: any;
-  try { json = JSON.parse(text); } catch {
+  try {
+    json = JSON.parse(text);
+  } catch {
     console.error("[uploadGpxAndCreateRoute] Non-JSON:", text);
     throw new Error(`Unexpected server response: ${text}`);
   }
-  if (!res.ok || !json.ok) throw new Error(json?.error || `Upload failed (${res.status})`);
+  if (!res.ok || !json.ok)
+    throw new Error(json?.error || `Upload failed (${res.status})`);
 
   // Normalize shape
   return {

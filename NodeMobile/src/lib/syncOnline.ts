@@ -1,10 +1,16 @@
 // src/lib/syncOnline.ts
 import { apiFetch } from "./http";
+import {
+  getRouteChangesForRoute,
+  markRouteCleanForRoute,
+  OfflineChangeBundle,
+} from "../offline/routes/unsynced";
+import { syncRouteToOffline as pullRouteFromRemote } from "./bringOffline";
+
 
 /**
  * Types reflecting what the OFFLINE server returns.
- * These are based directly on your offline SQLite schema
- * and offline/routes/unsynced.js response shape.
+ * (We keep these here for now; they structurally match the unsynced module.)
  */
 
 export interface OfflineWaypoint {
@@ -83,11 +89,6 @@ export interface OfflineChangeBundle {
 /**
  * Payload shape expected by REMOTE upload endpoint:
  *   POST /api/upload/push
- *
- * This is based directly on server/routes/upload.js:
- *   const { waypoints, comments, ratings = {...}, favorites = {...} } = payload;
- *   applyRating(table, r) uses: r.sync_status, r.target_id, r.rating
- *   applyFavorite(table, f) uses: f.sync_status, f.target_id
  */
 export interface UploadRatingsPayloadEntry {
   target_id: number;
@@ -123,19 +124,20 @@ export interface UploadPayload {
  */
 export async function syncRouteToOnline(
   routeId: number,
-  token: string
+  tokenOrOpts: string | { token: string; currentUserId?: number }
 ): Promise<void> {
+  const { token, currentUserId } =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, currentUserId: undefined }
+      : tokenOrOpts;
+
   if (!token) {
     throw new Error("syncRouteToOnline: token is required.");
   }
 
-  // 1) Ask OFFLINE server for all unsynced changes on this route
-  const changes = await apiFetch<OfflineChangeBundle>(
-    "offline",
-    `/api/sync/route/${routeId}/changes`
-  );
+  // 1) Ask OFFLINE DB (not HTTP) for all unsynced changes on this route
+  const changes = await getRouteChangesForRoute(routeId);
 
-  // Guard in case ratings/favorites objects are missing
   const ratings = changes.ratings || {
     waypoint: [],
     route: [],
@@ -145,83 +147,76 @@ export async function syncRouteToOnline(
     route: [],
   };
 
-  // Short-circuit: nothing to do
   const hasWaypointChanges = (changes.waypoints?.length ?? 0) > 0;
   const hasCommentChanges = (changes.comments?.length ?? 0) > 0;
-
   const hasRatingChanges =
     (ratings.waypoint?.length ?? 0) > 0 ||
     (ratings.route?.length ?? 0) > 0 ||
     (ratings.comment?.length ?? 0) > 0;
-
   const hasFavoriteChanges = (favorites.route?.length ?? 0) > 0;
 
-  if (
-    !hasWaypointChanges &&
-    !hasCommentChanges &&
-    !hasRatingChanges &&
-    !hasFavoriteChanges
-  ) {
-    console.log("[syncRouteToOnline] no changes to push");
-    return;
+  // If nothing to push, we still might want to pull from remote
+  const hasChangesToPush =
+    hasWaypointChanges ||
+    hasCommentChanges ||
+    hasRatingChanges ||
+    hasFavoriteChanges;
+
+  let uploadPayload: UploadPayload | null = null;
+
+  if (hasChangesToPush) {
+    uploadPayload = {
+      waypoints: changes.waypoints,
+      comments: changes.comments,
+      ratings: {
+        waypoint: (ratings.waypoint || []).map((r) => ({
+          target_id: r.waypoint_id,
+          rating: r.val,
+          sync_status: r.sync_status,
+        })),
+        route: (ratings.route || []).map((r) => ({
+          target_id: r.route_id,
+          rating: r.val,
+          sync_status: r.sync_status,
+        })),
+        comment: (ratings.comment || []).map((r) => ({
+          target_id: r.comment_id,
+          rating: r.val,
+          sync_status: r.sync_status,
+        })),
+      },
+      favorites: {
+        route: (favorites.route || []).map((f) => ({
+          target_id: f.route_id,
+          sync_status: f.sync_status,
+        })),
+      },
+    };
+
+    // 3) Push those changes to the REMOTE server
+    await apiFetch<{ ok: boolean }>("remote", `/api/upload/push`, {
+      method: "POST",
+      body: JSON.stringify(uploadPayload),
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // 4) Mark all those rows as "clean" in the OFFLINE DB
+    await markRouteCleanForRoute(routeId);
+
+    console.log("[syncRouteToOnline] pushed changes for route", routeId);
+  } else {
+    console.log("[syncRouteToOnline] no local changes to push");
   }
 
-  // 2) Build payload for REMOTE upload endpoint
-  //
-  // For waypoints and comments, we can forward the offline rows directly.
-  // For ratings, we must map SQLite schema -> upload.js expectations:
-  //   - waypoint_ratings: waypoint_id -> target_id, val -> rating
-  //   - route_ratings:    route_id   -> target_id, val -> rating
-  //   - comment_ratings:  comment_id -> target_id, val -> rating
-  //
-  // For favorites, we map:
-  //   - route_favorites:  route_id   -> target_id
-  const uploadPayload: UploadPayload = {
-    waypoints: changes.waypoints,
-    comments: changes.comments,
-    ratings: {
-      waypoint: (ratings.waypoint || []).map((r) => ({
-        target_id: r.waypoint_id,
-        rating: r.val,
-        sync_status: r.sync_status,
-      })),
-      route: (ratings.route || []).map((r) => ({
-        target_id: r.route_id,
-        rating: r.val,
-        sync_status: r.sync_status,
-      })),
-      comment: (ratings.comment || []).map((r) => ({
-        target_id: r.comment_id,
-        rating: r.val,
-        sync_status: r.sync_status,
-      })),
-    },
-    favorites: {
-      route: (favorites.route || []).map((f) => ({
-        target_id: f.route_id,
-        sync_status: f.sync_status,
-      })),
-    },
-  };
-
-  // 3) Push those changes to the REMOTE server
-  await apiFetch<{ ok: boolean }>("remote", `/api/upload/push`, {
-    method: "POST",
-    body: JSON.stringify(uploadPayload),
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  // 5) ALWAYS pull fresh data from remote after sync,
+  //    so we get other users' comments/likes + canonical state.
+  await pullRouteFromRemote(routeId, {
+    token,
+    currentUserId,
   });
 
-  // 4) Mark all those rows as "clean" on the OFFLINE server
-  await apiFetch<void>(
-    "offline",
-    `/api/sync/route/${routeId}/mark-clean`,
-    {
-      method: "POST",
-      body: JSON.stringify({ route_id: routeId }),
-    }
-  );
-
-  console.log("[syncRouteToOnline] sync complete for route", routeId);
+  console.log("[syncRouteToOnline] pull-from-remote complete for route", routeId);
 }
+

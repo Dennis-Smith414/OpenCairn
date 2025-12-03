@@ -1,57 +1,67 @@
-// offline/routes/download.js
+// src/offline/routes/download.ts
 // Handles syncing a full route bundle from the REMOTE server into
 // the offline SQLite DB.
-//
-// POST /api/sync/route
-// Body: {
-//   route: OfflineRouteRow,
-//   gpx: OfflineGpxRow[],
-//   waypoints: OfflineWaypointRow[],
-//   comments: OfflineCommentRow[]
-// }
+// which you can call from your RN code when you receive a bundle
+// from the online server.
 
-const express = require("express");
-const router = express.Router();
-const { all, get, run } = require("../db/queries");
+import { dbRun } from "../sqlite";
+import {
+  OfflineRouteBundle,
+  OfflineGpxRow,
+  OfflineWaypointRow,
+  OfflineCommentRow,
+  OfflineRouteFavoriteRow,
+} from "../types";
 
-const toInt = (v) => {
+const toInt = (v: any): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
 
-router.post("/route", async (req, res) => {
-  const payload = req.body || {};
-  const { route, gpx, waypoints, comments, favorites } = payload;
+/**
+ * Save a full route bundle into the offline DB, replacing any
+ * existing data for that route (gpx, waypoints, comments, favorites).
+ *
+ * Mirrors the logic of offline/routes/download.js but as a pure
+ * function with explicit transaction handling.
+ *
+ * @throws Error if validation fails or the transaction fails
+ * @returns the numeric routeId that was synced
+ */
+export async function saveRouteBundleToOffline(
+  bundle: OfflineRouteBundle
+): Promise<number> {
+  const { route, gpx, waypoints, comments, favorites } = bundle || {};
+
+  if (!route || route.id == null) {
+    throw new Error("Missing route or route.id in payload");
+  }
+
+  const routeId = toInt((route as any).id);
+  if (!routeId) {
+    throw new Error("Invalid route.id");
+  }
+
+  const gpxRows: OfflineGpxRow[] = Array.isArray(gpx) ? gpx : [];
+  const waypointRows: OfflineWaypointRow[] = Array.isArray(waypoints)
+    ? waypoints
+    : [];
+  const commentRows: OfflineCommentRow[] = Array.isArray(comments)
+    ? comments
+    : [];
+  const favoriteRouteRows: OfflineRouteFavoriteRow[] =
+    favorites && Array.isArray(favorites.route) ? favorites.route : [];
 
   try {
-    if (!route || !route.id) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Missing route or route.id in payload" });
-    }
-
-    const routeId = toInt(route.id);
-    if (!routeId) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Invalid route.id" });
-    }
-
-    const gpxRows = Array.isArray(gpx) ? gpx : [];
-    const waypointRows = Array.isArray(waypoints) ? waypoints : [];
-    const commentRows = Array.isArray(comments) ? comments : [];
-     const favoriteRouteRows =
-          favorites && Array.isArray(favorites.route) ? favorites.route : [];
-
     // Start transaction
-    await run("BEGIN");
+    await dbRun("BEGIN");
 
     // -------------------------------------------------
     // 1) Clear existing child data for this route
     // -------------------------------------------------
-    await run(`DELETE FROM gpx WHERE route_id = ?`, [routeId]);
-    await run(`DELETE FROM waypoints WHERE route_id = ?`, [routeId]);
-    await run(`DELETE FROM comments WHERE route_id = ?`, [routeId]);
+    await dbRun(`DELETE FROM gpx WHERE route_id = ?`, [routeId]);
+    await dbRun(`DELETE FROM waypoints WHERE route_id = ?`, [routeId]);
+    await dbRun(`DELETE FROM comments WHERE route_id = ?`, [routeId]);
     // (waypoint comments + ratings are already cascade-deleted via waypoints)
 
     // -------------------------------------------------
@@ -73,14 +83,11 @@ router.post("/route", async (req, res) => {
     } = route;
 
     if (!slug || !name) {
-      await run("ROLLBACK");
-      return res.status(400).json({
-        ok: false,
-        error: "route.slug and route.name are required in payload",
-      });
+      await dbRun("ROLLBACK");
+      throw new Error("route.slug and route.name are required in payload");
     }
 
-    await run(
+    await dbRun(
       `
       INSERT INTO routes (
         id,
@@ -121,11 +128,10 @@ router.post("/route", async (req, res) => {
     // -------------------------------------------------
     // 2b) Upsert route_favorites for this route
     // -------------------------------------------------
-    // Our offline schema:
     // route_favorites(user_id, route_id, sync_status)
 
     // Clear any existing favorites for this route
-    await run(
+    await dbRun(
       `
         DELETE FROM route_favorites
          WHERE route_id = ?
@@ -138,7 +144,7 @@ router.post("/route", async (req, res) => {
       const uid = toInt(fav.user_id);
       if (!uid) continue;
 
-      await run(
+      await dbRun(
         `
         INSERT INTO route_favorites (user_id, route_id, sync_status)
         VALUES (?, ?, 'clean')
@@ -169,7 +175,7 @@ router.post("/route", async (req, res) => {
           : gGeom;
       const gCreated = g.created_at || new Date().toISOString();
 
-      await run(
+      await dbRun(
         `
         INSERT INTO gpx (
           route_id,
@@ -192,8 +198,8 @@ router.post("/route", async (req, res) => {
     // lat, lon, type, rating, created_at, updated_at
 
     for (const w of waypointRows) {
-      if (!w || !w.id) continue;
-      const wid = toInt(w.id);
+      if (!w || (w as any).id == null) continue;
+      const wid = toInt((w as any).id);
       if (!wid) continue;
 
       const wUserId = w.user_id ?? null;
@@ -209,7 +215,7 @@ router.post("/route", async (req, res) => {
       const wCreated = w.created_at || new Date().toISOString();
       const wUpdated = w.updated_at || new Date().toISOString();
 
-      await run(
+      await dbRun(
         `
         INSERT INTO waypoints (
           id,
@@ -264,8 +270,8 @@ router.post("/route", async (req, res) => {
     // content, rating, created_at, updated_at, edited
 
     for (const c of commentRows) {
-      if (!c || !c.id) continue;
-      const cid = toInt(c.id);
+      if (!c || (c as any).id == null) continue;
+      const cid = toInt((c as any).id);
       if (!cid) continue;
 
       const kind = c.kind === "waypoint" ? "waypoint" : "route";
@@ -287,7 +293,7 @@ router.post("/route", async (req, res) => {
       const updated_at = c.updated_at || new Date().toISOString();
       const edited = c.edited ? 1 : 0;
 
-      await run(
+      await dbRun(
         `
         INSERT INTO comments (
           id,
@@ -331,18 +337,16 @@ router.post("/route", async (req, res) => {
       );
     }
 
-    await run("COMMIT");
+    await dbRun("COMMIT");
 
-    res.json({ ok: true, route_id: routeId });
+    return routeId;
   } catch (err) {
-    console.error("[offline] POST /api/sync/route error:", err);
+    console.error("[offline] saveRouteBundleToOffline error:", err);
     try {
-      await run("ROLLBACK");
+      await dbRun("ROLLBACK");
     } catch (rollbackErr) {
       console.error("[offline] ROLLBACK error:", rollbackErr);
     }
-    res.status(500).json({ ok: false, error: "sync-failed" });
+    throw err;
   }
-});
-
-module.exports = router;
+}

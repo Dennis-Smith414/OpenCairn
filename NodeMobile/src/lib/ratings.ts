@@ -1,20 +1,63 @@
 // src/lib/ratings.ts
-//import { API_BASE } from "./api";
-//import { API_BASE } from "../config/env";
+// Shared ratings API: automatically routes to online HTTP or offline SQLite.
+
 import { getBaseUrl } from "./api";
+import { OFFLINE_API_BASE } from "../config/env";
+import {
+  getWaypointRatingOffline,
+  setWaypointRatingOffline,
+  getRouteRatingOffline,
+  setRouteRatingOffline,
+  getCommentRatingOffline,
+  setCommentRatingOffline,
+} from "../offline/routes/ratings";
+
+type VoteVal = 1 | -1;
+
+interface JwtPayload {
+  id?: number;
+  username?: string;
+  [key: string]: any;
+}
+
+function decodeUserFromToken(token?: string): JwtPayload | null {
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1];
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded =
+      typeof atob === "function"
+        ? atob(normalized)
+        : Buffer.from(normalized, "base64").toString("utf8");
+
+    return JSON.parse(decoded);
+  } catch (e) {
+    console.warn("[ratings] Failed to decode JWT payload", e);
+    return null;
+  }
+}
 
 /**
  * Fetch the total and user-specific rating for a given waypoint.
  */
 export async function fetchWaypointRating(waypointId: number, token?: string) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    return getWaypointRatingOffline(waypointId, user?.id ?? null);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/waypoint/${waypointId}`;
 
   try {
     const res = await fetch(url, {
-      headers: token
-        ? { Authorization: `Bearer ${token}` }
-        : {},
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const text = await res.text();
 
@@ -33,22 +76,35 @@ export async function fetchWaypointRating(waypointId: number, token?: string) {
 
 /**
  * Submit an upvote or downvote for a waypoint.
- * If the same vote is sent again, the backend will delete the record (undo).
+ * If the same vote is sent again, the backend/offline DB will undo it.
  */
 export async function submitWaypointVote(
   waypointId: number,
-  val: 1 | -1,
+  val: VoteVal,
   token: string
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user identity from token while in offline mode."
+      );
+    }
+    return setWaypointRatingOffline(waypointId, user.id, val);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/waypoint/${waypointId}`;
 
   try {
-      console.log("[submitWaypointVote] →", {
-        url: `${API_BASE}/api/ratings/waypoint/${waypointId}`,
-        val,
-        tokenStart: token?.slice(0, 10) + "...",
-      });
+    console.log("[submitWaypointVote] →", {
+      url,
+      val,
+      tokenStart: token?.slice(0, 10) + "...",
+    });
 
     const res = await fetch(url, {
       method: "POST",
@@ -74,20 +130,24 @@ export async function submitWaypointVote(
   }
 }
 
-
-
 /**
  * Fetch the total and user-specific rating for a given ROUTE.
  */
 export async function fetchRouteRating(routeId: number, token?: string) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    return getRouteRatingOffline(routeId, user?.id ?? null);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/route/${routeId}`;
 
   try {
     const res = await fetch(url, {
-      headers: token
-        ? { Authorization: `Bearer ${token}` }
-        : {},
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const text = await res.text();
 
@@ -106,22 +166,35 @@ export async function fetchRouteRating(routeId: number, token?: string) {
 
 /**
  * Submit an upvote or downvote for a ROUTE.
- * If the same vote is sent again, the backend will delete the record (undo).
+ * If the same vote is sent again, the backend/offline DB will undo it.
  */
 export async function submitRouteVote(
   routeId: number,
-  val: 1 | -1,
+  val: VoteVal,
   token: string
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user identity from token while in offline mode."
+      );
+    }
+    return setRouteRatingOffline(routeId, user.id, val);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/route/${routeId}`;
 
   try {
-      console.log("[submitRouteVote] →", {
-        url: `${API_BASE}/api/ratings/route/${routeId}`,
-        val,
-        tokenStart: token?.slice(0, 10) + "...",
-      });
+    console.log("[submitRouteVote] →", {
+      url,
+      val,
+      tokenStart: token?.slice(0, 10) + "...",
+    });
 
     const res = await fetch(url, {
       method: "POST",
@@ -147,16 +220,24 @@ export async function submitRouteVote(
   }
 }
 
-
 /* ============================================================
- Comment Rating Functions
-   ============================================================ */
+ * Comment Rating Functions
+ * ============================================================
+ */
 
 /**
  * Fetch total and user-specific rating for a comment.
  */
 export async function fetchCommentRating(commentId: number, token?: string) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    return getCommentRatingOffline(commentId, user?.id ?? null);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/comment/${commentId}`;
 
   try {
@@ -180,14 +261,27 @@ export async function fetchCommentRating(commentId: number, token?: string) {
 
 /**
  * Submit an upvote or downvote for a comment.
- * If the same vote is sent again, the backend will delete the record (undo).
+ * If the same vote is sent again, the backend/offline DB will undo it.
  */
 export async function submitCommentVote(
   commentId: number,
-  val: 1 | -1,
+  val: VoteVal,
   token: string
 ) {
   const API_BASE = getBaseUrl();
+
+  // OFFLINE → SQLite
+  if (API_BASE === OFFLINE_API_BASE) {
+    const user = decodeUserFromToken(token);
+    if (!user?.id) {
+      throw new Error(
+        "Cannot determine user identity from token while in offline mode."
+      );
+    }
+    return setCommentRatingOffline(commentId, user.id, val);
+  }
+
+  // ONLINE → HTTP
   const url = `${API_BASE}/api/ratings/comment/${commentId}`;
 
   try {
