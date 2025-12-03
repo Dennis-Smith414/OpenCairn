@@ -66,7 +66,7 @@ class NodeFileSource {
 // ---- Active basemap ----
 let currentBasemapPath = null;
 let currentPmtiles = null;
-let currentTileType = null; // <--- NEW
+let currentHeader = null;
 
 async function setActivePmtiles(path) {
   if (!PMTiles) {
@@ -75,23 +75,20 @@ async function setActivePmtiles(path) {
     });
     currentBasemapPath = null;
     currentPmtiles = null;
-    currentTileType = null;
+    currentHeader = null;
     return;
   }
 
   if (!path) {
     currentBasemapPath = null;
     currentPmtiles = null;
-    currentTileType = null;
+    currentHeader = null;
     logToRN({ msg: "Cleared active basemap" });
     return;
   }
 
   try {
-    logToRN({ msg: "setActivePmtiles called", path });
-
     await fs.promises.access(path, fs.constants.R_OK);
-    logToRN({ msg: "fs.access OK", path });
 
     const source = new NodeFileSource(path);
     const cache = ResolvedValueCache ? new ResolvedValueCache() : undefined;
@@ -100,20 +97,18 @@ async function setActivePmtiles(path) {
 
     currentBasemapPath = path;
     currentPmtiles = pm;
-    currentTileType = header.tileType || null; // <--- NEW
+    currentHeader = header;
 
     logToRN({
       msg: "Active basemap set",
       path,
-      tileType: header.tileType,   // <--- IMPORTANT
       minZoom: header.minZoom,
       maxZoom: header.maxZoom,
-      bounds: {
-        minLon: header.minLon,
-        minLat: header.minLat,
-        maxLon: header.maxLon,
-        maxLat: header.maxLat,
-      },
+      tileType: header.tileType,
+      minLon: header.minLon,
+      minLat: header.minLat,
+      maxLon: header.maxLon,
+      maxLat: header.maxLat,
     });
   } catch (err) {
     logToRN({
@@ -123,7 +118,7 @@ async function setActivePmtiles(path) {
     });
     currentBasemapPath = null;
     currentPmtiles = null;
-    currentTileType = null;
+    currentHeader = null;
   }
 }
 
@@ -135,14 +130,12 @@ rn_bridge.channel.on("message", (msg) => {
 
     if (parsed.type === "set-basemap") {
       const path = parsed.path || null;
-      logToRN({ msg: "RN message: set-basemap", path });
+      logToRN({ msg: "set-basemap received", path });
       setActivePmtiles(path);
-    } else {
-      logToRN({ msg: "RN message: unknown type", raw: parsed });
     }
   } catch (err) {
     logToRN({
-      msg: "Error handling RN message",
+      msg: "Error handling message",
       error: err && err.message ? err.message : String(err),
     });
   }
@@ -155,32 +148,34 @@ rn_bridge.channel.send(
 
 // ---- HTTP server ----
 const server = http.createServer(async (req, res) => {
-  logToRN({ msg: "HTTP request", url: req.url });
-
   try {
     if (req.url === "/health") {
-      const payload = {
-        ok: true,
-        basemap: !!currentPmtiles,
-        path: currentBasemapPath,
-        tileType: currentTileType,
-      };
-      logToRN({ msg: "HTTP /health", payload });
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(payload));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          basemap: !!currentPmtiles,
+          path: currentBasemapPath,
+          header: currentHeader
+            ? {
+                minZoom: currentHeader.minZoom,
+                maxZoom: currentHeader.maxZoom,
+                tileType: currentHeader.tileType,
+              }
+            : null,
+        })
+      );
       return;
     }
 
-    const match = req.url.match(/^\/tiles\/(\d+)\/(\d+)\/(\d+)\.png$/);
+    const match = req.url.match(/^\/tiles\/(\d+)\/(\d+)\/(\d+)\.(mvt|pbf)$/);
     if (!match) {
-      logToRN({ msg: "HTTP 404 (no match)", url: req.url });
       res.writeHead(404);
       res.end("Not found");
       return;
     }
 
     if (!currentPmtiles) {
-      logToRN({ msg: "HTTP 503 (no active basemap)", url: req.url });
       res.writeHead(503);
       res.end("No active basemap");
       return;
@@ -190,37 +185,34 @@ const server = http.createServer(async (req, res) => {
     const x = parseInt(match[2], 10);
     const y = parseInt(match[3], 10);
 
-    logToRN({ msg: "getZxy called", z, x, y, tileType: currentTileType });
+    logToRN({ msg: "getZxy called", z, x, y });
 
     const tile = await currentPmtiles.getZxy(z, x, y);
     if (!tile || !tile.data) {
-      logToRN({ msg: "No tile data", z, x, y });
       res.writeHead(204);
       res.end();
       return;
     }
 
     const buf = Buffer.from(tile.data);
-    const magic = buf.slice(0, 8).toString("hex"); // <--- NEW
+
     logToRN({
       msg: "Tile served",
       z,
       x,
       y,
       bytes: buf.length,
-      tileType: currentTileType,
-      magic,
+      tileType: currentHeader ? currentHeader.tileType : undefined,
     });
 
     res.writeHead(200, {
-      "Content-Type": "image/png",
+      "Content-Type": "application/vnd.mapbox-vector-tile",
       "Cache-Control": "no-store",
     });
     res.end(buf);
   } catch (err) {
     logToRN({
       msg: "Request error",
-      url: req.url,
       error: err && err.message ? err.message : String(err),
     });
     try {
@@ -233,5 +225,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  logToRN({ msg: "Listening", addr: "127.0.0.1", port: PORT });
+  logToRN({ msg: "Listening", url: `http://127.0.0.1:${PORT}` });
 });
