@@ -99,16 +99,22 @@ export async function getRouteChangesForRoute(
     [routeId]
   );
 
-  // 2) Unsynced route-level comments (comments.route_id = ?)
-  const comments = await dbAll<OfflineComment>(
-    `
-    SELECT *
-      FROM comments
-     WHERE route_id = ?
-       AND sync_status != 'clean'
-    `,
-    [routeId]
-  );
+// 2) Unsynced comments (route-level OR waypoint-level on this route)
+const comments = await dbAll<OfflineComment>(
+  `
+    SELECT c.*
+      FROM comments c
+      LEFT JOIN waypoints w
+        ON c.waypoint_id = w.id
+     WHERE c.sync_status != 'clean'
+       AND (
+         c.route_id = ?
+         OR (c.kind = 'waypoint' AND w.route_id = ?)
+       )
+  `,
+  [routeId, routeId]
+);
+
 
   // 3) Unsynced waypoint ratings for waypoints on this route
   const waypointRatings = await dbAll<OfflineWaypointRating>(
@@ -134,18 +140,25 @@ export async function getRouteChangesForRoute(
     [routeId]
   );
 
-  // 5) Unsynced comment ratings for comments on this route
-  const commentRatings = await dbAll<OfflineCommentRating>(
-    `
+// 5) Unsynced comment ratings for comments on this route
+//    (route comments OR waypoint comments for this route)
+const commentRatings = await dbAll<OfflineCommentRating>(
+  `
     SELECT cr.*
       FROM comment_ratings cr
       JOIN comments c
         ON c.id = cr.comment_id
-     WHERE c.route_id = ?
-       AND cr.sync_status != 'clean'
-    `,
-    [routeId]
-  );
+      LEFT JOIN waypoints w
+        ON c.waypoint_id = w.id
+     WHERE cr.sync_status != 'clean'
+       AND (
+         c.route_id = ?
+         OR (c.kind = 'waypoint' AND w.route_id = ?)
+       )
+  `,
+  [routeId, routeId]
+);
+
 
   // 6) Unsynced route favorites for this route
   const routeFavorites = await dbAll<OfflineRouteFavorite>(
@@ -201,25 +214,36 @@ export async function markRouteCleanForRoute(routeId: number): Promise<void> {
     [routeId]
   );
 
-  // --- ROUTE-LEVEL COMMENTS (comments.route_id) ---
-  await dbRun(
-    `
+// --- COMMENTS (route-level + waypoint-level for this route) ---
+await dbRun(
+  `
     DELETE FROM comments
-     WHERE route_id = ?
-       AND sync_status = 'deleted'
-    `,
-    [routeId]
-  );
+     WHERE sync_status = 'deleted'
+       AND (
+         route_id = ?
+         OR (kind = 'waypoint' AND waypoint_id IN (
+               SELECT id FROM waypoints WHERE route_id = ?
+             ))
+       )
+  `,
+  [routeId, routeId]
+);
 
-  await dbRun(
-    `
+await dbRun(
+  `
     UPDATE comments
        SET sync_status = 'clean'
-     WHERE route_id = ?
-       AND sync_status IN ('new','dirty')
-    `,
-    [routeId]
-  );
+     WHERE sync_status IN ('new','dirty')
+       AND (
+         route_id = ?
+         OR (kind = 'waypoint' AND waypoint_id IN (
+               SELECT id FROM waypoints WHERE route_id = ?
+             ))
+       )
+  `,
+  [routeId, routeId]
+);
+
 
   // --- WAYPOINT RATINGS (ratings for waypoints on this route) ---
   // delete tombstones
@@ -267,29 +291,38 @@ export async function markRouteCleanForRoute(routeId: number): Promise<void> {
     [routeId]
   );
 
-  // --- COMMENT RATINGS (ratings for comments on this route) ---
-  await dbRun(
-    `
-    DELETE FROM comment_ratings
-     WHERE comment_id IN (
-           SELECT id FROM comments WHERE route_id = ?
-         )
-       AND sync_status = 'deleted'
-    `,
-    [routeId]
-  );
+ // --- COMMENT RATINGS (ratings for comments on this route) ---
+ await dbRun(
+   `
+     DELETE FROM comment_ratings
+      WHERE comment_id IN (
+            SELECT c.id
+              FROM comments c
+              LEFT JOIN waypoints w ON c.waypoint_id = w.id
+             WHERE c.route_id = ?
+                OR (c.kind = 'waypoint' AND w.route_id = ?)
+          )
+        AND sync_status = 'deleted'
+   `,
+   [routeId, routeId]
+ );
 
-  await dbRun(
-    `
-    UPDATE comment_ratings
-       SET sync_status = 'clean'
-     WHERE comment_id IN (
-           SELECT id FROM comments WHERE route_id = ?
-         )
-       AND sync_status IN ('new','dirty')
-    `,
-    [routeId]
-  );
+ await dbRun(
+   `
+     UPDATE comment_ratings
+        SET sync_status = 'clean'
+      WHERE comment_id IN (
+            SELECT c.id
+              FROM comments c
+              LEFT JOIN waypoints w ON c.waypoint_id = w.id
+             WHERE c.route_id = ?
+                OR (c.kind = 'waypoint' AND w.route_id = ?)
+          )
+        AND sync_status IN ('new','dirty')
+   `,
+   [routeId, routeId]
+ );
+
 
   // --- ROUTE FAVORITES (favorites for this route) ---
   await dbRun(
