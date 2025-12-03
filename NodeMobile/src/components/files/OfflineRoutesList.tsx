@@ -25,7 +25,7 @@ type Props = {
   removingRouteId: number | null;
   onResync: (routeId: number) => void;
   onRemove: (routeId: number) => Promise<void> | void;
-  colors: any;
+  colors: any; // still used for card + primary background
 };
 
 export const OfflineRoutesList: React.FC<Props> = ({
@@ -38,7 +38,6 @@ export const OfflineRoutesList: React.FC<Props> = ({
   colors,
 }) => {
   const styles = useMemo(() => createStyles(colors), [colors]);
-
   const { selectedRouteIds, toggleRoute } = useRouteSelection();
 
   const handleRemovePress = (route: OfflineRoute) => {
@@ -47,11 +46,7 @@ export const OfflineRoutesList: React.FC<Props> = ({
       `Remove "${route.name}" and its offline data from this device?`,
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => onRemove(route.id),
-        },
+        { text: "Remove", style: "destructive", onPress: () => onRemove(route.id) },
       ]
     );
   };
@@ -60,9 +55,7 @@ export const OfflineRoutesList: React.FC<Props> = ({
     <View style={styles.routesContainer}>
       <Text style={styles.sectionTitle}>Downloaded Routes</Text>
 
-      {loading && (
-        <ActivityIndicator size="large" color={colors.primary} />
-      )}
+      {loading && <ActivityIndicator size="large" color={colors.primary} />}
 
       {!loading && routes.length === 0 && (
         <Text style={styles.empty}>No offline routes found.</Text>
@@ -74,45 +67,32 @@ export const OfflineRoutesList: React.FC<Props> = ({
           const isSyncing = syncingRouteId === r.id;
           const isRemoving = removingRouteId === r.id;
 
+          // SIMPLIFIED COLORS (no theme dependency)
+          const textColor = isSelected ? colors.buttonText : colors.text;
+          const metaColor = isSelected ? colors.buttonText : colors.text;
+
           return (
             <TouchableOpacity
               key={r.id}
               style={[
                 styles.routeCard,
-                isSelected && {
-                  backgroundColor: colors.primary,
-                  borderColor: colors.accent,
-                },
+                isSelected
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: colors.card },
               ]}
-              activeOpacity={0.85}
               onPress={() => toggleRoute({ id: r.id, name: r.name })}
+              activeOpacity={0.85}
             >
-              <Text
-                style={[
-                  styles.routeName,
-                  isSelected && { color: colors.background },
-                ]}
-                numberOfLines={1}
-              >
+              <Text style={[styles.routeName, { color: textColor }]}>
                 {r.name}
               </Text>
 
-              <Text
-                style={[
-                  styles.meta,
-                  isSelected && { color: colors.background },
-                ]}
-              >
+              <Text style={[styles.meta, { color: metaColor }]}>
                 Waypoints: {r.waypoint_count ?? 0} • Comments:{" "}
                 {r.comment_count ?? 0}
               </Text>
 
-              <Text
-                style={[
-                  styles.meta,
-                  isSelected && { color: colors.background },
-                ]}
-              >
+              <Text style={[styles.meta, { color: metaColor }]}>
                 Last Sync: {r.last_synced_at ?? "Never"}
               </Text>
 
@@ -176,22 +156,19 @@ const createStyles = (colors: any) =>
       marginTop: 10,
     },
     routeCard: {
-      backgroundColor: colors.card,
       borderRadius: 12,
       padding: 14,
       marginBottom: 16,
-      borderColor: colors.border,
       borderWidth: 1,
+      borderColor: colors.border,
     },
     routeName: {
       fontSize: 17,
       fontWeight: "600",
-      color: colors.text,
       marginBottom: 4,
     },
     meta: {
       fontSize: 13,
-      color: colors.muted,
       marginBottom: 4,
     },
     buttonRow: {
@@ -207,6 +184,8 @@ const createStyles = (colors: any) =>
       paddingVertical: 8,
       borderRadius: 8,
       alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border
     },
     syncButtonText: {
       color: "#fff",
@@ -214,7 +193,7 @@ const createStyles = (colors: any) =>
     },
     removeButton: {
       flex: 1,
-      backgroundColor: colors.backgroundAlt ?? colors.background,
+      backgroundColor: colors.background,
       paddingVertical: 8,
       borderRadius: 8,
       alignItems: "center",
