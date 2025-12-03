@@ -47,6 +47,18 @@ export default function App() {
   const startedRef = useRef(false);
   const [themeReady, setThemeReady] = useState(false);
 
+useEffect(() => {
+  (async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:5200/health");
+      const json = await res.json();
+      console.log("[PMTILES /health]", json);
+    } catch (err) {
+      console.log("[PMTILES /health] error", err);
+    }
+  })();
+}, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -59,6 +71,7 @@ export default function App() {
         try {
             console.log("[App] Starting NodeMobile with pmtiles-server.js");
             nodejs.start("pmtiles-server.js");
+            //nodejs.start("index.js");
         }
         catch (e) {
             console.log("[App] nodejs.start error:", e);
@@ -71,9 +84,29 @@ export default function App() {
       }
     })();
 
-    const handler = (msg: any) => {
-      console.log("[RN] from Node:", msg);
-    };
+const handler = (raw: any) => {
+  let msg = raw;
+  try {
+    msg = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    console.log("[RN] from Node (raw):", raw);
+    return;
+  }
+
+  if (msg?.type === "pmtiles-log") {
+    console.log("[pmtiles]", msg);
+    return;
+  }
+
+  if (msg?.type === "pmtiles-server-ready") {
+    console.log("[pmtiles] server ready on port", msg.port);
+    // optionally: syncActiveBasemapToNode();
+    return;
+  }
+
+  console.log("[RN] from Node (other):", msg);
+};
+
 
     const subscription = nodejs.channel.addListener("message", handler);
     return () => {

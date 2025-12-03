@@ -26,6 +26,7 @@ import { PMTILES_BASE } from "../../config/env";
 import {
   listBasemapsOffline,
   OfflineBasemap,
+  syncActiveBasemapToNode,
 } from "../../offline/basemaps";
 
 export type LatLng = [number, number];
@@ -121,6 +122,7 @@ const MapLibreMap: React.FC<Props> = ({
 
       try {
         const all = await listBasemapsOffline();
+        console.log("[DEBUG] offline basemaps:", all);
         if (cancelled) return;
         const active = all.find((b) => b.is_active === 1) || null;
         setActiveBasemap(active);
@@ -128,6 +130,8 @@ const MapLibreMap: React.FC<Props> = ({
           "[MapLibreMap] offline basemap:",
           active ? `${active.name} (id=${active.id})` : "none"
         );
+        await syncActiveBasemapToNode();
+
       } catch (err) {
         if (!cancelled) {
           console.warn("[MapLibreMap] failed to load basemaps:", err);
@@ -383,9 +387,7 @@ const MapLibreMap: React.FC<Props> = ({
     if (!activeBasemap) return null;
 
     // Adjust this path to match your NodeMobile PMTile route.
-    return [
-      `${PMTILES_BASE}/pmtiles/${activeBasemap.id}/{z}/{x}/{y}.png`,
-    ];
+    return [`${PMTILES_BASE}/tiles/{z}/{x}/{y}.png`];
   }, [activeBasemap]);
 
   return (
@@ -432,7 +434,7 @@ const MapLibreMap: React.FC<Props> = ({
           </RasterSource>
         )}
 
-        {/* 📦 Offline basemap: PMTiles (if available) */}
+        {/* Offline basemap: PMTiles (if available) */}
         {isOfflineMode && offlineTileUrlTemplates && (
           <RasterSource
             id="offline-basemap"

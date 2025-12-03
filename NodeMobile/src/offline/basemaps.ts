@@ -18,6 +18,7 @@ export interface OfflineBasemap {
 /** Internal helper: tell Node pmtiles-server which path to use */
 function notifyNodeOfActiveBasemap(path: string | null) {
   try {
+    console.log("[pmtiles] notifyNodeOfActiveBasemap →", path);
     nodejs.channel.send(
       JSON.stringify({
         type: "set-basemap",
@@ -28,6 +29,7 @@ function notifyNodeOfActiveBasemap(path: string | null) {
     console.warn("[pmtiles] Failed to notify Node of active basemap:", err);
   }
 }
+
 
 /**
  * List all PMTiles basemaps, newest first.
@@ -106,7 +108,7 @@ export async function importBasemapFromUri(params: {
   }
 
   // Optional: auto-activate newly imported basemap
-  // await setActiveBasemap(basemap.id);
+  //await setActiveBasemap(basemap.id);
 
   return basemap;
 }
@@ -132,10 +134,24 @@ export async function setActiveBasemap(id: number | null): Promise<void> {
       [id]
     );
     path = row?.path ?? null;
+
+    if (path) {
+      try {
+        const stat = await RNFS.stat(path);
+        console.log("[pmtiles] CHECK FILE SIZE:", path, "bytes:", stat.size);
+      } catch (err) {
+        console.warn("[pmtiles] RNFS.stat failed for", path, err);
+      }
+    } else {
+      console.warn("[pmtiles] setActiveBasemap: no path for id", id);
+    }
+  } else {
+    console.log("[pmtiles] setActiveBasemap(null): clearing active basemap");
   }
 
   notifyNodeOfActiveBasemap(path);
 }
+
 
 /**
  * Fetch the currently active basemap, or null if none.
