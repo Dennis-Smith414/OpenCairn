@@ -7,7 +7,7 @@ const PORT = 5200;
 
 // Simple helper to forward logs to RN
 function logToRN(payload) {
-  try {
+  /*  try {
     rn_bridge.channel.send(
       JSON.stringify({
         type: "pmtiles-log",
@@ -19,7 +19,7 @@ function logToRN(payload) {
       "[pmtiles-server][logToRN-failed]",
       e && e.message ? e.message : e
     );
-  }
+  }*/
 }
 
 // ---- pmtiles imports ----
@@ -39,26 +39,41 @@ try {
 }
 
 // ---- File source ----
+// Optimized: keep a file descriptor open for the active basemap.
 class NodeFileSource {
   constructor(path) {
     this.path = path;
+    this.fd = fs.openSync(path, "r");
+    this.size = fs.fstatSync(this.fd).size;
   }
+
   getKey() {
     return this.path;
   }
+
   async getBytes(offset, length, _signal, _etag) {
-    const fd = await fs.promises.open(this.path, "r");
-    try {
-      const buf = Buffer.alloc(length);
-      const { bytesRead } = await fd.read(buf, 0, length, offset);
-      return {
-        data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + bytesRead),
-        etag: undefined,
-        cacheControl: undefined,
-        expires: undefined,
-      };
-    } finally {
-      await fd.close();
+    const buf = Buffer.alloc(length);
+    return new Promise((resolve, reject) => {
+      fs.read(this.fd, buf, 0, length, offset, (err, bytesRead) => {
+        if (err) return reject(err);
+        resolve({
+          data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + bytesRead),
+          etag: undefined,
+          cacheControl: undefined,
+          expires: undefined,
+        });
+      });
+    });
+  }
+
+  close() {
+    if (this.fd != null) {
+      try {
+        fs.closeSync(this.fd);
+      } catch (e) {
+        // ignore
+      }
+      this.fd = null;
     }
   }
 }
@@ -67,6 +82,7 @@ class NodeFileSource {
 let currentBasemapPath = null;
 let currentPmtiles = null;
 let currentHeader = null;
+let currentSource = null; // <-- keep track so we can close the fd
 
 async function setActivePmtiles(path) {
   if (!PMTiles) {
@@ -76,10 +92,19 @@ async function setActivePmtiles(path) {
     currentBasemapPath = null;
     currentPmtiles = null;
     currentHeader = null;
+    if (currentSource) {
+      currentSource.close();
+      currentSource = null;
+    }
     return;
   }
 
+  // Clear any existing basemap
   if (!path) {
+    if (currentSource) {
+      currentSource.close();
+      currentSource = null;
+    }
     currentBasemapPath = null;
     currentPmtiles = null;
     currentHeader = null;
@@ -90,8 +115,17 @@ async function setActivePmtiles(path) {
   try {
     await fs.promises.access(path, fs.constants.R_OK);
 
+    // Close old source/file descriptor if present
+    if (currentSource) {
+      currentSource.close();
+      currentSource = null;
+    }
+
     const source = new NodeFileSource(path);
-    const cache = ResolvedValueCache ? new ResolvedValueCache() : undefined;
+    currentSource = source;
+
+    // Give the cache a reasonable size (directory + popular tiles)
+    const cache = ResolvedValueCache ? new ResolvedValueCache(10000) : undefined;
     const pm = new PMTiles(source, cache);
     const header = await pm.getHeader();
 
@@ -116,6 +150,11 @@ async function setActivePmtiles(path) {
       path,
       error: err && err.message ? err.message : String(err),
     });
+
+    if (currentSource) {
+      currentSource.close();
+      currentSource = null;
+    }
     currentBasemapPath = null;
     currentPmtiles = null;
     currentHeader = null;
@@ -185,7 +224,7 @@ const server = http.createServer(async (req, res) => {
     const x = parseInt(match[2], 10);
     const y = parseInt(match[3], 10);
 
-    logToRN({ msg: "getZxy called", z, x, y });
+    // logToRN({ msg: "getZxy called", z, x, y });
 
     const tile = await currentPmtiles.getZxy(z, x, y);
     if (!tile || !tile.data) {
@@ -196,14 +235,14 @@ const server = http.createServer(async (req, res) => {
 
     const buf = Buffer.from(tile.data);
 
-    logToRN({
-      msg: "Tile served",
-      z,
-      x,
-      y,
-      bytes: buf.length,
-      tileType: currentHeader ? currentHeader.tileType : undefined,
-    });
+    // logToRN({
+    //   msg: "Tile served",
+    //   z,
+    //   x,
+    //   y,
+    //   bytes: buf.length,
+    //   tileType: currentHeader ? currentHeader.tileType : undefined,
+    // });
 
     res.writeHead(200, {
       "Content-Type": "application/vnd.mapbox-vector-tile",
@@ -223,6 +262,9 @@ const server = http.createServer(async (req, res) => {
     }
   }
 });
+
+server.keepAliveTimeout = 60000;
+server.headersTimeout = 65000;
 
 server.listen(PORT, "127.0.0.1", () => {
   logToRN({ msg: "Listening", url: `http://127.0.0.1:${PORT}` });

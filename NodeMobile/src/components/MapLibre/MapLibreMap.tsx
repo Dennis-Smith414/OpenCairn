@@ -18,8 +18,6 @@ import {
   RasterLayer,
   Images,
   SymbolLayer,
-  VectorSource,
-  FillLayer,
 } from "@maplibre/maplibre-react-native";
 import { getDistanceMeters, boundsFromTracks } from "../../utils/geoUtils";
 import { colors } from "../../styles/theme";
@@ -30,6 +28,7 @@ import {
   OfflineBasemap,
   syncActiveBasemapToNode,
 } from "../../offline/basemaps";
+import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
 
 export type LatLng = [number, number];
 
@@ -72,19 +71,18 @@ const DEFAULT_ZOOM = 13;
 const EMPTY_STYLE: any = {
   version: 8,
   name: "opencairn-empty",
+  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   sources: {},
   layers: [
     {
       id: "background",
       type: "background",
       paint: {
-        // soft, OSM-ish land color instead of pure black
         "background-color": "#f2efe9",
       },
     },
   ],
 };
-
 
 
 const MapLibreMap: React.FC<Props> = ({
@@ -110,7 +108,7 @@ const MapLibreMap: React.FC<Props> = ({
     lon: number;
   } | null>(null);
 
-  // 🔹 Active offline basemap (from offline_basemaps table)
+  // Active offline basemap (from offline_basemaps table)
   const [activeBasemap, setActiveBasemap] = useState<OfflineBasemap | null>(
     null
   );
@@ -135,7 +133,6 @@ const MapLibreMap: React.FC<Props> = ({
           active ? `${active.name} (id=${active.id})` : "none"
         );
         await syncActiveBasemapToNode();
-
       } catch (err) {
         if (!cancelled) {
           console.warn("[MapLibreMap] failed to load basemaps:", err);
@@ -386,11 +383,9 @@ const MapLibreMap: React.FC<Props> = ({
     setMarkedLocation(null);
   }, [onWaypointPress]);
 
-  //Build tile URL for active PMTiles basemap
+  // Build tile URL for active PMTiles basemap
   const offlineVectorTileUrlTemplates = useMemo(() => {
     if (!activeBasemap) return null;
-
-    // Adjust this path to match your NodeMobile PMTile route.
     return [`${PMTILES_BASE}/tiles/{z}/{x}/{y}.mvt`];
   }, [activeBasemap]);
 
@@ -438,56 +433,13 @@ const MapLibreMap: React.FC<Props> = ({
           </RasterSource>
         )}
 
-        {/* Offline basemap: PMTiles (if available) */}
         {/* Offline basemap: Vector PMTiles (if available) */}
         {isOfflineMode && offlineVectorTileUrlTemplates && (
-          <VectorSource
-            id="offline-basemap"
+          <OfflineBasemapLayers
             tileUrlTemplates={offlineVectorTileUrlTemplates}
-            minZoomLevel={activeBasemap?.min_zoom ?? 0}
-            maxZoomLevel={activeBasemap?.max_zoom ?? 14}
-          >
-            {/* These sourceLayerID values must match your PMTiles schema.
-               Start with a couple of simple layers; we can tweak names/colors later. */}
-
-            <FillLayer
-              id="offline-land"
-              sourceLayerID="land"
-              style={{
-                fillColor: "#f2efe9",
-                fillOpacity: 1,
-              }}
-            />
-
-            <FillLayer
-              id="offline-water"
-              sourceLayerID="water"
-              style={{
-                fillColor: "#a0c8f0",
-                fillOpacity: 1,
-              }}
-            />
-
-            <LineLayer
-              id="offline-roads"
-              sourceLayerID="transportation"
-              style={{
-                lineColor: "#c0a26b",
-                lineWidth: 1.0,
-              }}
-            />
-
-              <SymbolLayer
-                id="offline-places"
-                sourceLayerID="place"
-                style={{
-                  textField: ["get", "name"],
-                  textSize: 12,
-                  textHaloColor: "#ffffff",
-                  textHaloWidth: 1,
-                }}
-              />
-          </VectorSource>
+            minZoom={activeBasemap?.min_zoom ?? 0}
+            maxZoom={activeBasemap?.max_zoom ?? 14}
+          />
         )}
 
         {/* Camera */}

@@ -93,10 +93,6 @@ const handler = (raw: any) => {
     return;
   }
 
-  if (msg?.type === "pmtiles-log") {
-    console.log("[pmtiles]", msg);
-    return;
-  }
 
   if (msg?.type === "pmtiles-server-ready") {
     console.log("[pmtiles] server ready on port", msg.port);
