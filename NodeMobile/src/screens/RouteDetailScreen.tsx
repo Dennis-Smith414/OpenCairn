@@ -15,6 +15,8 @@ import { CommentList } from "../components/comments/CommentList";
 import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
 import { useRouteSelection } from "../context/RouteSelectionContext"; // ✅ NEW
+import { getRouteOffline } from "../offline/routes/routes";
+
 
 export default function RouteDetailScreen({ route, navigation }) {
   const { colors } = useThemeStyles();
@@ -28,7 +30,9 @@ export default function RouteDetailScreen({ route, navigation }) {
   const [detail, setDetail] = useState<any>(null);
   const [gpx, setGpx] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
   const [syncing, setSyncing] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadDetail = useCallback(async () => {
     try {
@@ -52,12 +56,24 @@ export default function RouteDetailScreen({ route, navigation }) {
     }
   }, [routeId, navigation]);
 
+    const refreshOfflineStatus = useCallback(async () => {
+      try {
+        const offlineRoute = await getRouteOffline(routeId);
+        setIsOffline(!!offlineRoute);
+      } catch (err) {
+        console.log("[RouteDetail] offline status check failed:", err);
+        setIsOffline(false);
+      }
+    }, [routeId]);
+
   useEffect(() => {
     if (routeName) {
       navigation.setOptions?.({ title: routeName });
     }
     loadDetail();
-  }, [loadDetail, routeName]);
+    refreshOfflineStatus();
+
+  }, [loadDetail, routeName, refreshOfflineStatus]);
 
   const gpxNames = useMemo(() => {
     if (!gpx?.features) return [];
@@ -82,6 +98,8 @@ export default function RouteDetailScreen({ route, navigation }) {
         currentUserId: user?.id,
       });
 
+      await refreshOfflineStatus();
+
       Alert.alert("Offline Ready", `This route is now available offline.`);
     } catch (err: any) {
       console.error("sync offline error:", err);
@@ -91,7 +109,7 @@ export default function RouteDetailScreen({ route, navigation }) {
     }
   };
 
-  // ✅ NEW: toggle selection handler
+  // Toggle selection handler
   const handleToggleSelected = () => {
     if (!detail?.id) return;
 
@@ -139,10 +157,18 @@ export default function RouteDetailScreen({ route, navigation }) {
       ? new Date(detail.updated_at).toLocaleDateString()
       : "";
 
-  const isSelected = selectedRouteIds.includes(detail.id); // ✅ NEW
+  const isSelected = selectedRouteIds.includes(detail.id);
 
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
+      {/* Back Button (matches SettingsScreen style) */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={{ alignSelf: "flex-start", marginLeft: 8, marginBottom: 8 }}
+      >
+        <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
+      </TouchableOpacity>
+
       {/* ------- TITLE ------- */}
       <Text style={globalStyles.headerText}>{detail.name}</Text>
 
@@ -238,7 +264,13 @@ export default function RouteDetailScreen({ route, navigation }) {
       </View>
 
       {/* ------- COMMENTS ------- */}
-      <View style={{ flex: 1, width: "100%" }}>
+      <View
+        style={{
+          flex: 1,
+          width: "100%",
+          paddingBottom: 54,
+        }}
+      >
         <Text
           style={[
             globalStyles.bodyText,
@@ -251,48 +283,80 @@ export default function RouteDetailScreen({ route, navigation }) {
         <CommentList routeId={detail.id} />
       </View>
 
-      {/* ✅ NEW: SELECT/DESELECT ROUTE BUTTON */}
-      <TouchableOpacity
-        onPress={handleToggleSelected}
-        style={[
-          globalStyles.button,
-          {
-            backgroundColor: isSelected ? colors.card : colors.accent,
-            marginTop: 16,
-            paddingVertical: 12,
-            borderWidth: isSelected ? 1 : 0,
-            borderColor: colors.accent,
-          },
-        ]}
+      {/* ------- BOTTOM BUTTON ROW ------- */}
+      <View
+        style={{
+          flexDirection: "row",
+          width: "100%",
+          marginTop: 8,
+        }}
       >
-        <Text
+        {/* SELECT/DESELECT ROUTE BUTTON */}
+        <TouchableOpacity
+          onPress={handleToggleSelected}
           style={[
-            globalStyles.buttonText,
-            { color: isSelected ? colors.accent : globalStyles.buttonText?.color },
+            globalStyles.button,
+            {
+              flex: 1,
+              marginRight: 8,
+              paddingVertical: 12,
+              backgroundColor: isSelected ? colors.card : colors.accent,
+              borderWidth: isSelected ? 1 : 0,
+              borderColor: colors.accent,
+            },
           ]}
         >
-          {isSelected ? "Remove from Map" : "Add to Map"}
-        </Text>
-      </TouchableOpacity>
+          <Text
+            style={[
+              globalStyles.buttonText,
+              {
+                textAlign: "center",
+                color: isSelected
+                  ? colors.accent
+                  : globalStyles.buttonText?.color,
+              },
+            ]}
+          >
+            {isSelected ? "Remove from Map" : "Add to Map"}
+          </Text>
+        </TouchableOpacity>
 
-      {/* ------- OFFLINE BUTTON ------- */}
-      <TouchableOpacity
-        onPress={handleOfflineSave}
-        disabled={syncing}
-        style={[
-          globalStyles.button,
-          {
-            backgroundColor: colors.accent,
-            marginTop: 12,
-            paddingVertical: 12,
-            opacity: syncing ? 0.6 : 1,
-          },
-        ]}
-      >
-        <Text style={globalStyles.buttonText}>
-          {syncing ? "Saving…" : "Save for Offline Use"}
-        </Text>
-      </TouchableOpacity>
+        {/* ------- OFFLINE BUTTON ------- */}
+        <TouchableOpacity
+          onPress={handleOfflineSave}
+          disabled={syncing}
+          style={[
+            globalStyles.button,
+            {
+              flex: 1,
+              marginLeft: 8,
+              paddingVertical: 12,
+              backgroundColor: isOffline ? colors.card : colors.accent,
+              opacity: syncing ? 0.6 : 1,
+              borderWidth: isOffline ? 1 : 0,
+              borderColor: isOffline ? colors.accent : "transparent",
+            },
+          ]}
+        >
+          <Text
+            style={[
+              globalStyles.buttonText,
+              {
+                textAlign: "center",
+                color: isOffline
+                  ? colors.accent
+                  : globalStyles.buttonText?.color,
+              },
+            ]}
+          >
+            {syncing
+              ? "Saving…"
+              : isOffline
+              ? "Offline Ready"
+              : "Save for Offline"}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
