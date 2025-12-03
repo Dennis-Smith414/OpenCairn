@@ -28,7 +28,6 @@ type Props = {
   onToggleFavorite: () => void;
   onVoteUp: () => void;
   onVoteDown: () => void;
-  onOpenComments: () => void;
   onOpenDetail: () => void;
 };
 
@@ -41,7 +40,6 @@ export const RouteCard: React.FC<Props> = ({
   onToggleFavorite,
   onVoteUp,
   onVoteDown,
-  onOpenComments,
   onOpenDetail,
 }) => {
   const { colors } = useThemeStyles();
@@ -51,7 +49,9 @@ export const RouteCard: React.FC<Props> = ({
   const isDownvoted = item.user_rating === -1;
 
   return (
-    <View
+    <TouchableOpacity
+      onPress={onOpenDetail}
+      activeOpacity={0.85}
       style={[
         styles.cardContainer,
         {
@@ -61,8 +61,8 @@ export const RouteCard: React.FC<Props> = ({
       ]}
     >
       <View style={styles.headerRow}>
-        {/* LEFT: title / region – press opens detail screen */}
-        <TouchableOpacity style={styles.titleArea} onPress={onOpenDetail}>
+        {/* LEFT: title / region – tap anywhere on card opens detail */}
+        <View style={styles.titleArea}>
           <Text
             style={[
               globalStyles.bodyText,
@@ -89,7 +89,7 @@ export const RouteCard: React.FC<Props> = ({
               {item.region}
             </Text>
           )}
-        </TouchableOpacity>
+        </View>
 
         {/* MIDDLE: tiny trail outline */}
         <View style={styles.thumbnailWrapper}>
@@ -161,21 +161,7 @@ export const RouteCard: React.FC<Props> = ({
           </Text>
         </View>
       </View>
-
-      {/* Footer: comments link */}
-      <View style={styles.footerRow}>
-        <TouchableOpacity onPress={onOpenComments}>
-          <Text
-            style={{
-              color: colors.accent,
-              fontSize: 13,
-            }}
-          >
-            View comments
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -213,11 +199,6 @@ const styles = StyleSheet.create({
   voteButtonWrapper: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-  },
-  footerRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    paddingTop: 4,
   },
 });
 

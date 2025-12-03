@@ -579,12 +579,6 @@ export default function RouteSelectScreen({ navigation }: any) {
               onToggleFavorite={() => toggleFavorite(item.id)}
               onVoteUp={() => handleVote(item.id, 1)}
               onVoteDown={() => handleVote(item.id, -1)}
-              onOpenComments={() =>
-                navigation.navigate("RouteComments", {
-                  routeId: item.id,
-                  routeName: item.name,
-                })
-              }
               onOpenDetail={() =>
                 navigation.navigate("RouteDetail", {
                   routeId: item.id,
