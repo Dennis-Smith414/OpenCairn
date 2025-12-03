@@ -1,6 +1,6 @@
 // src/screens/MapScreen.tsx
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { StyleSheet, View, ActivityIndicator, Text } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
@@ -50,7 +50,7 @@ const MapScreen: React.FC = () => {
   const watchIdRef = useRef<number | null>(null);
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
-
+  const [showTripTracker, setShowTripTracker] = useState(true);
   const {
     location,
     loading: locationLoading,
@@ -281,6 +281,17 @@ const MapScreen: React.FC = () => {
         showTrackingButton
       />
 
+      <TouchableOpacity
+        style={styles.trackerToggleButton}
+        onPress={() => setShowTripTracker(prev => !prev)}
+        activeOpacity={0.7}
+      >
+      <Text style={styles.toggleButtonText}>
+          {showTripTracker ? '📊' : '📊'}
+          {showTripTracker ? 'Hide Tracker' : 'Show Tracker'}
+        </Text>
+      </TouchableOpacity>
+
       {/* Trip Tracker Component */}
       {tracks.length > 0 && (
         <TripTracker
@@ -290,6 +301,7 @@ const MapScreen: React.FC = () => {
           onStatsUpdate={setTripStats}
           hasActiveWaypoint={hasActiveWaypoint}
           hasWaypointDetail={hasWaypointDetail} 
+          visible={showTripTracker}
         />
       )}
 
@@ -342,6 +354,38 @@ const MapScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  trackerToggleButton: {
+    position: 'absolute',
+    
+    top: 225, 
+    right: 12,
+    
+    backgroundColor: '#fff', 
+    width: 40,
+    height: 40,
+    borderRadius: 8, 
+    alignItems: 'center',
+    justifyContent: 'center',
+    
+    // Shadow/Elevation
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 1000,
+  },
+
+  toggleButtonText: {
+    fontSize: 26,
+    color: '#000', 
+    textAlign: 'center',
+  },
+
+  toggleButtonIcon: {
+    fontSize: 28,
+    color: '#000', 
+  },
   overlay: {
     position: "absolute",
     top: 0,
