@@ -262,16 +262,13 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   }, [visible, hasWaypointDetail, hasActiveWaypoint, bottomAnim]);
   
   useEffect(() => {
-    let targetValue = 8; // Default position (bottom: 8)
+    let targetValue = 8; 
 
     if (hasWaypointDetail) {
-      // The WaypointDetail screen is large/full-screen. Move the tracker high up.
       targetValue = 200; 
     } else if (hasActiveWaypoint) {
-      // The smaller WaypointPopup is visible. Move the tracker up to clear it.
-      targetValue = 100; // Adjusted value to clear the popup.
+      targetValue = 150; 
     } else {
-      // No active waypoint. Stay at the default bottom position.
       targetValue = 8; 
     }
 
