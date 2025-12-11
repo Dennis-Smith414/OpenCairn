@@ -92,3 +92,77 @@ If there are any routes on the map, also includes a trip tracker sub-window, if 
 
 Toggles between whether the routes displayed are coming from our remote server or the phone's local offline storage.
 Includes a list of downloaded routes that can currently be used offline.
+
+---
+
+```/NodeMobile/src/assets```
+
+Various fonts and graphics used throughout the application.
+
+---
+
+```/NodeMobile/src/components/account```
+
+UI elements specific to the account screen; used to displaying the user's routes, waypoints, and comments.
+
+---
+
+```/NodeMobile/src/components/comments```
+
+Reusable UI elements related to comments.
+One used in the account screen with the list of all comments, and one in the route detail screen for posting a comment.
+
+---
+
+```/NodeMobile/src/components/common```
+
+UI elements that are more generic and reused throught the app.
+
+---
+
+```/NodeMobile/src/components/files```
+
+Contains the list UI element for offline routes, used only in the file manager screen.
+
+---
+
+```/NodeMobile/src/components/MapLibre```
+
+UI and logic for navigating the map screen, which includes making waypoints selectable, with a popup giving details about the waypoint.
+
+---
+
+```/NodeMobile/src/components/routes```
+
+Code that generates a thumbnail for each route, which is simply the shape of the GPX files on the map, without any background context from the map.
+Also includes a reusable UI element representing one route on the route select screen.
+
+---
+
+```/NodeMobile/src/components/TripTracker```
+
+As explained previously, overlays a trip tracker UI on the map when at least one route is selected.
+
+---
+
+```/NodeMobile/src/context```
+
+Various contexts are passed around between screens so that the app can both have persistent state and navigate from screen to screen.
+
+---
+
+```/NodeMobile/src/hooks/useGeolocation.tsx```
+
+Manages the Android permissions for getting the user's location, and then continually watches their location.
+
+---
+
+```/NodeMobile/src/navigation/AppNavigator.tsx```
+
+Holds previously visited screens in a stack so that the app works as expected with the built-in Android back button.
+
+---
+
+```/NodeMobile/src/styles```
+
+Rather than define colors, allignment, and so on in every individual screen, each screen draws from the styles in this folder.
