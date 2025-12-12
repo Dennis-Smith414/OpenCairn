@@ -7,6 +7,8 @@ NODE_MOBILE_DIR="$PROJECT_DIR/NodeMobile"
 APK_OUTPUT_DIR="/root/OpenCairn_APKs"
 FTP_DIR="/srv/ftp/downloads"
 
+CURRENT_VERSION="0.0.5"
+
 echo "Building a new release APK file"
 
 # Navigate to NodeMobile directory
@@ -17,6 +19,14 @@ git pull origin main
 
 echo "Installing npm dependencies...."
 npm install
+
+echo "Setting current version to $CURRENT_VERSION" 
+sed -i "s/VERSION_PATCH \".*\"\VERSION_PATCH \"$DESIRED_VERSION\"/" "$NODE_MOBILE_DIR/android/version.properties"
+
+PATCH_NUM=$(echo $CURRENT_VERSION | cut -d'.' -f3)
+NEW_VERSION_CODE=$((PATCH_NUM + 1))
+sed -i "s/VERSION_PATCH \".*\"\VERSION_PATCH $NEW_VERSION_CODE/" "$NODE_MOBILE_DIR/android/version.properties"
+echo "Final version code is: $NEW_VERSION_CODE"
 
 echo "Bundling JavaScript"
 mkdir -p "$NODE_MOBILE_DIR/android/app/src/main/assets"
