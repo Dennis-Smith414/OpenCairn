@@ -21,11 +21,11 @@ echo "Installing npm dependencies...."
 npm install
 
 echo "Setting current version to $CURRENT_VERSION" 
-sed -i "s/VERSION_PATCH \".*\"\VERSION_PATCH \"$DESIRED_VERSION\"/" "$NODE_MOBILE_DIR/android/version.properties"
+sed -i "s/VERSION_PATCH \".*\"/VERSION_PATCH \"$DESIRED_VERSION\"/" "$NODE_MOBILE_DIR/android/version.properties"
 
 PATCH_NUM=$(echo $CURRENT_VERSION | cut -d'.' -f3)
 NEW_VERSION_CODE=$((PATCH_NUM + 1))
-sed -i "s/VERSION_PATCH [0-9]*/VERSION_PATCH $NEW_VERSION_CODE/" "$NODE_MOBILE_DIR/android/app/build.gradle"
+sed -i "s/VERSION_PATCH [0-9]*/VERSION_PATCH $NEW_VERSION_CODE/" "$NODE_MOBILE_DIR/android/version.properties"
 
 echo "Final version code is: $NEW_VERSION_CODE"
 
