@@ -155,6 +155,70 @@ export async function deleteRoute(routeId: number, token: string) {
   return json as { ok: true; deleted_id: number };
 }
 
+
+/** Update an existing route (name / region / description). ONLINE ONLY. */
+export async function updateRoute(
+  id: number,
+  token: string,
+  payload: { name?: string; region?: string; description?: string }
+): Promise<Route> {
+  const API_BASE = getBaseUrl();
+
+  // OFFLINE → disallow editing (matches createRoute pattern)
+  if (API_BASE === OFFLINE_API_BASE) {
+    throw new Error("Route editing is only available while online.");
+  }
+
+  const res = await fetch(`${API_BASE}/api/routes/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  const json = safeJson(text);
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || `Failed to update route ${id}`);
+  }
+
+  return json.route as Route;
+}
+
+/** Delete GPX tracks for a route by name. ONLINE ONLY. */
+export async function deleteRouteGpxByName(
+  routeId: number,
+  trackName: string,
+  token: string
+): Promise<{ ok: boolean; deletedCount: number }> {
+  const API_BASE = getBaseUrl();
+
+  if (API_BASE === OFFLINE_API_BASE) {
+    throw new Error("Editing GPX tracks is only available while online.");
+  }
+
+  const url = new URL(`${API_BASE}/api/routes/${routeId}/gpx`);
+  url.searchParams.set("name", trackName);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const text = await res.text();
+  const json = safeJson(text);
+  if (!res.ok || !json?.ok) {
+    throw new Error(
+      json?.error || `Failed to delete GPX track "${trackName}" for route ${routeId}`
+    );
+  }
+
+  return json as { ok: boolean; deletedCount: number };
+}
+
+
 /** Create a route, then attach a GPX file to it. */
 export async function createRouteWithGpx(
   token: string,

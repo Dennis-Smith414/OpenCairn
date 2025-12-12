@@ -277,8 +277,12 @@ export default function AccountScreen({ navigation }: any) {
   };
 
   // ---- Edit handlers ----
-  const handleEditRoute = (id: number) =>
-    navigation.navigate("RouteEdit", { id });
+  const handleEditRoute = (id: number, name: string) =>
+    navigation.navigate("RouteEdit", {
+        routeId: id,
+        routeName: name,
+    });
+
   const handleEditWaypoint = (id: number) =>
     navigation.navigate("WaypointEdit", { id });
 
@@ -362,7 +366,7 @@ subtitle={`${r.region || "—"} • ${safeDateLabel(
   r.created_at ?? r.create_time ?? r.createdAt ?? null
 )}`}
 
-              onEdit={() => handleEditRoute(r.id)}
+              onEdit={() => handleEditRoute(r.id, r.name)}
               onDelete={() => confirmDeleteRoute(r.id)}
             />
           ))

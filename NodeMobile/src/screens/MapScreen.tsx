@@ -292,17 +292,17 @@ const MapScreen: React.FC = () => {
       </TouchableOpacity>
 
       {/* Trip Tracker Component */}
-      {tracks.length > 0 && (
-        <TripTracker
-          totalRouteDistance={routeTotalDistance}
-          currentPosition={userLocation}
-          tracks={tracks}
-          onStatsUpdate={setTripStats}
-          hasActiveWaypoint={hasActiveWaypoint}
-          hasWaypointDetail={hasWaypointDetail} 
-          visible={showTripTracker}
-        />
-      )}
+    {tracks.length > 0 && (
+      <TripTracker
+        totalRouteDistance={routeTotalDistance}
+        currentPosition={userLocation}
+        tracks={tracks}
+        onStatsUpdate={setTripStats}
+        hasActiveWaypoint={!!selectedWaypoint && !showWaypointDetail}
+        hasWaypointDetail={hasWaypointDetail}
+        visible={showTripTracker && !showWaypointDetail}
+      />
+    )}
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>

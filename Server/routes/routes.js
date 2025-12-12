@@ -241,7 +241,51 @@ router.delete("/:id", authorize, async (req, res) => {
     }
   });
 
-  // POST /api/routes/:id/upvote  (toggle per-user upvote)
+// DELETE /api/routes/:id/gpx?name=TRACK_NAME
+router.delete("/:id/gpx", authorize, async (req, res) => {
+  try {
+    const routeId = Number(req.params.id);
+    const userId = req.user.id;
+    const name = (req.query.name ?? "").trim();
+
+    if (!Number.isInteger(routeId)) {
+      return res.status(400).json({ ok: false, error: "bad-route-id" });
+    }
+    if (!name) {
+      return res.status(400).json({ ok: false, error: "name-required" });
+    }
+
+    // Optional: verify user owns the route before allowing deletion
+    const owner = await db.get(
+      `SELECT user_id FROM routes WHERE id = $1`,
+      [routeId]
+    );
+    if (!owner) {
+      return res.status(404).json({ ok: false, error: "route-not-found" });
+    }
+    if (Number(owner.user_id) !== Number(userId)) {
+      return res.status(403).json({ ok: false, error: "not-owner" });
+    }
+
+    const result = await db.run(
+      `DELETE FROM gpx
+        WHERE route_id = $1
+          AND name = $2`,
+      [routeId, name]
+    );
+
+    res.json({
+      ok: true,
+      deletedCount: result.rowCount ?? 0,
+    });
+  } catch (e) {
+    console.error("DELETE /routes/:id/gpx failed:", e);
+    res.status(500).json({ ok: false, error: "gpx-delete-failed" });
+  }
+});
+
+
+// POST /api/routes/:id/upvote  (toggle per-user upvote)
 router.post("/:id/upvote", authorize, async (req, res) => {
   try {
     const userId = req.user.id;
