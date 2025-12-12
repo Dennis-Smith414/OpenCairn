@@ -20,51 +20,50 @@ router.get("/", async (req, res) => {
 
     // counts are handy for UI
     params.push(limit, offset);
-const sql = `
-  SELECT
-    r.id,
-    r.slug,
-    r.name,
-    r.region,
-    r.created_at,
-    r.updated_at,
-    COALESCE(wp.cnt, 0) AS waypoint_count,
-    COALESCE(gx.cnt, 0) AS gpx_count,
-    COALESCE(uv.upvotes, 0) AS upvotes,
-    st.start_lat,
-    st.start_lng
-  FROM routes r
-  LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS cnt
-    FROM waypoints w
-    WHERE w.route_id = r.id
-  ) wp ON true
-  LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS cnt
-    FROM gpx g
-    WHERE g.route_id = r.id
-  ) gx ON true
-  -- 🔹 NEW: grab a starting lat/lng from the first GPX geometry for this route
-  LEFT JOIN LATERAL (
-    SELECT
-      ST_Y(ST_StartPoint(g.geometry))::float  AS start_lat,
-      ST_X(ST_StartPoint(g.geometry))::float  AS start_lng
-    FROM gpx g
-    WHERE g.route_id = r.id
-    ORDER BY g.id ASC
-    LIMIT 1
-  ) st ON true
-  LEFT JOIN (
-    SELECT route_id, COUNT(*)::int AS upvotes
-    FROM route_ratings
-    WHERE val = 1
-    GROUP BY route_id
-  ) uv ON uv.route_id = r.id
-  ${where}
-  ORDER BY r.updated_at DESC
-  LIMIT $${params.length - 1} OFFSET $${params.length}
-`;
-
+    const sql = `
+      SELECT
+        r.id,
+        r.slug,
+        r.name,
+        r.region,
+        r.created_at,
+        r.updated_at,
+        COALESCE(wp.cnt, 0) AS waypoint_count,
+        COALESCE(gx.cnt, 0) AS gpx_count,
+        COALESCE(uv.upvotes, 0) AS upvotes,
+        st.start_lat,
+        st.start_lng
+      FROM routes r
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt
+        FROM waypoints w
+        WHERE w.route_id = r.id
+      ) wp ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt
+        FROM gpx g
+        WHERE g.route_id = r.id
+      ) gx ON true
+      -- grab a starting lat/lng from the first GPX geometry for this route
+      LEFT JOIN LATERAL (
+        SELECT
+          ST_Y(ST_StartPoint(g.geometry))::float  AS start_lat,
+          ST_X(ST_StartPoint(g.geometry))::float  AS start_lng
+        FROM gpx g
+        WHERE g.route_id = r.id
+        ORDER BY g.id ASC
+        LIMIT 1
+      ) st ON true
+      LEFT JOIN (
+        SELECT route_id, COUNT(*)::int AS upvotes
+        FROM route_ratings
+        WHERE val = 1
+        GROUP BY route_id
+      ) uv ON uv.route_id = r.id
+      ${where}
+      ORDER BY r.updated_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
 
     const items = await db.all(sql, params);
     res.json({ ok: true, items, nextOffset: offset + items.length });
@@ -78,17 +77,19 @@ const sql = `
 router.get("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const includeGpx = String(req.query.include_gpx ?? "false").toLowerCase() === "true";
+    const includeGpx =
+      String(req.query.include_gpx ?? "false").toLowerCase() === "true";
 
     const route = await db.get(
       `SELECT r.*, u.username, g.name AS gpx_name
          FROM routes r
          LEFT JOIN users u on r.user_id = u.id
          LEFT JOIN gpx g on g.route_id = r.id
-        WHERE id = $1`,
+        WHERE r.id = $1`,
       [id]
     );
-    if (!route) return res.status(404).json({ ok: false, error: "not-found" });
+    if (!route)
+      return res.status(404).json({ ok: false, error: "not-found" });
 
     if (!includeGpx) return res.json({ ok: true, route });
 
@@ -123,7 +124,7 @@ router.post("/", authorize, async (req, res) => {
     const userId = req.user.id;
     const name = (req.body.name ?? "").trim();
     const region = (req.body.region ?? null) || null;
-    const description = (req.body.description ?? null) || null; // 🔹 NEW
+    const description = (req.body.description ?? null) || null;
 
     if (!name) {
       return res.status(400).json({ ok: false, error: "name-required" });
@@ -142,7 +143,7 @@ router.post("/", authorize, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (slug) DO NOTHING
        RETURNING id, slug, name, region, description, user_id, created_at, updated_at`,
-      [userId, slug, name, region, description] // 🔹 NEW arg
+      [userId, slug, name, region, description]
     );
 
     if (!row) {
@@ -155,7 +156,6 @@ router.post("/", authorize, async (req, res) => {
   }
 });
 
-
 // ---------- PATCH /api/routes/:id  (update; owner only)
 router.patch("/:id", authorize, async (req, res) => {
   try {
@@ -163,7 +163,7 @@ router.patch("/:id", authorize, async (req, res) => {
     const userId = req.user.id;
     const name = req.body.name ?? null;
     const region = req.body.region ?? null;
-    const description = req.body.description ?? null; // 🔹 NEW
+    const description = req.body.description ?? null;
 
     const owner = await db.get(`SELECT user_id FROM routes WHERE id = $1`, [id]);
     if (!owner) return res.status(404).json({ ok: false, error: "not-found" });
@@ -178,7 +178,7 @@ router.patch("/:id", authorize, async (req, res) => {
               updated_at  = NOW()
         WHERE id = $4
         RETURNING id, slug, name, region, description, user_id, updated_at`,
-      [name, region, description, id] // 🔹 shift params
+      [name, region, description, id]
     );
 
     res.json({ ok: true, route: row });
@@ -187,7 +187,6 @@ router.patch("/:id", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "update-failed" });
   }
 });
-
 
 // ---------- DELETE /api/routes/:id  (delete; owner only)
 router.delete("/:id", authorize, async (req, res) => {
@@ -208,38 +207,45 @@ router.delete("/:id", authorize, async (req, res) => {
   }
 });
 
-/// ---------- GET /api/routes/:id/gpx  (FeatureCollection for that route)
-  router.get("/:id/gpx", async (req, res) => {
-    try {
-     const rawId = String(req.params.id);
-     const id = Number(rawId);
-     if (!Number.isInteger(id)) {
-       return res.status(400).json({ ok: false, error: "bad-route-id", got: rawId });
-     }
-
-      const rows = await db.all(
-        `SELECT ST_AsGeoJSON(geometry)::json AS geometry, name
-           FROM gpx
-          WHERE route_id = $1
-          ORDER BY id ASC`,
-        [id]
-      );
-     if (!rows.length) {
-       // Return an empty FC so the client can handle "no geometry yet"
-       return res.json({ ok: true, geojson: { type: "FeatureCollection", features: [] } });
-     }
-
-      const features = rows.map((row, idx) => ({
-        type: "Feature",
-       properties: { route_id: id, segment: idx + 1, name: row.name ?? null },
-        geometry: row.geometry,
-      }));
-      res.json({ ok: true, geojson: { type: "FeatureCollection", features } });
-    } catch (e) {
-      console.error("GET /routes/:id/gpx failed:", e);
-      res.status(500).json({ ok: false, error: "geojson-failed" });
+// ---------- GET /api/routes/:id/gpx  (FeatureCollection for that route)
+router.get("/:id/gpx", async (req, res) => {
+  try {
+    const rawId = String(req.params.id);
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "bad-route-id", got: rawId });
     }
-  });
+
+    const rows = await db.all(
+      `SELECT ST_AsGeoJSON(geometry)::json AS geometry, name
+         FROM gpx
+        WHERE route_id = $1
+        ORDER BY id ASC`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.json({
+        ok: true,
+        geojson: { type: "FeatureCollection", features: [] },
+      });
+    }
+
+    const features = rows.map((row, idx) => ({
+      type: "Feature",
+      properties: { route_id: id, segment: idx + 1, name: row.name ?? null },
+      geometry: row.geometry,
+    }));
+    res.json({
+      ok: true,
+      geojson: { type: "FeatureCollection", features },
+    });
+  } catch (e) {
+    console.error("GET /routes/:id/gpx failed:", e);
+    res.status(500).json({ ok: false, error: "geojson-failed" });
+  }
+});
 
 // DELETE /api/routes/:id/gpx?name=TRACK_NAME
 router.delete("/:id/gpx", authorize, async (req, res) => {
@@ -255,7 +261,6 @@ router.delete("/:id/gpx", authorize, async (req, res) => {
       return res.status(400).json({ ok: false, error: "name-required" });
     }
 
-    // Optional: verify user owns the route before allowing deletion
     const owner = await db.get(
       `SELECT user_id FROM routes WHERE id = $1`,
       [routeId]
@@ -284,7 +289,6 @@ router.delete("/:id/gpx", authorize, async (req, res) => {
   }
 });
 
-
 // POST /api/routes/:id/upvote  (toggle per-user upvote)
 router.post("/:id/upvote", authorize, async (req, res) => {
   try {
@@ -295,7 +299,6 @@ router.post("/:id/upvote", authorize, async (req, res) => {
       return res.status(400).json({ ok: false, error: "bad-route-id" });
     }
 
-    // Check existing vote
     const existing = await db.get(
       `SELECT val FROM route_ratings
         WHERE user_id = $1 AND route_id = $2`,
@@ -305,7 +308,6 @@ router.post("/:id/upvote", authorize, async (req, res) => {
     let userHasUpvoted = false;
 
     if (existing && existing.val === 1) {
-      // Already upvoted → remove
       await db.run(
         `DELETE FROM route_ratings
           WHERE user_id = $1 AND route_id = $2`,
@@ -313,7 +315,6 @@ router.post("/:id/upvote", authorize, async (req, res) => {
       );
       userHasUpvoted = false;
     } else {
-      // Insert or update
       await db.run(
         `INSERT INTO route_ratings (user_id, route_id, val)
          VALUES ($1, $2, 1)
@@ -324,7 +325,6 @@ router.post("/:id/upvote", authorize, async (req, res) => {
       userHasUpvoted = true;
     }
 
-    // New aggregate
     const agg = await db.get(
       `SELECT COUNT(*)::int AS upvotes
          FROM route_ratings
@@ -338,7 +338,6 @@ router.post("/:id/upvote", authorize, async (req, res) => {
       upvotes: agg.upvotes,
       userHasUpvoted,
     });
-
   } catch (e) {
     console.error("POST /routes/:id/upvote failed:", e);
     res.status(500).json({ ok: false, error: "upvote-failed" });
@@ -356,7 +355,6 @@ router.get("/:id/comments", async (req, res) => {
       return res.status(400).json({ ok: false, error: "bad-route-id" });
     }
 
-    // join users so we can show username next to comment
     const comments = await db.all(
       `
       SELECT
@@ -401,7 +399,6 @@ router.post("/:id/comments", authorize, async (req, res) => {
       return res.status(400).json({ ok: false, error: "content-required" });
     }
 
-    // make sure route exists
     const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
     if (!route) {
       return res.status(404).json({ ok: false, error: "route-not-found" });
@@ -416,7 +413,6 @@ router.post("/:id/comments", authorize, async (req, res) => {
       [userId, routeId, rawContent]
     );
 
-    // grab username for immediate UI display
     const user = await db.get(
       `SELECT username FROM users WHERE id = $1`,
       [userId]
@@ -435,3 +431,5 @@ router.post("/:id/comments", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "comment-create-failed" });
   }
 });
+
+module.exports = router;
