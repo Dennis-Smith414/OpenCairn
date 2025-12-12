@@ -254,7 +254,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     }
   }, [currentPosition, tripStats.isPaused, doUpdateStats]);
 
-  // ✅ Single animation effect controlling bottom position
+  // Single animation effect controlling bottom position
   useEffect(() => {
     let targetValue = -200; // hidden off-screen by default
 
@@ -262,7 +262,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
       if (hasWaypointDetail) {
         targetValue = 200; // push higher when detail sheet is open (if you still show it)
       } else if (hasActiveWaypoint) {
-        targetValue = 100; // raised a bit when small popup is active
+        targetValue = 140; // raised a bit when small popup is active
       } else {
         targetValue = 8; // normal resting position
       }

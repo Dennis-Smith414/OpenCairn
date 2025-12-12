@@ -292,7 +292,7 @@ export default function FileManagerScreen() {
 
           {/* Backend Mode Selector */}
           <View style={styles.modeSection}>
-            <Text style={styles.modeLabel}>Backend Mode</Text>
+            <Text style={styles.modeLabel}>Toggle Online / Offline Mode</Text>
 
             <View style={styles.modeRow}>
               <ModeChip
