@@ -85,7 +85,7 @@ export async function fetchRouteList() {
 /** Create a route (owner = current user). */
 export async function createRoute(
   token: string,
-  payload: { name: string; region?: string; slug?: string }
+  payload: { name: string; region?: string; slug?: string; description?: string }
 ): Promise<Route> {
   const API_BASE = getBaseUrl();
 

@@ -123,7 +123,11 @@ router.post("/", authorize, async (req, res) => {
     const userId = req.user.id;
     const name = (req.body.name ?? "").trim();
     const region = (req.body.region ?? null) || null;
-    if (!name) return res.status(400).json({ ok: false, error: "name-required" });
+    const description = (req.body.description ?? null) || null; // 🔹 NEW
+
+    if (!name) {
+      return res.status(400).json({ ok: false, error: "name-required" });
+    }
 
     // generate a simple slug if not provided
     const slug =
@@ -134,14 +138,16 @@ router.post("/", authorize, async (req, res) => {
           Date.now().toString(36)).toLowerCase();
 
     const row = await db.get(
-      `INSERT INTO routes (user_id, slug, name, region)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO routes (user_id, slug, name, region, description)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (slug) DO NOTHING
-       RETURNING id, slug, name, region, user_id, created_at, updated_at`,
-      [userId, slug, name, region]
+       RETURNING id, slug, name, region, description, user_id, created_at, updated_at`,
+      [userId, slug, name, region, description] // 🔹 NEW arg
     );
 
-    if (!row) return res.status(409).json({ ok: false, error: "slug-conflict" });
+    if (!row) {
+      return res.status(409).json({ ok: false, error: "slug-conflict" });
+    }
     res.status(201).json({ ok: true, route: row });
   } catch (e) {
     console.error("POST /routes failed:", e);
@@ -149,13 +155,15 @@ router.post("/", authorize, async (req, res) => {
   }
 });
 
+
 // ---------- PATCH /api/routes/:id  (update; owner only)
 router.patch("/:id", authorize, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const userId = req.user.id;
-    const name = (req.body.name ?? null);
-    const region = (req.body.region ?? null);
+    const name = req.body.name ?? null;
+    const region = req.body.region ?? null;
+    const description = req.body.description ?? null; // 🔹 NEW
 
     const owner = await db.get(`SELECT user_id FROM routes WHERE id = $1`, [id]);
     if (!owner) return res.status(404).json({ ok: false, error: "not-found" });
@@ -164,12 +172,13 @@ router.patch("/:id", authorize, async (req, res) => {
 
     const row = await db.get(
       `UPDATE routes
-          SET name = COALESCE($1, name),
-              region = COALESCE($2, region),
-              updated_at = NOW()
-        WHERE id = $3
-        RETURNING id, slug, name, region, user_id, updated_at`,
-      [name, region, id]
+          SET name        = COALESCE($1, name),
+              region      = COALESCE($2, region),
+              description = COALESCE($3, description),
+              updated_at  = NOW()
+        WHERE id = $4
+        RETURNING id, slug, name, region, description, user_id, updated_at`,
+      [name, region, description, id] // 🔹 shift params
     );
 
     res.json({ ok: true, route: row });
@@ -178,6 +187,7 @@ router.patch("/:id", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "update-failed" });
   }
 });
+
 
 // ---------- DELETE /api/routes/:id  (delete; owner only)
 router.delete("/:id", authorize, async (req, res) => {
@@ -381,54 +391,3 @@ router.post("/:id/comments", authorize, async (req, res) => {
     res.status(500).json({ ok: false, error: "comment-create-failed" });
   }
 });
-
-// ---------- POST /api/routes/:id/comments  (add comment to route)
-router.post("/:id/comments", authorize, async (req, res) => {
-  try {
-    const routeId = Number(req.params.id);
-    const userId = req.user.id;
-    const rawContent = (req.body.content ?? "").trim();
-
-    if (!Number.isInteger(routeId)) {
-      return res.status(400).json({ ok: false, error: "bad-route-id" });
-    }
-    if (!rawContent) {
-      return res.status(400).json({ ok: false, error: "content-required" });
-    }
-
-    // make sure route exists
-    const route = await db.get(`SELECT id FROM routes WHERE id = $1`, [routeId]);
-    if (!route) {
-      return res.status(404).json({ ok: false, error: "route-not-found" });
-    }
-
-    const row = await db.get(
-      `
-      INSERT INTO comments (user_id, kind, waypoint_id, route_id, content)
-      VALUES ($1, 'route', NULL, $2, $3)
-      RETURNING id, content, created_at, updated_at, edited
-      `,
-      [userId, routeId, rawContent]
-    );
-
-    // grab username for immediate UI display
-    const user = await db.get(
-      `SELECT username FROM users WHERE id = $1`,
-      [userId]
-    );
-
-    res.status(201).json({
-      ok: true,
-      comment: {
-        ...row,
-        user_id: userId,
-        username: user?.username ?? null,
-      },
-    });
-  } catch (e) {
-    console.error("POST /routes/:id/comments failed:", e);
-    res.status(500).json({ ok: false, error: "comment-create-failed" });
-  }
-});
-
-module.exports = router;
