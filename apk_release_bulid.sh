@@ -21,13 +21,26 @@ echo "Installing npm dependencies...."
 npm install
 
 echo "Setting current version to $CURRENT_VERSION" 
-sed -i "s/VERSION_PATCH \".*\"/VERSION_PATCH \"$DESIRED_VERSION\"/" "$NODE_MOBILE_DIR/android/version.properties"
 
 PATCH_NUM=$(echo $CURRENT_VERSION | cut -d'.' -f3)
-NEW_VERSION_CODE=$((PATCH_NUM + 1))
-sed -i "s/VERSION_PATCH [0-9]*/VERSION_PATCH $NEW_VERSION_CODE/" "$NODE_MOBILE_DIR/android/version.properties"
 
-echo "Final version code is: $NEW_VERSION_CODE"
+echo "Setting patch version to $PATCH_NUM from $CURRENT_VERSION"
+
+sed -i "s/VERSION_PATCH=.*/VERSION_PATCH=$PATCH_NUM/" "$NODE_MOBILE_DIR/android/version.properties"
+
+CURRENT_MAJOR=$(grep 'VERSION_MAJOR=' "$NODE_MOBILE_DIR/android/version.properties" | cut -d'=' -f2)
+CURRENT_MINOR=$(grep 'VERSION_MINOR=' "$NODE_MOBILE_DIR/android/version.properties" | cut -d'=' -f2)
+
+NEW_VERSION_CODE=$((CURRENT_MAJOR * 10000 + CURRENT_MINOR * 100 + PATCH_NUM))
+
+
+echo "Version: $CURRENT_MAJOR.$CURRENT_MINOR.$PATCH_NUM"
+echo "Version code: $NEW_VERSION_CODE"
+
+NEW_VERSION="$MAJOR_NUM.$MINOR_NUM.$NEW_PATCH_NUM"
+echo "New version will be: $NEW_VERSION"
+CURRENT_VERSION="$NEW_VERSION"
+echo "CURRENT_VERSION is now: $CURRENT_VERSION"
 
 echo "Bundling JavaScript"
 mkdir -p "$NODE_MOBILE_DIR/android/app/src/main/assets"
