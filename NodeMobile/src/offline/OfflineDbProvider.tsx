@@ -38,6 +38,9 @@ export function OfflineDbProvider({ children, withSeed = false }: Props) {
       } catch (err) {
         console.error("[offline-db] init error", err);
         // You might choose to surface this via UI later
+        console.log("[offline-db] Props:", { children, withSeed });
+        console.log("[offline-db] Children type:", typeof children);
+        console.log("[offline-db] Children value:", children);
       }
     }
 

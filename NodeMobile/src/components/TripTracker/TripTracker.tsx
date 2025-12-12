@@ -262,7 +262,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
       if (hasWaypointDetail) {
         targetValue = 200; // push higher when detail sheet is open (if you still show it)
       } else if (hasActiveWaypoint) {
-        targetValue = 100; // raised a bit when small popup is active
+        targetValue = 140; // raised a bit when small popup is active
       } else {
         targetValue = 8; // normal resting position
       }
