@@ -288,22 +288,21 @@ const MapScreen: React.FC = () => {
       >
       <Text style={styles.toggleButtonText}>
           {showTripTracker ? '📊' : '📊'}
-          {showTripTracker ? 'Hide Tracker' : 'Show Tracker'}
         </Text>
       </TouchableOpacity>
 
       {/* Trip Tracker Component */}
-      {tracks.length > 0 && (
-        <TripTracker
-          totalRouteDistance={routeTotalDistance}
-          currentPosition={userLocation}
-          tracks={tracks}
-          onStatsUpdate={setTripStats}
-          hasActiveWaypoint={hasActiveWaypoint}
-          hasWaypointDetail={hasWaypointDetail} 
-          visible={showTripTracker}
-        />
-      )}
+    {tracks.length > 0 && (
+      <TripTracker
+        totalRouteDistance={routeTotalDistance}
+        currentPosition={userLocation}
+        tracks={tracks}
+        onStatsUpdate={setTripStats}
+        hasActiveWaypoint={!!selectedWaypoint && !showWaypointDetail}
+        hasWaypointDetail={hasWaypointDetail}
+        visible={showTripTracker && !showWaypointDetail}
+      />
+    )}
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>
@@ -356,14 +355,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   trackerToggleButton: {
     position: 'absolute',
-    
-    top: 225, 
-    right: 12,
-    
+    bottom: 450,
+    right: 6,
     backgroundColor: '#fff', 
-    width: 40,
-    height: 40,
-    borderRadius: 8, 
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     

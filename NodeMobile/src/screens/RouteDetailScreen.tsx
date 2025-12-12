@@ -16,6 +16,7 @@ import { syncRouteToOffline } from "../lib/bringOffline";
 import { useAuth } from "../context/AuthContext";
 import { useRouteSelection } from "../context/RouteSelectionContext"; // ✅ NEW
 import { getRouteOffline } from "../offline/routes/routes";
+import { fetchCurrentUser } from "../lib/api";
 
 
 export default function RouteDetailScreen({ route, navigation }) {
@@ -33,6 +34,8 @@ export default function RouteDetailScreen({ route, navigation }) {
 
   const [syncing, setSyncing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const loadDetail = useCallback(async () => {
     try {
@@ -65,6 +68,27 @@ export default function RouteDetailScreen({ route, navigation }) {
         setIsOffline(false);
       }
     }, [routeId]);
+
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        if (!userToken) {
+          if (mounted) setCurrentUser(null);
+          return;
+        }
+        try {
+          const me = await fetchCurrentUser(userToken);
+          if (mounted) setCurrentUser(me);
+        } catch (e) {
+          console.log("[RouteDetail] Failed to fetch /me", e);
+        }
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, [userToken]);
+
 
   useEffect(() => {
     if (routeName) {
@@ -158,6 +182,11 @@ export default function RouteDetailScreen({ route, navigation }) {
       : "";
 
   const isSelected = selectedRouteIds.includes(detail.id);
+  const isOwner =
+      !!currentUser &&
+      detail.user_id != null &&
+      Number(currentUser.id) === Number(detail.user_id);
+
 
   return (
     <View style={[globalStyles.container, { padding: 16 }]}>
@@ -186,6 +215,8 @@ export default function RouteDetailScreen({ route, navigation }) {
           {detail.description}
         </Text>
       ) : null}
+
+
 
       {/* ------- META CARD ------- */}
       <View
@@ -262,7 +293,37 @@ export default function RouteDetailScreen({ route, navigation }) {
           </View>
         )}
       </View>
-
+{/* Owner-only Edit Route button */}
+      {isOwner && (
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("RouteEdit", {
+              routeId: detail.id,
+              routeName: detail.name,
+            })
+          }
+          style={{
+            alignSelf: "flex-start",
+            marginTop: 4,
+            marginBottom: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: colors.accent,
+          }}
+        >
+          <Text
+            style={{
+              color: colors.accent,
+              fontWeight: "600",
+              fontSize: 14,
+            }}
+          >
+            Edit Route
+          </Text>
+        </TouchableOpacity>
+      )}
       {/* ------- COMMENTS ------- */}
       <View
         style={{

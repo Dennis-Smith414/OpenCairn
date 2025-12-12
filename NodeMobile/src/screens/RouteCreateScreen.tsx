@@ -100,6 +100,14 @@ export default function RouteCreateScreen({ navigation }: any) {
       style={[globalStyles.container, styles.container]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* Back Button (matches RouteDetailScreen style) */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={{ alignSelf: "flex-start", marginLeft: 8, marginBottom: 8 }}
+      >
+        <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
+      </TouchableOpacity>
+
       <Text style={globalStyles.headerText}>Create New Route</Text>
 
       <ScrollView
@@ -139,6 +147,7 @@ export default function RouteCreateScreen({ navigation }: any) {
             editable={!uploading}
             multiline
           />
+
           {/* Primary picker */}
           <TouchableOpacity
             style={[globalStyles.fileButton, files.length > 0 && globalStyles.fileButtonSelected]}
