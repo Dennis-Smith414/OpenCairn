@@ -326,30 +326,37 @@ const MapScreen: React.FC = () => {
         onExpand={handleExpandWaypoint}
         onClose={() => setSelectedWaypoint(null)}
       />
-
-      <WaypointDetail
-        visible={showWaypointDetail}
-        id={selectedWaypoint?.id}
-        name={selectedWaypoint?.name ?? ""}
-        description={selectedWaypoint?.description ?? ""}
-        type={selectedWaypoint?.type ?? "generic"}
-        username={selectedWaypoint?.username ?? "Unknown user"}
-        dateUploaded={selectedWaypoint?.created_at ?? ""}
-        distance={selectedWaypoint?.distance}
-        onClose={handleCloseWaypointDetail}
-        iconRequire={selectedWaypoint?.iconRequire}
-        ownerId={selectedWaypoint?.user_id}
-        onDeleted={handleWaypointDeleted}
-      />
-
       {showError && (
         <View style={styles.overlay}>
           <Text style={styles.errorText}>{error || locationError}</Text>
         </View>
       )}
+
+      {selectedWaypoint && (
+        <View
+          style={styles.waypointDetailWrapper}
+          pointerEvents="box-none"
+        >
+          <WaypointDetail
+            visible={showWaypointDetail}
+            id={selectedWaypoint?.id}
+            name={selectedWaypoint?.name ?? ""}
+            description={selectedWaypoint?.description ?? ""}
+            type={selectedWaypoint?.type ?? "generic"}
+            username={selectedWaypoint?.username ?? "Unknown user"}
+            dateUploaded={selectedWaypoint?.created_at ?? ""}
+            distance={selectedWaypoint?.distance}
+            onClose={handleCloseWaypointDetail}
+            iconRequire={selectedWaypoint?.iconRequire}
+            ownerId={selectedWaypoint?.user_id}
+            onDeleted={handleWaypointDeleted}
+          />
+        </View>
+      )}
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -400,6 +407,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 24,
   },
+    waypointDetailWrapper: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 9999,      // iOS
+      elevation: 9999,   // Android
+    },
 });
 
 export default MapScreen;

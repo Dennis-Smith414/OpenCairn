@@ -254,7 +254,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     }
   }, [currentPosition, tripStats.isPaused, doUpdateStats]);
 
-  // ✅ Single animation effect controlling bottom position
+  // Single animation effect controlling bottom position
   useEffect(() => {
     let targetValue = -200; // hidden off-screen by default
 
