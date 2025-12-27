@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5100";
 
 interface Route {
   id: number;
@@ -13,7 +13,8 @@ export default function RoutesList() {
   const [items, setItems] = useState<Route[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/routes/list?limit=50`)
+    // server uses /api/routes for list with ?limit/offset
+    fetch(`${API}/api/routes?limit=50`)
       .then((r) => r.json())
       .then((data) => setItems(data.items ?? []))
       .catch(console.error);

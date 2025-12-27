@@ -1,5 +1,7 @@
 // Server/index.js
-require("dotenv").config({ path: __dirname + "/.env", override: true });
+// Load .env if present, but DO NOT override existing environment variables
+// (this allows docker-compose / container env vars to take precedence).
+require("dotenv").config({ path: __dirname + "/.env" });
 
 if (!process.env.DATABASE_URL) {
   console.error("[boot] ❌ No DATABASE_URL found. Check your .env");

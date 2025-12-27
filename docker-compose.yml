@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  db:
+    # Use a PostGIS-enabled image so the server can create the postgis extension
+    image: postgis/postgis:15-3.3
+    container_name: oc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: trails
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d trails || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build: ./Server
+    container_name: oc-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5100:5100"
+    environment:
+      # point the server to the db service
+      DATABASE_URL: "postgres://app:pass@db:5432/trails"
+      JWT_SECRET: "dev-secret-change-me"
+      PORT: 5100
+      # don't use SSL for local Postgres container
+      DB_SSL: "false"
+    # mount source for convenience during development (preserve container node_modules)
+    volumes:
+      - ./Server:/usr/src/app:delegated
+      - /usr/src/app/node_modules
+
+volumes:
+  db-data:
+    name: oc-postgres-data

@@ -31,7 +31,7 @@ describe("fetchRouteList()", () => {
 
     expect((globalThis as any).fetch).toHaveBeenCalledTimes(1);
     const urlArg = ((globalThis as any).fetch as jest.Mock).mock.calls[0][0] as string;
-    expect(urlArg).toMatch(/\/api\/routes\/list/);
+    expect(urlArg).toMatch(/\/api\/routes(\/|$|\?)/);
 
     expect(items).toHaveLength(2);
     expect(items[0].name).toBe("Ice Age Trail – Kettle Moraine");
@@ -97,7 +97,7 @@ describe("fetchRouteList()", () => {
       })
     );
 
-    await expect(fetchRouteList()).rejects.toThrow(/Bad JSON from \/routes\/list/i);
+    await expect(fetchRouteList()).rejects.toThrow(/Bad JSON from \/routes/i);
   });
 
   it("throws a clear error when fetch returns empty text", async () => {
@@ -108,7 +108,7 @@ describe("fetchRouteList()", () => {
       })
     );
 
-    await expect(fetchRouteList()).rejects.toThrow(/Bad JSON from \/routes\/list/i);
+    await expect(fetchRouteList()).rejects.toThrow(/Bad JSON from \/routes/i);
   });
 
   it("preserves order of items from the backend", async () => {

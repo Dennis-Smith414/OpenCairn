@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import L, { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API = import.meta.env.VITE_API_BASE || "http://localhost:5100";
 
 export default function RouteView() {
   const { id } = useParams<{ id: string }>();

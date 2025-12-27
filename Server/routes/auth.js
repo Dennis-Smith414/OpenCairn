@@ -85,17 +85,18 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
-    let { username, password } = req.body || {};
-    username = (username || "").trim();
+    // Accept either { username, password } or { emailOrUsername, password }
+    let { username, emailOrUsername, password } = req.body || {};
+    const identifier = (username || emailOrUsername || "").trim();
 
-    if (!isNonEmpty(username) || !isNonEmpty(password)) {
-      return res.status(400).json({ ok: false, error: "Username and password are required." });
+    if (!isNonEmpty(identifier) || !isNonEmpty(password)) {
+      return res.status(400).json({ ok: false, error: "Username/email and password are required." });
     }
 
-    // Find the user by their username
+    // Find the user by username OR email (case-insensitive)
     const result = await pool.query(
-      `SELECT id, username, password_hash FROM users WHERE LOWER(username) = LOWER($1)`,
-      [username]
+      `SELECT id, username, password_hash FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
+      [identifier]
     );
 
     if (result.rowCount === 0) {

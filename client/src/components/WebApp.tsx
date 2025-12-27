@@ -150,7 +150,7 @@ const Icons = {
 const API =
   (import.meta as any)?.env?.VITE_API_BASE ||
   (window as any)?.__API_BASE__ ||
-  "http://localhost:5000";
+  "http://localhost:5100";
 
 const authHeader = (): Record<string, string> => {
   const t = localStorage.getItem("token");
@@ -176,13 +176,14 @@ declare global {
 
 /* ============================ API CALLS ============================ */
 async function fetchRouteList(): Promise<RouteItem[]> {
-  const r = await fetch(`${API}/api/routes/list`, { headers: authHeader() });
+  // server exposes listing at /api/routes (with optional ?limit/offset/q)
+  const r = await fetch(`${API}/api/routes`, { headers: authHeader() });
   const txt = await r.text();
   try {
     const j = JSON.parse(txt);
     return Array.isArray(j?.items) ? j.items : [];
   } catch {
-    console.warn("Bad JSON from /api/routes/list:", txt);
+    console.warn("Bad JSON from /api/routes:", txt);
     return [];
   }
 }
@@ -297,11 +298,67 @@ function RoutesScreen({
     );
   }, [routes, q]);
 
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleUploadFile(file?: File | null) {
+    if (!file) return;
+    setLoading(true);
+    setErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+
+      const res = await fetch(`${API}/api/routes/upload`, {
+        method: "POST",
+        headers: {
+          ...authHeader(),
+        },
+        body: fd,
+      });
+
+      const body = await res.json().catch(() => ({ ok: false }));
+      if (!res.ok || !body?.ok) {
+        setErr((body && (body.error || JSON.stringify(body))) || `Upload failed (${res.status})`);
+      } else {
+        // refresh list after success
+        try {
+          const list = await fetchRouteList();
+          setRoutes(list);
+        } catch {
+          // ignore
+        }
+        alert(`Upload succeeded — ${body.segments || 0} segment(s).`);
+      }
+    } catch (e: any) {
+      setErr(e?.message || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", gap: 12 }}>
-        <button style={sx.primaryPill} onClick={() => alert("Upload Route (wire this to backend)")}>
-          + Create / Upload Route
+        <input
+          ref={fileRef}
+          style={{ display: "none" }}
+          type="file"
+          accept=".gpx,application/gpx+xml,text/xml"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            // clear input so same-file re-upload works
+            e.currentTarget.value = "";
+            if (f) handleUploadFile(f);
+          }}
+        />
+        <button
+          style={sx.primaryPill}
+          onClick={() => {
+            fileRef.current?.click?.();
+          }}
+          disabled={loading}
+        >
+          {loading ? "Uploading…" : "+ Create / Upload Route"}
         </button>
         <input
           placeholder="Search routes…"

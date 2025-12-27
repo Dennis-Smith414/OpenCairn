@@ -6,7 +6,7 @@ import { useNavigate, Link } from "react-router-dom";
 const API =
   (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE ||
   (window as unknown as { __API_BASE__?: string })?.__API_BASE__ ||
-  "http://localhost:5000";
+  "http://localhost:5100";
 
 export default function Login() {
   const [emailOrUsername, setEmailOrUsername] = useState<string>("");

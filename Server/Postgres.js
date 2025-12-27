@@ -3,10 +3,21 @@ require("dotenv").config();
 
 const { Pool } = require("pg");
 
+// Decide whether to enable SSL for the PG connection.
+// - If DB_SSL=true -> use SSL
+// - If DATABASE_URL contains sslmode=require or we're in production, also enable SSL
+// Otherwise disable SSL (useful for local Docker/postgres setups)
+const connString = process.env.DATABASE_URL;
+const wantsSslFromEnv = String(process.env.DB_SSL || "").toLowerCase() === "true";
+const wantsSslFromUrl = (connString || "").includes("sslmode=require") || (connString || "").includes("sslmode=verify-full");
+const useSsl = wantsSslFromEnv || wantsSslFromUrl || process.env.NODE_ENV === "production";
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  connectionString: connString,
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
 });
+
+console.log("[Postgres] using ssl:", useSsl);
 
 pool
   .connect()
