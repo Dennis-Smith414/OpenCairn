@@ -15,6 +15,8 @@ module.exports = {
   // Stable defaults for RN + Jest
   transformIgnorePatterns: [
     'node_modules/(?!(react-native|@react-native|react-clone-referenced-element|@react-navigation)/)',
+    '<rootDir>/node_modules/',
+    '<rootDir>/__tests__/setup.js',
   ],
 
 
