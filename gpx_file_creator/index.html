@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Open Cairn GPX Creator</title>
+
+<!-- CSS for Leaflet -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+	<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	
+
+	<img src="images/OCLogoLight.png" alt="OpenCairn Logo" style="display: block; margin: 0 auto; width: 200px">
+
+	<div id="map"></div>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script src="map.js"></script>
+	<script src="waypoints.js"></script>
+	<script src="config.js"></script>
+
+	<div class="waypoint_buttons">
+		<input type="text" id="trackName" placeholder="Hike Name" value="Enter hike name">
+		<button onclick="downloadGPX()">Download GPX</button>
+		<button onclick="clearTrack()">Clear Track</button>
+		<button onclick="undoPoint()">Undo</button>
+	</div>
+
+	<p class="text">
+		<li>A simple GPX file Creator</li>
+		<li>Click on the map to add a waypoint</li> 
+		<li>To improve accuracy keep points close to each other</li>
+	</p>
+
+	<a href="https://github.com/Dennis-Smith414/OpenCairn" target="_blank" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 50px; color: #333; text-decoration: none;">
+		<i class="fab fa-github"></i>
+	</a>
+</body>
+</html>
