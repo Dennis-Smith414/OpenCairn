@@ -10,7 +10,10 @@ module.exports = {
     '<rootDir>/nodejs-assets/',            // we test the RN app here, not the embedded node bundle
   ],
 
-
+  testPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/__tests__/setup.js',
+  ],
 
   // Stable defaults for RN + Jest
   transformIgnorePatterns: [
