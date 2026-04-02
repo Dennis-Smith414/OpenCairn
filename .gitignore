@@ -60,6 +60,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+NodeMobile/src/config/env.ts
 
 # Build outputs
 build/
@@ -113,3 +114,12 @@ pids
 Offline/offline.db
 /Offline/tiledata
 /Offline/tiledata
+
+# Local dev scripts (may contain IPs or sensitive config)
+dev-startup.js
+apk_client.sh
+apk_release_bulid.sh
+
+# Android build artifacts (compiled bundles contain hardcoded config)
+*.bundle
+NodeMobile/android/app/src/main/assets/index.android.bundle
