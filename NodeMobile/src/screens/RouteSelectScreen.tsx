@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   StyleSheet,
+  Linking,
 } from "react-native";
 
 import { useThemeStyles } from "../styles/theme";
@@ -597,6 +598,16 @@ export default function RouteSelectScreen({ navigation }: any) {
           >
             {routes.length ? "No matching routes." : "No routes found."}
           </Text>
+        }
+        ListFooterComponent={
+          <TouchableOpacity
+            onPress={() => Linking.openURL("https://opencairn.xyz/gpx/")}
+            style={{ paddingVertical: 16, alignItems: "center" }}
+          >
+            <Text style={{ color: colors.accent, fontSize: 14 }}>
+              Need a route? Create one here.
+            </Text>
+          </TouchableOpacity>
         }
       />
     </View>
