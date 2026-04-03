@@ -24,3 +24,5 @@ jobs:
         run: cd NodeMobile && npm test
         env:
           CI: true
+          API_BASE: ${{ secrets.API_BASE }}
+
