@@ -1,6 +1,6 @@
 //Same test that should return a JWT
 
-import { API_BASE } from '../src/config/env';
+const API_BASE = process.env.API_BASE;
 
 test('login returns a JWT', async () => {
 	const res = await fetch(`${API_BASE}/api/auth/login`, {
