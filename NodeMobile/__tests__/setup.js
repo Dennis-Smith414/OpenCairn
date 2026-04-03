@@ -1,7 +1,6 @@
 //A file that contains repeated fucnctions that will need to be shared
 
-const { API_BASE } = require('../src/config/env');
-const BASE_URL = API_BASE;
+const BASE_URL = process.env.API_BASE;
 
 
 async function login() {
