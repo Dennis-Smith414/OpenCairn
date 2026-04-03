@@ -1,6 +1,7 @@
 module.exports = {
   preset: 'react-native',
   testEnvironment: 'node',
+  globalSetup: './jest.globalSetup.js',
 
   // Ignore Android build outputs and the packaged nodejs-assets copy
   modulePathIgnorePatterns: [
