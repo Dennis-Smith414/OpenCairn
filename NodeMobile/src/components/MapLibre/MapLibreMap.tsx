@@ -452,7 +452,8 @@ const MapLibreMap: React.FC<Props> = ({
         />
 
         {/* Native user location dot */}
-        <UserLocation visible onUpdate={onUserLocUpdate} />
+        <UserLocation visible={true} showsUserHeadingIndicator={true} onUpdate={onUserLocUpdate} />
+
 
         {/* Routes */}
         {routeFeatures.map(({ id, feature }) => (
