@@ -17,7 +17,7 @@ import { useThemeStyles } from "../../styles/theme"; // ✅ ADDED
 import { fetchComments, postComment, deleteComment, updateComment } from "../../lib/comments";
 import { fetchCommentRating, submitCommentVote } from "../../lib/ratings";
 import { useAuth } from "../../context/AuthContext";
-import { fetchCurrentUser } from "../../lib/api";
+import { fetchCurrentUser, reportComment } from "../../lib/api";
 import { CommentEditBox } from "../comments/CommentEditBox";
 
 // ---- Types from unified backend ----
@@ -54,8 +54,9 @@ export const CommentList: React.FC<CommentListProps> = (props) => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
+  const [reportingId, setReportingId] = useState<number | null>(null);
 
-  const { colors: theme } = useThemeStyles(); // ✅ ADDED
+  const { colors: theme } = useThemeStyles();
 
   // Load current user (for "You" badge + edit/delete auth)
 useEffect(() => {
@@ -183,6 +184,42 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
 };
 
 
+  // Report
+  const handleReport = (id: number) => {
+    if (!userToken) {
+      Alert.alert("Sign in required", "You must be logged in to report a comment.");
+      return;
+    }
+    Alert.alert(
+      "Report Comment",
+      "Report this comment as harmful or inappropriate?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: async () => {
+            setReportingId(id);
+            try {
+              const result = await reportComment(id, userToken);
+              Alert.alert(
+                "Report submitted",
+                result.actioned
+                  ? "The comment has been hidden pending review."
+                  : "Thanks — your report has been recorded."
+              );
+            } catch {
+              Alert.alert("Error", "Failed to submit report. Please try again.");
+            } finally {
+              setReportingId(null);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Render item
   const renderComment = ({ item }: { item: Comment }) => {
     const rating = ratings[item.id] || { total: 0, user_rating: null };
@@ -285,6 +322,16 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
                 </TouchableOpacity>
               </View>
             )}
+
+            <TouchableOpacity
+              onPress={() => handleReport(item.id)}
+              disabled={reportingId === item.id}
+              style={styles.reportBtn}
+            >
+              <Text style={styles.reportBtnText}>
+                {reportingId === item.id ? "Reporting…" : "Report"}
+              </Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
@@ -442,4 +489,6 @@ const styles = StyleSheet.create({
   editBtn: { backgroundColor: colors.accent },
   deleteBtn: { backgroundColor: colors.error || "#d33" },
   actionBtnText: { color: "#fff", fontWeight: "700" },
+  reportBtn: { alignSelf: "flex-start", marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1, borderColor: "#aaa", borderRadius: 6 },
+  reportBtnText: { fontSize: 12, color: "#888" },
 });

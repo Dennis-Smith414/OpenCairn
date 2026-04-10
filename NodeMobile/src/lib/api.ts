@@ -126,6 +126,21 @@ export async function fetchCurrentUser(token: string) {
   return json.user;
 }
 
+// --- report a comment ---
+export async function reportComment(commentId: number, token: string) {
+  const base = getBase();
+  const res = await fetch(`${base}/api/comments/${commentId}/report`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const text = await res.text();
+  const json = safeJson(text);
+  if (!res.ok || !json?.ok) {
+    throw new Error(`Failed to report comment (${res.status}) :: ${text.slice(0, 200)}`);
+  }
+  return json;
+}
+
 // --- fetch comments for a route ---
 export async function fetchRouteComments(routeId: number) {
   const base = getBase();
