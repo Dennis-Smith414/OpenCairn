@@ -1,0 +1,285 @@
+appId: com.nodemobile
+---
+- launchApp:
+    clearState: true
+- tapOn: "Login"
+- tapOn: "Username"
+- inputText: "testsuite"
+- tapOn: "Password"
+- inputText: "Tester@123"
+- tapOn: "Log In"
+- tapOn: "Log In"
+- waitForAnimationToEnd
+- tapOn:
+    point: 7%,93%
+- assertVisible: "Select Routes"
+- tapOn: "\uff0b Create / Upload Route"
+- tapOn: "Enter route name"
+- inputText: "Test Route"
+- tapOn: "Select GPX File(s)"
+- tapOn:
+    id: "icon_thumb"
+- assertVisible: "Create New Route"
+- tapOn: "Create Route"
+- assertVisible: "Route created with 1 GPX file."
+- tapOn: "OK"
+
+- swipe:
+    start: 50%, 30%
+    end: 50%, 80%
+    duration: 800
+
+
+- tapOn: "Test Route, 0"
+- waitForAnimationToEnd
+- tapOn: "Test Route"
+- tapOn: "Add to Map"
+- assertVisible: "This route will now appear on your map."
+- tapOn: "OK"
+
+- waitForAnimationToEnd
+- tapOn:
+    point: 32%,93%
+- assertVisible: "Trip Tracker"
+
+- setLocation:
+    latitude: 43.07965296605701
+    longitude: -87.88083743465967
+
+- tapOn: "Start Trip"
+- setLocation:
+    latitude: 43.07965296605701
+    longitude: -87.88083743465967
+- waitForAnimationToEnd:
+    timeout: 14700
+- setLocation:
+    latitude: 43.079833164515634
+    longitude: -87.8807891508093
+- waitForAnimationToEnd:
+    timeout: 15300
+- setLocation:
+    latitude: 43.08001140377402
+    longitude: -87.88069258310861
+- waitForAnimationToEnd:
+    timeout: 10900
+- setLocation:
+    latitude: 43.080130882547024
+    longitude: -87.88060674515246
+- waitForAnimationToEnd:
+    timeout: 8700
+- setLocation:
+    latitude: 43.08019355984301
+    longitude: -87.88072745477834
+- waitForAnimationToEnd:
+    timeout: 8100
+- setLocation:
+    latitude: 43.08026994771078
+    longitude: -87.88081865760675
+- waitForAnimationToEnd:
+    timeout: 7100
+- setLocation:
+    latitude: 43.08035417012125
+    longitude: -87.88085621171258
+- waitForAnimationToEnd:
+    timeout: 3900
+- setLocation:
+    latitude: 43.08037179805296
+    longitude: -87.8809179077436
+- waitForAnimationToEnd:
+    timeout: 16400
+- setLocation:
+    latitude: 43.08057158092473
+    longitude: -87.88097960377459
+- waitForAnimationToEnd:
+    timeout: 3800
+- setLocation:
+    latitude: 43.08057941553389
+    longitude: -87.88104398224172
+- waitForAnimationToEnd:
+    timeout: 5400
+- setLocation:
+    latitude: 43.08057158092473
+    longitude: -87.88113518507016
+- waitForAnimationToEnd:
+    timeout: 7800
+- setLocation:
+    latitude: 43.080599002052395
+    longitude: -87.88126125956829
+- waitForAnimationToEnd:
+    timeout: 12200
+- setLocation:
+    latitude: 43.080730231564736
+    longitude: -87.88136587457737
+- waitForAnimationToEnd:
+    timeout: 11400
+- setLocation:
+    latitude: 43.08076156991418
+    longitude: -87.88155632754265
+- waitForAnimationToEnd:
+    timeout: 11200
+- setLocation:
+    latitude: 43.080824246564966
+    longitude: -87.88172532101886
+- waitForAnimationToEnd:
+    timeout: 7300
+- setLocation:
+    latitude: 43.080908468213494
+    longitude: -87.88177092243309
+- waitForAnimationToEnd:
+    timeout: 17200
+- setLocation:
+    latitude: 43.08111608387586
+    longitude: -87.88169581422143
+- waitForAnimationToEnd:
+    timeout: 6400
+- setLocation:
+    latitude: 43.081165049731425
+    longitude: -87.88160997626525
+- waitForAnimationToEnd:
+    timeout: 14100
+- setLocation:
+    latitude: 43.08123556049469
+    longitude: -87.88157242215942
+- waitForAnimationToEnd:
+    timeout: 5600
+- setLocation:
+    latitude: 43.081282567625145
+    longitude: -87.88135246239673
+- waitForAnimationToEnd:
+    timeout: 8200
+- setLocation:
+    latitude: 43.08132957471952
+    longitude: -87.88128271905734
+- waitForAnimationToEnd:
+    timeout: 5700
+- setLocation:
+    latitude: 43.08143142330023
+    longitude: -87.88128271905734
+- waitForAnimationToEnd:
+    timeout: 6800
+- setLocation:
+    latitude: 43.081474513033434
+    longitude: -87.88120492840955
+- waitForAnimationToEnd:
+    timeout: 13000
+- setLocation:
+    latitude: 43.08151172686955
+    longitude: -87.8811029958366
+- waitForAnimationToEnd:
+    timeout: 2900
+- setLocation:
+    latitude: 43.08143142330023
+    longitude: -87.88070867772542
+- waitForAnimationToEnd:
+    timeout: 8300
+- setLocation:
+    latitude: 43.081400085293424
+    longitude: -87.88068453580023
+- waitForAnimationToEnd:
+    timeout: 14300
+- setLocation:
+    latitude: 43.081370705897484
+    longitude: -87.88054773155758
+- waitForAnimationToEnd:
+    timeout: 6600
+- setLocation:
+    latitude: 43.08124731228069
+    longitude: -87.88038410295361
+- waitForAnimationToEnd:
+    timeout: 9400
+- setLocation:
+    latitude: 43.08117092563145
+    longitude: -87.88033581910325
+- waitForAnimationToEnd:
+    timeout: 10100
+- setLocation:
+    latitude: 43.08105536616061
+    longitude: -87.88036800833684
+- waitForAnimationToEnd:
+    timeout: 6200
+- setLocation:
+    latitude: 43.08098289655069
+    longitude: -87.88040556244265
+- waitForAnimationToEnd:
+    timeout: 10600
+- setLocation:
+    latitude: 43.080859502152876
+    longitude: -87.88046725847366
+- waitForAnimationToEnd:
+    timeout: 7100
+- setLocation:
+    latitude: 43.08080270147351
+    longitude: -87.88048335309044
+- waitForAnimationToEnd:
+    timeout: 6800
+- setLocation:
+    latitude: 43.080738066153614
+    longitude: -87.88049140039881
+- waitForAnimationToEnd:
+    timeout: 5200
+- setLocation:
+    latitude: 43.08065972021989
+    longitude: -87.88057455591888
+- waitForAnimationToEnd:
+    timeout: 13800
+- setLocation:
+    latitude: 43.080602919355314
+    longitude: -87.88061747489697
+- waitForAnimationToEnd:
+    timeout: 9600
+- setLocation:
+    latitude: 43.080493234778146
+    longitude: -87.88057723835502
+- waitForAnimationToEnd:
+    timeout: 8400
+- setLocation:
+    latitude: 43.08039530195405
+    longitude: -87.88052090719626
+- waitForAnimationToEnd:
+    timeout: 12800
+- setLocation:
+    latitude: 43.080340459504164
+    longitude: -87.88049140039881
+- waitForAnimationToEnd:
+    timeout: 6000
+- setLocation:
+    latitude: 43.080179849189996
+    longitude: -87.88055041399369
+- waitForAnimationToEnd:
+    timeout: 13000
+- setLocation:
+    latitude: 43.08012304788055
+    longitude: -87.88061747489697
+- waitForAnimationToEnd:
+    timeout: 9900
+- setLocation:
+    latitude: 43.08009366787224
+    longitude: -87.88065234656665
+- waitForAnimationToEnd:
+    timeout: 6300
+- setLocation:
+    latitude: 43.079944808946934
+    longitude: -87.88073550208671
+- waitForAnimationToEnd:
+    timeout: 13300
+- setLocation:
+    latitude: 43.079772445529
+    longitude: -87.88083743465967
+- waitForAnimationToEnd:
+    timeout: 1400
+- setLocation:
+    latitude: 43.07965884210207
+    longitude: -87.88085621171258
+- tapOn: "Pause Trip"
+
+- waitForAnimationToEnd
+- tapOn:
+    point: 59%,94%
+- tapOn: "My Routes, \u25b6"
+- assertVisible: "Test Route"
+- tapOn: "Delete"
+- tapOn: "DELETE"
+- assertVisible: "No routes"
+- tapOn: "My Routes, \u25bc"
+- tapOn: "Settings"
+- tapOn: "Log Out"
