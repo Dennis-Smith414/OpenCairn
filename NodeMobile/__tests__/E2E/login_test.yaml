@@ -1,0 +1,13 @@
+appId: com.nodemobile
+---
+- launchApp:
+    clearState: true
+- tapOn: "Login"
+- tapOn: "Username"
+- inputText: "testsuite"
+- tapOn: "Password"
+- inputText: "Tester@123"
+- tapOn: "Log In"
+- tapOn: "Log In"
+- tapOn: "Settings"
+- tapOn: "Log Out"
