@@ -51,6 +51,7 @@ const MapScreen: React.FC = () => {
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
+  const [progressMap, setProgressMap] = useState<Record<string | number, number>>({});
   const {
     location,
     loading: locationLoading,
@@ -228,6 +229,24 @@ const MapScreen: React.FC = () => {
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
+  useEffect(() => {
+    if (!userLocation || tracks.length === 0) return;
+    const next: Record<string | number, number> = {};
+    tracks.forEach((track) => {
+      const flat: LatLng[] = Array.isArray(track.coords[0])
+        ? (track.coords as LatLng[][]).flat()
+        : (track.coords as LatLng[]);
+      let minDist = Infinity;
+      let nearestIdx = 0;
+      flat.forEach((point, i) => {
+        const d = calculateDistance(userLocation, point);
+        if (d < minDist) { minDist = d; nearestIdx = i; }
+      });
+      next[track.id] = nearestIdx;
+    });
+    setProgressMap(next);
+  }, [userLocation, tracks]);
+
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
   };
@@ -270,6 +289,7 @@ const MapScreen: React.FC = () => {
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}
         waypoints={waypoints}
+        progressMap={progressMap}
         onWaypointPress={(wp) => {
           if (!wp) {
             setSelectedWaypoint(null);
