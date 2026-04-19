@@ -1,0 +1,45 @@
+appId: com.nodemobile
+---
+- launchApp:
+    clearState: true
+- tapOn: "Login"
+- tapOn: "Username"
+- inputText: "testsuite"
+- tapOn: "Password"
+- inputText: "Tester@123"
+- tapOn: "Log In"
+- tapOn: "Log In"
+- waitForAnimationToEnd
+- tapOn:
+    point: 7%,93%
+- assertVisible: "Select Routes"
+- tapOn: "\uff0b Create / Upload Route"
+- tapOn: "Enter route name"
+- inputText: "Test Route"
+- tapOn: "Select GPX File(s)"
+- tapOn:
+    id: "icon_thumb"
+- assertVisible: "Create New Route"
+- tapOn: "Create Route"
+- assertVisible: "Route created with 1 GPX file."
+- tapOn: "OK"
+
+- swipe:
+    start: 50%, 30%
+    end: 50%, 80%
+    duration: 800
+
+
+- waitForAnimationToEnd
+- tapOn:
+    point: 59%,94%
+- tapOn: "My Routes, \u25b6"
+- assertVisible: "Test Route"
+- tapOn: "Delete"
+- tapOn: "DELETE"
+- assertVisible: "No routes"
+- tapOn: "My Routes, \u25bc"
+- tapOn: "Settings"
+- tapOn: "Log Out"
+
+
