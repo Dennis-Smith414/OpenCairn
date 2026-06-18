@@ -371,6 +371,7 @@ export default function RouteSelectScreen({ navigation }: any) {
       >
         {/* Nearby pill */}
         <TouchableOpacity
+          testID="route-select-nearby-button"
           onPress={() => setShowNearbyOnly((prev) => !prev)}
           style={{
             flexDirection: "row",
@@ -398,6 +399,7 @@ export default function RouteSelectScreen({ navigation }: any) {
 
         {/* Favorites pill */}
         <TouchableOpacity
+          testID="route-select-favorites-button"
           onPress={() => setShowFavoritesOnly((prev) => !prev)}
           style={{
             flexDirection: "row",
@@ -553,6 +555,7 @@ export default function RouteSelectScreen({ navigation }: any) {
             width: "100%",
           },
         ]}
+        testID="route-select-create-button"
         onPress={() => navigation.navigate("RouteCreate")}
       >
         <Text style={globalStyles.buttonText}>＋ Create / Upload Route</Text>

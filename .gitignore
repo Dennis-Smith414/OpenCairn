@@ -70,6 +70,7 @@ out/
 # Testing
 /coverage
 .nyc_output
+props/
 
 # Fastlane
 **/fastlane/report.xml

@@ -18,12 +18,14 @@ export default function LandingScreen({ navigation }: any) {
 
             {/* Buttons */}
             <TouchableOpacity
+                testID="landing-login-button"
                 style={[globalStyles.button, globalStyles.buttonPrimary]}
                 onPress={() => navigation.navigate("Login")}>
                 <Text style={[globalStyles.buttonText]}>Login</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
+                testID="landing-create-account-button"
                 style={[globalStyles.button, globalStyles.buttonSecondary]}
                 onPress={() => navigation.navigate("CreateAccount")}>
                 <Text style={[globalStyles.buttonText]}>Create Account</Text>

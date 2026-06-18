@@ -102,6 +102,7 @@ export default function RouteCreateScreen({ navigation }: any) {
     >
       {/* Back Button (matches RouteDetailScreen style) */}
       <TouchableOpacity
+        testID="route-create-back-button"
         onPress={() => navigation.goBack()}
         style={{ alignSelf: "flex-start", marginLeft: 8, marginBottom: 8 }}
       >
@@ -150,6 +151,7 @@ export default function RouteCreateScreen({ navigation }: any) {
 
           {/* Primary picker */}
           <TouchableOpacity
+            testID="route-create-pick-files-button"
             style={[globalStyles.fileButton, files.length > 0 && globalStyles.fileButtonSelected]}
             onPress={pickFiles}
             disabled={uploading}
@@ -190,6 +192,7 @@ export default function RouteCreateScreen({ navigation }: any) {
           {/* Secondary actions: always visible to keep layout stable */}
           <View style={styles.fileActionsRow}>
             <TouchableOpacity
+              testID="route-create-add-gpx-button"
               style={[styles.smallBtn, { borderColor: colors.accent }]}
               onPress={pickFiles}
               disabled={uploading}
@@ -198,6 +201,7 @@ export default function RouteCreateScreen({ navigation }: any) {
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="route-create-clear-button"
               style={[styles.smallBtn, { borderColor: colors.border, opacity: files.length ? 1 : 0.5 }]}
               onPress={clearAll}
               disabled={uploading || files.length === 0}
@@ -215,6 +219,7 @@ export default function RouteCreateScreen({ navigation }: any) {
       {/* Sticky footer with centered CTA */}
       <View style={styles.footer}>
         <TouchableOpacity
+          testID="route-create-submit-button"
           style={[
             globalStyles.button,
             globalStyles.buttonPrimary,
