@@ -128,6 +128,7 @@ export default function WaypointEditScreen({ navigation }: any) {
     >
       {/* Back */}
       <TouchableOpacity
+        testID="waypoint-edit-back-button"
         onPress={() => navigation.goBack()}
         style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}
       >
@@ -227,7 +228,8 @@ export default function WaypointEditScreen({ navigation }: any) {
       </View>
 
       <TouchableOpacity
-        style={[baseStyles.button, { backgroundColor: c.primary }]} // ⬅️ themed btn
+        testID="waypoint-edit-save-button"
+        style={[baseStyles.button, { backgroundColor: c.primary }]}
         onPress={handleSave}
         disabled={saving}
       >
