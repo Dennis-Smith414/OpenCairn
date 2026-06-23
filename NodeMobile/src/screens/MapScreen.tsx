@@ -11,7 +11,6 @@ import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
 import TripTracker from '../components/TripTracker/TripTracker';
-
 // NEW: MapLibre map component (Leaflet-compatible props)
 import MapLibreMap, { LatLng, Track } from "../components/MapLibre/MapLibreMap";
 
@@ -282,6 +281,7 @@ const MapScreen: React.FC = () => {
       />
 
       <TouchableOpacity
+        testID="map-tracker-toggle-button"
         style={styles.trackerToggleButton}
         onPress={() => setShowTripTracker(prev => !prev)}
         activeOpacity={0.7}

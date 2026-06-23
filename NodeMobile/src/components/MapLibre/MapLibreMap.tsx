@@ -557,6 +557,7 @@ const MapLibreMap: React.FC<Props> = ({
 
       {/* Center-on-user */}
       <TouchableOpacity
+        testID="map-center-button"
         style={[
           styles.zoomBtn,
           styles.centerBtn,
@@ -570,6 +571,7 @@ const MapLibreMap: React.FC<Props> = ({
       {/* Follow-me pill */}
       {showTrackingButton && (
         <TouchableOpacity
+          testID="map-tracking-pill"
           onPress={tracking ? undefined : enableTracking}
           activeOpacity={0.85}
           style={[styles.pill, tracking ? styles.pillOn : styles.pillOff]}

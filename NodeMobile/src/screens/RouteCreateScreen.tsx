@@ -31,6 +31,16 @@ export default function RouteCreateScreen({ navigation }: any) {
     Array.isArray(chosen) ? chosen : chosen ? [chosen] : [];
 
   const pickFiles = async () => {
+    if (__DEV__) {
+      const testPath = `${RNFS.ExternalDirectoryPath}/Downer_Woods.gpx`;
+      const exists = await RNFS.exists(testPath);
+      if (exists) {
+        const dest = `${RNFS.CachesDirectoryPath}/Downer_Woods.gpx`;
+        await RNFS.copyFile(testPath, dest);
+        setFiles([{ uri: `file://${dest}`, name: 'Downer_Woods.gpx' }]);
+        return;
+      }
+    }
     try {
       const chosen = await pick({ allowMultiSelection: true } as any);
       const arr = normalizeSelection(chosen);
@@ -119,6 +129,7 @@ export default function RouteCreateScreen({ navigation }: any) {
         <View style={styles.form}>
           <Text style={globalStyles.label}>Route Name *</Text>
           <TextInput
+            testID="route-name-input"
             style={globalStyles.input}
             placeholder="Enter route name"
             placeholderTextColor={colors.textSecondary}
