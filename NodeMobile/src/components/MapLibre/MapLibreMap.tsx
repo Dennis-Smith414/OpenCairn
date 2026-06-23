@@ -64,6 +64,7 @@ interface Props {
   waypoints?: Waypoint[];
   onWaypointPress?: (wp: Waypoint | null) => void;
   showTrackingButton?: boolean; // default true
+  progressMap?: Record<string | number, number>;
 }
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
@@ -96,6 +97,7 @@ const MapLibreMap: React.FC<Props> = ({
   waypoints = [],
   onWaypointPress,
   showTrackingButton = true,
+  progressMap = {},
 }) => {
   const cameraRef = useRef<any>(null);
   const [tracking, setTracking] = useState<boolean>(true);
@@ -163,24 +165,40 @@ const MapLibreMap: React.FC<Props> = ({
     []
   );
 
-  // Convert tracks → MultiLineString features (lon,lat order)
-  const routeFeatures = useMemo(() => {
+  // Convert tracks → split hiked (gray) + remaining (blue) features
+  const splitRouteFeatures = useMemo(() => {
     return tracks.map((t) => {
-      const multi: number[][][] = Array.isArray(t.coords[0])
-        ? (t.coords as LatLng[][]).map((seg) =>
-            seg.map(([lat, lon]) => [lon, lat])
-          )
-        : [[(t.coords as LatLng[]).map(([lat, lon]) => [lon, lat])]];
+      const flatLatLng: LatLng[] = Array.isArray(t.coords[0])
+        ? (t.coords as LatLng[][]).flat()
+        : (t.coords as LatLng[]);
+
+      const flatGeo = flatLatLng.map(([lat, lon]) => [lon, lat]);
+      const progressIdx = progressMap[t.id] ?? -1;
+      const color = t.color || '#0a84ff';
+      const weight = t.weight ?? 3;
+
+      const hikedCoords = progressIdx >= 1 ? flatGeo.slice(0, progressIdx + 1) : null;
+      const remainingCoords = progressIdx >= 0 && progressIdx < flatGeo.length - 1
+        ? flatGeo.slice(progressIdx)
+        : flatGeo;
+
       return {
         id: `route-${t.id}`,
-        feature: {
-          type: "Feature" as const,
-          geometry: { type: "MultiLineString" as const, coordinates: multi },
-          properties: { color: t.color || "#0a84ff", weight: t.weight ?? 3 },
+        color,
+        weight,
+        hikedFeature: hikedCoords && hikedCoords.length >= 2 ? {
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: hikedCoords },
+          properties: { weight },
+        } : null,
+        remainingFeature: {
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: remainingCoords },
+          properties: { color, weight },
         },
       };
     });
-  }, [tracks]);
+  }, [tracks, progressMap]);
 
   // Waypoints as FeatureCollection
   const waypointFC = useMemo(() => {
@@ -455,18 +473,32 @@ const MapLibreMap: React.FC<Props> = ({
         <UserLocation visible={true} showsUserHeadingIndicator={true} onUpdate={onUserLocUpdate} />
 
 
-        {/* Routes */}
-        {routeFeatures.map(({ id, feature }) => (
-          <ShapeSource key={id} id={id} shape={feature}>
-            <LineLayer
-              id={`${id}-line`}
-              style={{
-                lineColor: ["get", "color"],
-                lineWidth: ["get", "weight"],
-                lineOpacity: 0.95,
-              }}
-            />
-          </ShapeSource>
+        {/* Routes — split into hiked (gray) and remaining (blue) */}
+        {splitRouteFeatures.map(({ id, hikedFeature, remainingFeature }) => (
+          <React.Fragment key={id}>
+            <ShapeSource id={`${id}-remaining`} shape={remainingFeature}>
+              <LineLayer
+                id={`${id}-remaining-line`}
+                style={{
+                  lineColor: ["get", "color"],
+                  lineWidth: ["get", "weight"],
+                  lineOpacity: 0.95,
+                }}
+              />
+            </ShapeSource>
+            {hikedFeature && (
+              <ShapeSource id={`${id}-hiked`} shape={hikedFeature}>
+                <LineLayer
+                  id={`${id}-hiked-line`}
+                  style={{
+                    lineColor: "#888888",
+                    lineWidth: ["get", "weight"],
+                    lineOpacity: 0.7,
+                  }}
+                />
+              </ShapeSource>
+            )}
+          </React.Fragment>
         ))}
 
         {/* Waypoints (clustered) */}
