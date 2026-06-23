@@ -1,5 +1,6 @@
 // screens/RouteSelectScreen.tsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -218,9 +219,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, []);
 
-  useEffect(() => {
-    loadRoutes();
-  }, [loadRoutes]);
+  useFocusEffect(loadRoutes);
 
   // ✅ Upvote / Downvote handler using same pattern as WaypointPopup
   const handleVote = useCallback(
@@ -371,6 +370,7 @@ export default function RouteSelectScreen({ navigation }: any) {
       >
         {/* Nearby pill */}
         <TouchableOpacity
+          testID="route-select-nearby-button"
           onPress={() => setShowNearbyOnly((prev) => !prev)}
           style={{
             flexDirection: "row",
@@ -398,6 +398,7 @@ export default function RouteSelectScreen({ navigation }: any) {
 
         {/* Favorites pill */}
         <TouchableOpacity
+          testID="route-select-favorites-button"
           onPress={() => setShowFavoritesOnly((prev) => !prev)}
           style={{
             flexDirection: "row",
@@ -521,13 +522,14 @@ export default function RouteSelectScreen({ navigation }: any) {
         ]}
       >
         <TextInput
+          testID="route-select-search-input"
           value={query}
           onChangeText={setQuery}
           placeholder="Search name / region…"
           placeholderTextColor={colors.textSecondary ?? "#888"}
           style={[
             styles.searchInput,
-            { color: colors.textPrimary }, // theme-aware text color
+            { color: colors.textPrimary },
           ]}
           returnKeyType="search"
         />
@@ -553,6 +555,7 @@ export default function RouteSelectScreen({ navigation }: any) {
             width: "100%",
           },
         ]}
+        testID="route-select-create-button"
         onPress={() => navigation.navigate("RouteCreate")}
       >
         <Text style={globalStyles.buttonText}>＋ Create / Upload Route</Text>

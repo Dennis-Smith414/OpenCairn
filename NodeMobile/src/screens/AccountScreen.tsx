@@ -287,8 +287,10 @@ export default function AccountScreen({ navigation }: any) {
     navigation.navigate("WaypointEdit", { id });
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      testID="account-scroll-view"
+      style={{ flex: 1 }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       refreshControl = {<RefreshControl
@@ -478,16 +480,19 @@ subtitle={`${w.route_name} • ${w.type} • ${safeDateLabel(
         )}
       </AccountSection>
 
-      <TouchableOpacity
-        style={[
-          globalStyles.button,
-          globalStyles.buttonSecondary,
-          globalStyles.settingsButton,
-        ]}
-        onPress={() => navigation.navigate("Settings")}
-      >
-        <Text style={globalStyles.buttonText}>Settings</Text>
-      </TouchableOpacity>
     </ScrollView>
+    <TouchableOpacity
+      testID="account-settings-button"
+      style={[
+        globalStyles.button,
+        globalStyles.buttonSecondary,
+        globalStyles.settingsButton,
+        { margin: 20 },
+      ]}
+      onPress={() => navigation.navigate("Settings")}
+    >
+      <Text style={globalStyles.buttonText}>Settings</Text>
+    </TouchableOpacity>
+    </View>
   );
 }

@@ -105,6 +105,7 @@ function MainTabs() {
         name="Routes"
         component={RoutesStack}
         options={{
+          tabBarButtonTestID: 'tab-routes',
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/RouteSelectLight.png")}
@@ -117,6 +118,7 @@ function MainTabs() {
         name="Map"
         component={MapStack}
         options={{
+          tabBarButtonTestID: 'tab-map',
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/MapLight.png")}
@@ -129,6 +131,7 @@ function MainTabs() {
         name="Account"
         component={AccountStack}
         options={{
+          tabBarButtonTestID: 'tab-account',
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/AccountLight.png")}
@@ -141,6 +144,7 @@ function MainTabs() {
         name="Files"
         component={FileManagerScreen}
         options={{
+          tabBarButtonTestID: 'tab-files',
           tabBarIcon: ({ color }) => (
             <Image
               source={require("../assets/icons/FilesLight.png")}

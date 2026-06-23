@@ -192,6 +192,7 @@ export default function RouteDetailScreen({ route, navigation }) {
     <View style={[globalStyles.container, { padding: 16 }]}>
       {/* Back Button (matches SettingsScreen style) */}
       <TouchableOpacity
+        testID="route-detail-back-button"
         onPress={() => navigation.goBack()}
         style={{ alignSelf: "flex-start", marginLeft: 8, marginBottom: 8 }}
       >
@@ -354,6 +355,7 @@ export default function RouteDetailScreen({ route, navigation }) {
       >
         {/* SELECT/DESELECT ROUTE BUTTON */}
         <TouchableOpacity
+          testID="route-detail-toggle-map-button"
           onPress={handleToggleSelected}
           style={[
             globalStyles.button,
@@ -384,6 +386,7 @@ export default function RouteDetailScreen({ route, navigation }) {
 
         {/* ------- OFFLINE BUTTON ------- */}
         <TouchableOpacity
+          testID="route-detail-offline-button"
           onPress={handleOfflineSave}
           disabled={syncing}
           style={[

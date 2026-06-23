@@ -24,8 +24,9 @@ export default function SettingsScreen() {
   return (
     <View style={[globalStyles.container, { alignItems: "flex-start", paddingHorizontal: 24 }]}>
       {/* Back Button */}
-      <TouchableOpacity 
-        onPress={() => navigation.goBack()} 
+      <TouchableOpacity
+        testID="settings-back-button"
+        onPress={() => navigation.goBack()}
         style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}
       >
         <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
@@ -72,6 +73,7 @@ export default function SettingsScreen() {
       </View>
 
       <TouchableOpacity
+        testID="settings-logout-button"
         style={[globalStyles.button, globalStyles.buttonPrimary, globalStyles.logoutButton]}
         onPress={logout}
       >
