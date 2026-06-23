@@ -27,7 +27,8 @@ project.ext.versionCode = versionMajor * 10000 + versionMinor * 100 + versionPat
 project.ext.react = [
     enableHermes: true,
     bundleInRelease: true,
-    bundleInDebug: false,
+    bundleInDebug: true,
+    devDisabledInDebug: true,
     devDisabledInRelease: true
 ]
 
@@ -118,6 +119,7 @@ android {
 
         buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
         buildConfigField "int", "VERSION_CODE", project.versionCode.toString()
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 }
     applicationVariants.all { variant ->
         if (variant.buildType.name == "release") {
@@ -143,6 +145,7 @@ android {
             keyPassword 'android'
         }
     }
+    testBuildType "debug"
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -158,6 +161,7 @@ android {
 }
 
 dependencies {
+    androidTestImplementation('com.wix:detox:+')
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 

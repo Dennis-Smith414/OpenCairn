@@ -90,8 +90,9 @@ export default function WaypointCreateScreen({ navigation }: any) {
       showsVerticalScrollIndicator={false}
     >
       {/* Back Button */}
-      <TouchableOpacity 
-        onPress={() => navigation.goBack()} 
+      <TouchableOpacity
+        testID="waypoint-create-back-button"
+        onPress={() => navigation.goBack()}
         style={{ alignSelf: "flex-start", marginLeft: 24, marginBottom: 8 }}
       >
         <Text style={{ fontSize: 16, color: colors.accent }}>← Back</Text>
@@ -172,6 +173,7 @@ export default function WaypointCreateScreen({ navigation }: any) {
 
       {/* Submit Button */}
       <TouchableOpacity
+        testID="waypoint-create-submit-button"
         style={[globalStyles.button, globalStyles.buttonPrimary]}
         onPress={handleSubmit}
       >

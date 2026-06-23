@@ -147,6 +147,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     {error && <Text style={globalStyles.error}>{error}</Text>}
 
                     <TouchableOpacity
+                        testID="create-account-submit-button"
                         style={[globalStyles.button, globalStyles.buttonPrimary, globalStyles.createButton]}
                         onPress={handleCreateAccount}
                     >
@@ -154,6 +155,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     </TouchableOpacity>
 
                     <TouchableOpacity
+                        testID="create-account-cancel-button"
                         style={[globalStyles.button, globalStyles.buttonSecondary]}
                         onPress={() => navigation.goBack()}
                     >

@@ -133,6 +133,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
 
                     <TextInput
+                        testID="login-username-input"
                         style={globalStyles.input}
                         placeholder="Username"
                         placeholderTextColor={colors.placeholder}
@@ -143,6 +144,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                     />
 
                     <TextInput
+                        testID="login-password-input"
                         style={globalStyles.input}
                         placeholder="Password"
                         placeholderTextColor={colors.placeholder}
@@ -169,6 +171,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                     {error && <Text style={globalStyles.error}>{error}</Text>}
 
                     <TouchableOpacity
+                        testID="login-submit-button"
                         style={[globalStyles.button, globalStyles.buttonPrimary]}
                         onPress={handleLogin}
                     >
@@ -176,6 +179,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity
+                        testID="login-cancel-button"
                         style={[globalStyles.button, globalStyles.buttonSecondary]}
                         onPress={() => navigation.goBack()}
                     >

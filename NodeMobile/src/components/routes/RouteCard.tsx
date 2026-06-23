@@ -50,6 +50,7 @@ export const RouteCard: React.FC<Props> = ({
 
   return (
     <TouchableOpacity
+      testID={`route-card-${item.name}`}
       onPress={onOpenDetail}
       activeOpacity={0.85}
       style={[
