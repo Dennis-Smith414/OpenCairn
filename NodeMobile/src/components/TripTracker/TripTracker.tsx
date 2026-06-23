@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated } from 'react
 import { useThemeStyles } from '../../styles/theme';
 import { createGlobalStyles } from '../../styles/globalStyles';
 import { useDistanceUnit } from '../../context/DistanceUnitContext';
+import { isE2E } from '../../utils/isE2E';
 
 interface TripStats {
   distanceRemaining: number;          // meters
@@ -247,8 +248,8 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     );
   }, [totalRouteDistance, onStatsUpdate]);
 
-  // Hook into position changes
   useEffect(() => {
+    if (isE2E) return;
     if (currentPosition && !tripStats.isPaused) {
       doUpdateStats();
     }
@@ -287,7 +288,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
     if (!tripStats.isPaused && tripStats.lastResumeTime) {
       tripTimerRef.current = setInterval(() => {
         doUpdateStats();
-      }, 1000);
+      }, isE2E ? 5000 : 1000);
     }
 
     return () => {
@@ -332,6 +333,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 
   return (
     <Animated.View
+      testID="trip-tracker-container"
       style={[
         styles.container,
         {
@@ -378,6 +380,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
 
       <View style={styles.controls}>
         <TouchableOpacity
+          testID="trip-tracker-start-pause-button"
           style={[
             styles.controlButton,
             tripStats.isPaused ? styles.startButton : styles.pauseButton,
@@ -391,6 +394,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
+          testID="trip-tracker-reset-button"
           style={[styles.controlButton, styles.resetButton]}
           onPress={resetTrip}
           activeOpacity={0.7}

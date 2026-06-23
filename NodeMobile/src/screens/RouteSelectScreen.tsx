@@ -1,5 +1,6 @@
 // screens/RouteSelectScreen.tsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -218,9 +219,7 @@ export default function RouteSelectScreen({ navigation }: any) {
     }
   }, []);
 
-  useEffect(() => {
-    loadRoutes();
-  }, [loadRoutes]);
+  useFocusEffect(loadRoutes);
 
   // ✅ Upvote / Downvote handler using same pattern as WaypointPopup
   const handleVote = useCallback(
@@ -523,13 +522,14 @@ export default function RouteSelectScreen({ navigation }: any) {
         ]}
       >
         <TextInput
+          testID="route-select-search-input"
           value={query}
           onChangeText={setQuery}
           placeholder="Search name / region…"
           placeholderTextColor={colors.textSecondary ?? "#888"}
           style={[
             styles.searchInput,
-            { color: colors.textPrimary }, // theme-aware text color
+            { color: colors.textPrimary },
           ]}
           returnKeyType="search"
         />

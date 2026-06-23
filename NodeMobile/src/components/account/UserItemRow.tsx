@@ -34,7 +34,7 @@ export const UserItemRow: React.FC<Props> = ({
           </TouchableOpacity>
         ) : null}
         {onDelete ? (
-          <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity testID={`user-item-delete-${title}`} onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.delete}>Delete</Text>
           </TouchableOpacity>
         ) : null}
