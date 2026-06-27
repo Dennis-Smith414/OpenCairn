@@ -1,0 +1,27 @@
+diff --git a/node_modules/@maplibre/maplibre-react-native/android/src/main/java/org/maplibre/reactnative/components/location/LocationComponentManager.java b/node_modules/@maplibre/maplibre-react-native/android/src/main/java/org/maplibre/reactnative/components/location/LocationComponentManager.java
+index 67b5a88..2e39e16 100644
+--- a/node_modules/@maplibre/maplibre-react-native/android/src/main/java/org/maplibre/reactnative/components/location/LocationComponentManager.java
++++ b/node_modules/@maplibre/maplibre-react-native/android/src/main/java/org/maplibre/reactnative/components/location/LocationComponentManager.java
+@@ -153,12 +153,16 @@ public class LocationComponentManager {
+                     .foregroundDrawableStale(R.drawable.empty)
+                     .gpsDrawable(R.drawable.empty)
+                     .accuracyAlpha(0.0f);
+-        } else if (tintColor != null) {
+-            builder = builder
+-                    .enableStaleState(false)
+-                    .bearingTintColor(tintColor)
+-                    .foregroundTintColor(tintColor)
+-                    .accuracyColor(tintColor);
++        } else {
++            // Suppress the GPS accuracy ring around the puck (keeps the compass/dot)
++            builder = builder.accuracyAlpha(0.0f);
++            if (tintColor != null) {
++                builder = builder
++                        .enableStaleState(false)
++                        .bearingTintColor(tintColor)
++                        .foregroundTintColor(tintColor)
++                        .accuracyColor(tintColor);
++            }
+         }
+         return builder.build();
+     }
