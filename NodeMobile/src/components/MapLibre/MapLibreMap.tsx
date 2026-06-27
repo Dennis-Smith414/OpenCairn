@@ -469,10 +469,6 @@ const MapLibreMap: React.FC<Props> = ({
           }}
         />
 
-        {/* Native user location dot */}
-        <UserLocation visible={true} showsUserHeadingIndicator={true} onUpdate={onUserLocUpdate} />
-
-
         {/* Routes — split into hiked (gray) and remaining (blue) */}
         {splitRouteFeatures.map(({ id, hikedFeature, remainingFeature }) => (
           <React.Fragment key={id}>
@@ -575,6 +571,15 @@ const MapLibreMap: React.FC<Props> = ({
             />
           </ShapeSource>
         )}
+
+        {/* User location dot — native render mode so the OS draws. Other ways have been to inconsitant */}
+        <UserLocation
+          visible={true}
+          renderMode="native"
+          androidRenderMode="compass"
+          showsUserHeadingIndicator={true}
+          onUpdate={onUserLocUpdate}
+        />
       </MapView>
 
       {/* Zoom controls */}
