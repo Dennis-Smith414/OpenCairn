@@ -222,8 +222,12 @@ const MapScreen: React.FC = () => {
       };
     }, [loadWaypoints, selectedWaypoint?.id])
   );
-
-  const userLocation = location ? ([location.lat, location.lng] as LatLng) : null;
+  
+  //Fix the infite rendering error
+  const userLocation = useMemo<LatLng | null>(
+    () => (location ? [location.lat, location.lng] : null),
+    [location?.lat, location?.lng]
+  );
   const mapCenter = userLocation || DEFAULT_CENTER;
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
