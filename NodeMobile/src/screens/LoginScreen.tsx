@@ -185,6 +185,15 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
                     >
                         <Text style={globalStyles.buttonText}>Cancel</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        testID="login-forgot-password-button"
+                        onPress={() => navigation.navigate("ForgotPassword")}
+                    >
+                        <Text style={{ color: colors.primary, textAlign: "center", marginVertical: 12 }}>
+                            Forgot Password?
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
