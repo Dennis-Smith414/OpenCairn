@@ -20,7 +20,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
     const { colors } = useThemeStyles();
     const globalStyles = createGlobalStyles(colors);
     
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [rememberMe, setRememberMe] = useState(true);
     // Prevents the remember me toggle from flickering
@@ -54,7 +54,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
        }
 
 
-       if (!username.trim() || !password) {
+       if (!email.trim() || !password) {
            setError("Please fill out all fields.");
            return;
        }
@@ -63,7 +63,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
          const response = await fetch(`${API_BASE}/api/auth/login`, {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ username: username.trim(), password }),
+           body: JSON.stringify({ email: email.trim(), password }),
          });
          const responseText = await response.text();
          const data = JSON.parse(responseText);
@@ -133,14 +133,15 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
 
                     <TextInput
-                        testID="login-username-input"
+                        testID="login-email-input"
                         style={globalStyles.input}
-                        placeholder="Username"
+                        placeholder="Email"
                         placeholderTextColor={colors.placeholder}
-                        value={username}
-                        onChangeText={setUsername}
+                        value={email}
+                        onChangeText={setEmail}
                         returnKeyType="next"
                         autoCapitalize="none"
+                        keyboardType="email-address"
                     />
 
                     <TextInput

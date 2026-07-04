@@ -20,10 +20,10 @@ describe('hiking flow', () => {
 		console.log('[TEST] Tapping login button...');
 		await element(by.id('landing-login-button')).tap();
 
-		console.log('[TEST] Waiting for username input...');
-		await waitFor(element(by.id('login-username-input'))).toBeVisible().withTimeout(10000);
-		console.log('[TEST] Typing username...');
-		await element(by.id('login-username-input')).typeText(process.env.TEST_USERNAME);
+		console.log('[TEST] Waiting for email input...');
+		await waitFor(element(by.id('login-email-input'))).toBeVisible().withTimeout(10000);
+		console.log('[TEST] Typing email...');
+		await element(by.id('login-email-input')).typeText(process.env.TEST_EMAIL);
 		console.log('[TEST] Typing password...');
 		await element(by.id('login-password-input')).typeText(process.env.TEST_PASSWORD);
 		console.log('[TEST] Submitting via return key...');
