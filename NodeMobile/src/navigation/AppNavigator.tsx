@@ -10,6 +10,7 @@ import { useThemeStyles } from "../styles/theme"; // ← ADD
 // Screens
 import AccountCreationScreen from "../screens/AccountCreationScreen";
 import LoginScreen from "../screens/LoginScreen";
+import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import AccountScreen from "../screens/AccountScreen";
 import LandingScreen from "../screens/LandingScreen";
 import MapScreen from "../screens/MapScreen";
@@ -179,6 +180,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="CreateAccount" component={AccountCreationScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         ) : (
           <>
