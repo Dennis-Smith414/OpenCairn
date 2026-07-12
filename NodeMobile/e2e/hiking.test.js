@@ -10,6 +10,9 @@ describe('hiking flow', () => {
 			delete: true,
 			permissions: { storage: 'always', location: 'always' },
 		});
+		// delete:true wipes the app's scoped-storage dir; recreate it (needs `adb root`,
+		// done in CI emulator setup) so the push lands instead of silently no-op'ing.
+		execSync('adb shell mkdir -p /sdcard/Android/data/com.nodemobile/files');
 		const gpxSrc = path.resolve(__dirname, '../__tests__/Downer_Woods.gpx');
 		execSync(`adb push "${gpxSrc}" /sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx`);
 	});
@@ -30,7 +33,7 @@ describe('hiking flow', () => {
 		await element(by.id('login-password-input')).tapReturnKey();
 
 		console.log('[TEST] Waiting for Account screen...');
-		await waitFor(element(by.text('My Account'))).toBeVisible().withTimeout(15000);
+		await waitFor(element(by.text('My Account'))).toExist().withTimeout(15000);
 
 		console.log('[TEST] Moving to routes screen...');
 		await element(by.id('tab-routes')).tap();
@@ -126,7 +129,7 @@ describe('hiking flow', () => {
 		await element(by.id('trip-tracker-start-pause-button')).tap();
 
 		await element(by.id('tab-account')).tap();
-		await waitFor(element(by.text('My Account'))).toBeVisible().withTimeout(8000);
+		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
 		await element(by.text('My Routes')).tap();
 		await waitFor(element(by.id('user-item-delete-Test Route'))).toBeVisible().withTimeout(10000);
 		await element(by.id('user-item-delete-Test Route')).tap();

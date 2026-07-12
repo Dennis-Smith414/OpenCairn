@@ -9,5 +9,6 @@ module.exports = {
   reporters: ['detox/runners/jest/reporter'],
   testEnvironment: 'detox/runners/jest/testEnvironment',
   setupFiles: ['<rootDir>/e2e/setup-env.js'],
+  setupFilesAfterEnv: ['<rootDir>/e2e/setup-after-env.js'],
   verbose: true,
 };

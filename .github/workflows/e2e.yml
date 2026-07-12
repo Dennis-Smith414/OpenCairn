@@ -1,0 +1,247 @@
+name: E2E (self-hosted)
+
+# Full Detox E2E suite on the self-hosted KVM runner (openCairnRunner).
+# Codifies the manual headless recipe proven on 2026-07-11:
+#   hermetic docker backend (postgis + backend + seed on host :5102)
+#   + headless emulator (swiftshader) + detox build/test.
+#
+# Manual-trigger (workflow_dispatch) plus a TEMPORARY push trigger on the
+# ci/e2e-workflow branch so we can iterate to a first green run without
+# merging an unproven workflow into main. Remove the `push:` block before
+# merging. Later this becomes the RELEASE gate (see plan WS1b / WS3); fast
+# CRUD tests are the PR gate and run hosted, not here.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/e2e-workflow]   # TEMP — strip before merge to main
+
+# One E2E run at a time — the box has a single emulator lane (16GB / one KVM).
+concurrency:
+  group: e2e-self-hosted
+  cancel-in-progress: false
+
+env:
+  ANDROID_HOME: /opt/android-sdk
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  AVD_NAME: Medium_Phone_API_36.1
+  DETOX_CONFIG: android.emu.debug
+  # Seed creds are throwaway values baked into the hermetic test DB — NOT real
+  # secrets. They must match seed.js (SEED_EMAIL / SEED_PASSWORD) in the stack.
+  TEST_EMAIL: test@opencairn.xyz
+  TEST_PASSWORD: TestPass1!
+
+jobs:
+  e2e:
+    # MUST run on the HOST runner (openCairnRunner), which has direct /dev/kvm +
+    # docker. The 'host-kvm' label is unique to it — this keeps the job off the
+    # pre-existing containerized runner (no KVM, bind-mounted docker) that shares
+    # the default self-hosted/linux/x64 labels.
+    runs-on: [self-hosted, host-kvm]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Put Android SDK tools on PATH
+        run: |
+          echo "$ANDROID_HOME/platform-tools"       >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/emulator"             >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      # Ground truth: what the JOB actually sees (user, groups, docker socket).
+      # The interactive shell context has been misleading us — this reports the
+      # real execution context of the workflow.
+      - name: Debug — job execution context
+        run: |
+          echo "whoami: $(whoami)    HOME=$HOME"
+          echo "id: $(id)"
+          echo "--- /var/run/docker.sock (as the job sees it) ---"
+          ls -ln /var/run/docker.sock 2>&1 || echo "MISSING /var/run/docker.sock"
+          ls -ln /run/docker.sock 2>&1 || echo "MISSING /run/docker.sock"
+          echo "resolved: $(readlink -f /var/run/docker.sock 2>&1)"
+          echo "--- is /run a private mount for this job? ---"
+          grep -E ' /run | /var/run ' /proc/self/mountinfo || echo "(no private /run mount)"
+          echo "--- can the job reach docker? ---"
+          docker version 2>&1 | head -8 || true
+
+      # env.ts + .env are gitignored / per-machine — regenerate them for the
+      # clean checkout. TARGET=local => API_BASE=10.0.2.2:5102 (host from the
+      # emulator). OFFLINE_API_BASE stays :5101 (the app's offline sentinel),
+      # so the test target (:5102) stays distinct and actually hits the stack.
+      - name: Materialize gitignored config (env.ts + .env)
+        run: |
+          cat > NodeMobile/src/config/env.ts <<'EOF'
+          // GENERATED IN CI — do not commit
+          const TARGET = 'local';
+          const SERVERS = {
+            dev:  'http://75.135.85.117:5101',
+            prod: 'https://api.opencairn.xyz',
+            local: 'http://10.0.2.2:5102',
+          } as const;
+          export const API_BASE = SERVERS[TARGET];
+          console.log('[env] API_BASE =', API_BASE);
+          export const OFFLINE_API_BASE = "http://10.0.2.2:5101";
+          export const PMTILES_BASE = "http://127.0.0.1:5200";
+          EOF
+          printf 'TEST_EMAIL=%s\nTEST_PASSWORD=%s\n' "$TEST_EMAIL" "$TEST_PASSWORD" > NodeMobile/.env
+
+      # Fresh clone of the backend stack each run (hermetic). Uses the runner's
+      # on-disk SSH key (cairn_admin owns it, it's registered on GitHub) — no
+      # key material in Secrets. Pin to docker-test-stack until it merges to main.
+      - name: Bring up hermetic backend (postgis + backend + seed)
+        env:
+          BACKEND_SSH_KEY: ${{ secrets.BACKEND_SSH_KEY }}
+        run: |
+          rm -rf backend-stack
+          # Write the deploy key from Actions secrets to a temp file — HOME/user
+          # independent (the runner service's HOME is unreliable for reading
+          # ~/.ssh). Clones the private backend repo over SSH.
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$BACKEND_SSH_KEY" > "$RUNNER_TEMP/ssh/key"
+          chmod 600 "$RUNNER_TEMP/ssh/key"
+          GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            git clone --depth 1 --branch docker-test-stack \
+            git@github.com:Dennis-Smith414/OpenCairnDatabase.git backend-stack
+          cd backend-stack
+          docker compose up -d --build
+          echo "Waiting for backend health on :5102 ..."
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:5102/api/health >/dev/null; then
+              echo "backend healthy"; break
+            fi
+            sleep 3
+            [ "$i" = "40" ] && { echo "backend never became healthy"; docker compose logs; exit 1; }
+          done
+          # seed is one-shot; run it explicitly so we don't race the detached
+          # `up`. Idempotent (201 created / 409 already-exists both OK).
+          docker compose run --rm seed
+
+      # The AVD MUST use the `medium_phone` profile (1080x2400). The `pixel`
+      # profile (1080x1920) clips the delete button so Detox's 75%-visible tap
+      # constraint fails. --force recreates it correctly no matter what's already
+      # on the box — codifies the profile instead of a manual one-off.
+      - name: Create/refresh AVD (medium_phone profile)
+        run: |
+          echo "no" | avdmanager create avd --force \
+            -n "$AVD_NAME" \
+            -k "system-images;android-36;google_apis;x86_64" \
+            -d medium_phone
+
+      - name: Boot headless emulator
+        run: |
+          adb start-server
+          # -memory 4096: a stock avdmanager AVD defaults to ~1.5GB guest RAM,
+          # which the guest OOM-killer uses to reap the heavy RN app on launch
+          # (esp. with docker+Metro+Gradle sharing the box). Give it real RAM.
+          nohup emulator -avd "$AVD_NAME" \
+            -no-window -no-audio -no-snapshot -no-boot-anim -memory 4096 \
+            -gpu swiftshader_indirect \
+            > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb wait-for-device
+          echo "Waiting for sys.boot_completed ..."
+          for i in $(seq 1 60); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              echo "boot complete"; break
+            fi
+            sleep 3
+            [ "$i" = "60" ] && { echo "emulator never booted"; cat "$RUNNER_TEMP/emulator.log"; exit 1; }
+          done
+          # userdebug root so the tests can mkdir under scoped storage before adb
+          # push. `adb root` restarts adbd and the reconnect often races right
+          # after boot ("unable to connect for root: closed"); retry until it sticks.
+          for i in $(seq 1 10); do
+            adb root && break
+            echo "adb root not ready (attempt $i), retrying ..."
+            sleep 3
+            [ "$i" = "10" ] && { echo "adb root never connected"; exit 1; }
+          done
+          adb wait-for-device
+          # kill Detox timing flake
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          # fresh AVD can boot to a locked screen that hides the app
+          adb shell wm dismiss-keyguard || true
+          # bigger logcat buffer so a startup crash isn't lost to buffer roll
+          adb logcat -G 16M || true
+
+      - name: Install JS deps
+        run: cd NodeMobile && npm ci
+
+      - name: Detox build
+        run: cd NodeMobile && npx detox build -c "$DETOX_CONFIG"
+
+      # Metro is started HERE, in the same step as detox — a background process
+      # from an earlier step can be reaped before a later step uses it, leaving
+      # the debug app unable to load its JS bundle (blank screen, no landing
+      # button). Wait for Metro to actually answer, then run the suite.
+      - name: Detox test (Metro co-located)
+        run: |
+          cd NodeMobile
+          nohup npx react-native start > "$RUNNER_TEMP/metro.log" 2>&1 &
+          echo "Waiting for Metro to answer ..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8081/status | grep -q "packager-status:running"; then
+              echo "Metro is up"; break
+            fi
+            sleep 2
+            [ "$i" = "30" ] && { echo "Metro never came up"; cat "$RUNNER_TEMP/metro.log"; exit 1; }
+          done
+          # route the emulator's :8081 to host Metro for the JS bundle
+          adb reverse tcp:8081 tcp:8081 || true
+          # Warm the app once before the suite: the cold first launch under
+          # swiftshader is flaky (Metro's first bundle transform + GL warmup),
+          # and whichever spec runs first eats that instability. Prime it so the
+          # bundle is cached + graphics warm, then stop it for detox's clean launch.
+          echo "Warming the app before the suite ..."
+          adb shell monkey -p com.nodemobile -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          sleep 25
+          adb shell am force-stop com.nodemobile || true
+          # Capture the whole device log for the run so a startup crash survives,
+          # then surface the crash lines INLINE in this step (no artifact hunt).
+          mkdir -p "$RUNNER_TEMP/diag"
+          adb logcat -c || true
+          adb logcat > "$RUNNER_TEMP/diag/full-logcat.txt" 2>&1 &
+          LOGCAT_PID=$!
+          set +e
+          npx detox test -c "$DETOX_CONFIG" --headless --record-logs all
+          DETOX_EXIT=$?
+          set -e
+          kill "$LOGCAT_PID" 2>/dev/null || true
+          echo "==================== com.nodemobile crash lines ===================="
+          grep -iE "FATAL|AndroidRuntime|SIGSEGV|SIGABRT|lowmemorykiller|libc :|hermes|com\.nodemobile" \
+            "$RUNNER_TEMP/diag/full-logcat.txt" | tail -80 || true
+          echo "===================================================================="
+          exit $DETOX_EXIT
+
+      - name: Collect on-device diagnostics (on failure)
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/diag"
+          adb shell screencap -p /sdcard/screen.png && adb pull /sdcard/screen.png "$RUNNER_TEMP/diag/screen.png" || true
+          adb logcat -d > "$RUNNER_TEMP/diag/logcat.txt" || true
+          echo "--- Metro tail ---"; tail -n 40 "$RUNNER_TEMP/metro.log" || true
+
+      - name: Tear down backend stack
+        if: always()
+        run: |
+          if [ -d backend-stack ]; then cd backend-stack && docker compose down -v || true; fi
+
+      - name: Kill emulator + Metro
+        if: always()
+        run: |
+          adb -s emulator-5554 emu kill || true
+          pkill -f "react-native start" || true
+          pkill -f qemu-system || true
+
+      - name: Upload artifacts (screens/logs on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            NodeMobile/artifacts
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/metro.log
+            ${{ runner.temp }}/diag
+          if-no-files-found: ignore

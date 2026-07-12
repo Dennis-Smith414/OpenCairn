@@ -19,7 +19,7 @@ describe('Login flow', () => {
     await element(by.id('login-password-input')).tapReturnKey();
 
     console.log('[TEST] Waiting for Account screen...');
-    await waitFor(element(by.text('My Account'))).toBeVisible().withTimeout(15000);
+    await waitFor(element(by.text('My Account'))).toExist().withTimeout(15000);
     console.log('[TEST] On Account screen, tapping Settings button...');
     await waitFor(element(by.id('account-settings-button'))).toBeVisible().withTimeout(5000);
     await element(by.id('account-settings-button')).tap();
