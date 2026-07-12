@@ -13,13 +13,15 @@ module.exports = {
     'android.debug': {
       type: 'android.apk',
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
-      build: 'cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug',
+      build: 'cd android && ./gradlew :app:assembleDebug :app:assembleAndroidTest -DtestBuildType=debug',
       reversePorts: [8081, 8099],
     },
   },
   devices: {
     emulator: {
       type: 'android.emulator',
+      headless: true,
+      gpuMode: 'swiftshader_indirect',
       device: {
         avdName: 'Medium_Phone_API_36.1',
       },
