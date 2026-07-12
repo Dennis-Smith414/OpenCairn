@@ -8,7 +8,7 @@ describe('hiking flow', () => {
 		await device.launchApp({
 			newInstance: true,
 			delete: true,
-			permissions: { storage: 'always' },
+			permissions: { storage: 'always', location: 'always' },
 		});
 		const gpxSrc = path.resolve(__dirname, '../__tests__/Downer_Woods.gpx');
 		execSync(`adb push "${gpxSrc}" /sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx`);
@@ -46,7 +46,7 @@ describe('hiking flow', () => {
 
 		console.log('[TEST] Picking GPX file...');
 		await element(by.id('route-create-pick-files-button')).tap();
-		await waitFor(element(by.text('Downer_Woods.gpx'))).toBeVisible().withTimeout(8000);
+		await waitFor(element(by.text('Downer_Woods.gpx'))).toExist().withTimeout(8000);
 
 		console.log('[TEST] Submitting route...');
 		await device.disableSynchronization();

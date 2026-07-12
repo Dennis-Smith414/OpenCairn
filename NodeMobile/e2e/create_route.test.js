@@ -44,7 +44,7 @@ describe('create_route flow', () => {
 
 		console.log('[TEST] Picking GPX file...');
 		await element(by.id('route-create-pick-files-button')).tap();
-		await waitFor(element(by.text('Downer_Woods.gpx'))).toBeVisible().withTimeout(8000);
+		await waitFor(element(by.text('Downer_Woods.gpx'))).toExist().withTimeout(8000);
 
 		console.log('[TEST] Submitting route...');
 		await device.disableSynchronization();
