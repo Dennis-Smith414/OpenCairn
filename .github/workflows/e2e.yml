@@ -103,7 +103,15 @@ jobs:
             git clone --depth 1 --branch docker-test-stack \
             git@github.com:Dennis-Smith414/OpenCairnDatabase.git backend-stack
           cd backend-stack
-          docker compose up -d --build
+          # If the backend crashes on boot (e.g. a migration error) the seed's
+          # depends_on makes `up` exit non-zero — dump the backend log so we see why.
+          docker compose up -d --build || {
+            echo "::group::docker compose up failed — backend container logs"
+            docker compose logs backend
+            echo "::endgroup::"
+            docker compose logs db | tail -30
+            exit 1
+          }
           echo "Waiting for backend health on :5102 ..."
           for i in $(seq 1 40); do
             if curl -sf http://localhost:5102/api/health >/dev/null; then
