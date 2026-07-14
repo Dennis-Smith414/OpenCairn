@@ -196,7 +196,7 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Report",
+          text: "Submit Report",
           style: "destructive",
           onPress: async () => {
             setReportingId(id);
@@ -324,6 +324,7 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
             )}
 
             <TouchableOpacity
+              testID={`comment-report-${item.id}`}
               onPress={() => handleReport(item.id)}
               disabled={reportingId === item.id}
               style={styles.reportBtn}
@@ -360,6 +361,7 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
         ]}
       >
         <TextInput
+          testID="comment-input"
           value={newComment}
           onChangeText={setNewComment}
           placeholder="Write a comment..."
@@ -374,6 +376,7 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
           editable={!submitting}
         />
         <TouchableOpacity
+          testID="comment-submit-button"
           style={[
             styles.submitButton,
             { backgroundColor: theme.primary }, // ✅ ADDED

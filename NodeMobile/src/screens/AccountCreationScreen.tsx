@@ -95,6 +95,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
 
                 <View style={globalStyles.form}>
                     <TextInput
+                        testID="create-account-username-input"
                         style={globalStyles.input}
                         placeholder="Username"
                         placeholderTextColor={colors.textSecondary}
@@ -106,6 +107,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
+                        testID="create-account-email-input"
                         style={globalStyles.input}
                         placeholder="Email"
                         placeholderTextColor={colors.textSecondary}
@@ -118,6 +120,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
+                        testID="create-account-password-input"
                         style={globalStyles.input}
                         placeholder="Password"
                         placeholderTextColor={colors.textSecondary}
@@ -129,6 +132,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                     />
 
                     <TextInput
+                        testID="create-account-confirm-input"
                         style={globalStyles.input}
                         placeholder="Confirm Password"
                         placeholderTextColor={colors.textSecondary}
