@@ -15,6 +15,12 @@ on:
   push:
     branches: [ci/e2e-workflow]   # TEMP — strip before merge to main
 
+# Least-privilege GITHUB_TOKEN: this job only checks out code and runs tests on
+# a self-hosted box — it never writes to the repo. Deny everything except read,
+# so a compromised step can't push, open PRs, or mint packages with the token.
+permissions:
+  contents: read
+
 # One E2E run at a time — the box has a single emulator lane (16GB / one KVM).
 concurrency:
   group: e2e-self-hosted
