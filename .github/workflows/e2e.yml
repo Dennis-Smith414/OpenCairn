@@ -197,13 +197,23 @@ jobs:
           done
           # route the emulator's :8081 to host Metro for the JS bundle
           adb reverse tcp:8081 tcp:8081 || true
-          # Warm the app once before the suite: the cold first launch under
-          # swiftshader is flaky (Metro's first bundle transform + GL warmup),
-          # and whichever spec runs first eats that instability. Prime it so the
-          # bundle is cached + graphics warm, then stop it for detox's clean launch.
-          echo "Warming the app before the suite ..."
+          # Warm the app before the suite. The cold first launch under swiftshader
+          # (software GL = CPU-bound rendering) races Metro's first bundle transform
+          # (also CPU-bound) → main-thread starvation → ANR on launchApp, which then
+          # cascades into the next spec. Kill that race in two stages:
+          #   1) Pre-transform the JS bundle by fetching it straight from Metro. This
+          #      blocks until Metro has fully built + cached the bundle, so the app's
+          #      first launch no longer competes with the transform.
+          #   2) THEN launch the app once to warm swiftshader GL, settle, force-stop.
+          echo "Pre-building the JS bundle from Metro (avoids the launch-vs-transform CPU race) ..."
+          curl -s --max-time 300 \
+            "http://localhost:8081/index.bundle?platform=android&dev=true&minify=false" \
+            -o "$RUNNER_TEMP/warm.bundle" \
+            && echo "bundle built ($(wc -c < "$RUNNER_TEMP/warm.bundle") bytes)" \
+            || echo "WARN: bundle prefetch failed, continuing"
+          echo "Warming swiftshader graphics with a real launch ..."
           adb shell monkey -p com.nodemobile -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
-          sleep 25
+          sleep 40
           adb shell am force-stop com.nodemobile || true
           # Capture the whole device log for the run so a startup crash survives,
           # then surface the crash lines INLINE in this step (no artifact hunt).
