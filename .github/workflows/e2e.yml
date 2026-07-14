@@ -177,7 +177,16 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
+          # Suppress ANR/crash system dialogs. Under load the cold-start ANR pops
+          # an "isn't responding" dialog that GRABS WINDOW FOCUS — Detox then fails
+          # with "Waited for the root of the view hierarchy to have window focus"
+          # even though the app UI is drawn behind it. Hiding the dialog lets the
+          # app keep/regain focus so Espresso can proceed.
+          adb shell settings put global hide_error_dialogs 1 || true
+          # keep the screen awake so doze/screen-off can't drop window focus mid-suite
+          adb shell svc power stayon true || true
           # fresh AVD can boot to a locked screen that hides the app
+          adb shell input keyevent KEYCODE_WAKEUP || true
           adb shell wm dismiss-keyguard || true
           # bigger logcat buffer so a startup crash isn't lost to buffer roll
           adb logcat -G 16M || true
