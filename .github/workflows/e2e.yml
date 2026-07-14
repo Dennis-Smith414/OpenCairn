@@ -78,6 +78,9 @@ jobs:
         run: |
           cat > NodeMobile/src/config/env.ts <<'EOF'
           // GENERATED IN CI — do not commit
+          // CI always uses 'local' (the hermetic docker stack). dev/prod are
+          // placeholders here — the real addresses live in the gitignored
+          // env.ts on dev machines and must NOT be committed to this public repo.
           const TARGET = 'local';
           const SERVERS = {
             dev:  'http://127.0.0.1:5101',
