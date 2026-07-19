@@ -9,6 +9,19 @@ module.exports = {
       setupTimeout: 120000,
     },
   },
+  artifacts: {
+    rootDir: '.artifacts',
+    plugins: {
+      // Auto-capture a screenshot when a spec finishes; keep only the failing
+      // ones. Lets us SEE the exact screen state (e.g. a focus-stealing dialog)
+      // at the moment a test times out.
+      screenshot: {
+        shouldTakeAutomaticSnapshots: true,
+        keepOnlyFailedTestsArtifacts: true,
+        takeWhen: { testDone: true },
+      },
+    },
+  },
   apps: {
     'android.debug': {
       type: 'android.apk',

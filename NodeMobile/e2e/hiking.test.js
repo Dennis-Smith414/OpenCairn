@@ -19,10 +19,10 @@ describe('hiking flow', () => {
 
 	it('Login, create route, simulate hiking, delete route, logout', async () => {
 		console.log('[TEST] Waiting for landing screen...');
-		// hiking is the largest spec, so jest runs it FIRST on a fresh CI checkout
-		// (no cache) — it eats the swiftshader cold-start jank. Give the first two
-		// touches (landing button + Account screen) 30s so cold start can't flake them.
-		await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(30000);
+		// hiking runs early and eats the swiftshader cold-start jank. 30s proved too
+		// tight on the CI box (landing + login both flaked, then retries thrashed a
+		// loaded CPU), so give the two cold touches (landing + Account) 90s.
+		await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(90000);
 		console.log('[TEST] Tapping login button...');
 		await element(by.id('landing-login-button')).tap();
 
@@ -36,7 +36,7 @@ describe('hiking flow', () => {
 		await element(by.id('login-password-input')).tapReturnKey();
 
 		console.log('[TEST] Waiting for Account screen...');
-		await waitFor(element(by.text('My Account'))).toExist().withTimeout(30000);
+		await waitFor(element(by.text('My Account'))).toExist().withTimeout(90000);
 
 		console.log('[TEST] Moving to routes screen...');
 		await element(by.id('tab-routes')).tap();
