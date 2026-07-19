@@ -70,6 +70,11 @@ describe('Report comment flow', () => {
 
     console.log('[TEST] Report the comment...');
     // Fresh route => exactly one comment => one report button. Match by id regex.
+    // The report button renders below the fold, so scroll it into view first.
+    await waitFor(element(by.id(/^comment-report-/)))
+      .toBeVisible()
+      .whileElement(by.id('comment-list'))
+      .scroll(250, 'down');
     await element(by.id(/^comment-report-/)).tap();
     await waitFor(element(by.text('Report this comment as harmful or inappropriate?'))).toBeVisible().withTimeout(10000);
     await device.disableSynchronization();

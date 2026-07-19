@@ -392,6 +392,7 @@ const handleVote = async (commentId: number, val: 1 | -1) => {
       {/* Comments list */}
       <View style={{ flexGrow: 1 }}>
         <FlatList
+          testID="comment-list"
           data={comments}
           renderItem={renderComment}
           keyExtractor={(item) => item.id.toString()}

@@ -23,11 +23,12 @@ describe('Registration flow', () => {
     await element(by.id('create-account-password-input')).typeText(password);
     await element(by.id('create-account-confirm-input')).typeText(password);
 
-    console.log('[TEST] Submitting (return key on confirm fires onSubmitEditing)...');
-    // The confirm field has returnKeyType="done" + onSubmitEditing={handleCreateAccount},
-    // so tapReturnKey both dismisses the keyboard and submits the registration.
+    console.log('[TEST] Submitting...');
+    // tapReturnKey on the confirm field didn't reliably fire onSubmitEditing under
+    // Detox, so dismiss the keyboard with it and then tap the submit button explicitly.
     await device.disableSynchronization();
     await element(by.id('create-account-confirm-input')).tapReturnKey();
+    await element(by.id('create-account-submit-button')).tap();
     await waitFor(element(by.text('Account created. Please log in.'))).toBeVisible().withTimeout(20000);
     await element(by.text('OK')).tap();
     await device.enableSynchronization();

@@ -49,8 +49,10 @@ describe('Password reset (email OTP) flow', () => {
     console.log('[TEST] Requesting a reset code...');
     await waitFor(element(by.id('forgot-email-input'))).toBeVisible().withTimeout(10000);
     await element(by.id('forgot-email-input')).typeText(email);
+    // forgot-email-input has returnKeyType="send" + onSubmitEditing, so tapReturnKey
+    // already submits and advances the step — a follow-up tap on forgot-send-button
+    // would fail because the button no longer exists.
     await element(by.id('forgot-email-input')).tapReturnKey();
-    await element(by.id('forgot-send-button')).tap();
 
     console.log('[TEST] Waiting for the reset (code entry) step...');
     await waitFor(element(by.id('reset-code-input'))).toBeVisible().withTimeout(15000);

@@ -30,8 +30,12 @@ describe('Navigation & browse smoke', () => {
     await waitFor(element(by.text('Select Routes'))).toBeVisible().withTimeout(15000);
 
     console.log('[TEST] Map tab renders...');
+    // MapLibre never goes idle (map render + timers keep the app perpetually busy),
+    // so Detox auto-sync would hang. Disable sync around the map interaction.
+    await device.disableSynchronization();
     await element(by.id('tab-map')).tap();
     await waitFor(element(by.id('map-center-button'))).toBeVisible().withTimeout(20000);
+    await device.enableSynchronization();
 
     console.log('[TEST] Account -> Settings -> logout...');
     await element(by.id('tab-account')).tap();
