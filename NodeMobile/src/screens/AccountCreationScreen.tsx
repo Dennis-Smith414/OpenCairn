@@ -141,7 +141,6 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
                         returnKeyType="done"
-                        onSubmitEditing={handleCreateAccount}
                     />
 
                     <Text style={globalStyles.helperText}>

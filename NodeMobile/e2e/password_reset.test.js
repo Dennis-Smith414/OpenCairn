@@ -68,6 +68,10 @@ describe('Password reset (email OTP) flow', () => {
     await element(by.id('reset-code-input')).typeText(String(code));
     await element(by.id('reset-password-input')).typeText(newPassword);
     await element(by.id('reset-confirm-input')).typeText(newPassword);
+    // reset-confirm no longer submits on Return (onSubmitEditing was removed to kill
+    // a double-submit that popped the success Alert BEFORE this button tap, hiding
+    // the button behind it). tapReturnKey now only dismisses the keyboard so the
+    // submit button is uncovered; the button tap below is the single submit.
     await element(by.id('reset-confirm-input')).tapReturnKey();
 
     await device.disableSynchronization();

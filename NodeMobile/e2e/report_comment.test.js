@@ -69,13 +69,16 @@ describe('Report comment flow', () => {
     await waitFor(element(by.text(commentText))).toBeVisible().withTimeout(15000);
 
     console.log('[TEST] Report the comment...');
-    // Fresh route => exactly one comment => one report button. Match by id regex.
-    // The report button renders below the fold, so scroll it into view first.
-    await waitFor(element(by.id(/^comment-report-/)))
+    // Fresh route => exactly one comment => one "Report" button. Match by text: a
+    // RegExp id matcher (by.id(/^comment-report-/)) returned null inside the
+    // whileElement scroll on Android Detox. The confirm Alert's button is the
+    // distinct "Submit Report", so plain "Report" is unambiguous. It renders below
+    // the fold, so scroll the list to bring it into view first.
+    await waitFor(element(by.text('Report')))
       .toBeVisible()
       .whileElement(by.id('comment-list'))
       .scroll(250, 'down');
-    await element(by.id(/^comment-report-/)).tap();
+    await element(by.text('Report')).tap();
     await waitFor(element(by.text('Report this comment as harmful or inappropriate?'))).toBeVisible().withTimeout(10000);
     await device.disableSynchronization();
     await element(by.text('Submit Report')).tap();

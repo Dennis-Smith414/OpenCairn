@@ -24,8 +24,9 @@ describe('Registration flow', () => {
     await element(by.id('create-account-confirm-input')).typeText(password);
 
     console.log('[TEST] Submitting...');
-    // tapReturnKey on the confirm field didn't reliably fire onSubmitEditing under
-    // Detox, so dismiss the keyboard with it and then tap the submit button explicitly.
+    // The confirm field no longer submits on Return (onSubmitEditing was removed to
+    // kill a double-submit), so tapReturnKey here only dismisses the keyboard —
+    // which uncovers the submit button — and the button tap is the single submit.
     await device.disableSynchronization();
     await element(by.id('create-account-confirm-input')).tapReturnKey();
     await element(by.id('create-account-submit-button')).tap();

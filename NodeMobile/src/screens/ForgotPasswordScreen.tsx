@@ -206,7 +206,6 @@ export default function ForgotPasswordScreen({ navigation }: { navigation: any }
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 returnKeyType="done"
-                                onSubmitEditing={handleReset}
                             />
 
                             <Text style={globalStyles.helperText}>
