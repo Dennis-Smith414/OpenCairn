@@ -6,6 +6,12 @@
 // same message whether the app showed a validation error, the request 500'd, or
 // the dialog rendered and Detox just couldn't see it. These helpers turn each of
 // those into a distinct, readable failure.
+//
+// `launchFresh` is the only one in use right now. `api` and `expectSubmitSucceeded`
+// are kept deliberately: they belonged to registration.test.js / password_reset.test.js,
+// which were dropped from the suite pending a rethink of the account-creation flow,
+// and are what those specs will be rebuilt on. See the removal commit for the specs
+// themselves.
 
 // The backend runs on the RUNNER HOST (docker publishes :5102); the app inside
 // the emulator reaches the same backend at 10.0.2.2:5102.
