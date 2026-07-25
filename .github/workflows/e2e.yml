@@ -5,15 +5,22 @@ name: E2E (self-hosted)
 #   hermetic docker backend (postgis + backend + seed on host :5102)
 #   + headless emulator (swiftshader) + detox build/test.
 #
-# Manual-trigger (workflow_dispatch) plus a TEMPORARY push trigger on the
-# ci/e2e-workflow branch so we can iterate to a first green run without
-# merging an unproven workflow into main. Remove the `push:` block before
-# merging. Later this becomes the RELEASE gate (see plan WS1b / WS3); fast
-# CRUD tests are the PR gate and run hosted, not here.
+# HUMAN-GATED on purpose. This suite runs on a self-hosted box with Docker,
+# KVM and a backend deploy key on it, so it must never fire automatically off
+# a PR — that would hand arbitrary PR code (including from a fork) a shell on
+# the runner. It runs only when a maintainer asks for it, two ways:
+#
+#   1. Add the `run-e2e` label to a PR  -> runs against that PR's merge ref.
+#      Remove and re-add the label to run it again.
+#   2. Actions tab -> "Run workflow"    -> runs against a branch you pick.
+#
+# Later this becomes the RELEASE gate (see plan WS1b / WS3); fast CRUD tests
+# are the PR gate and run hosted, not here.
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/e2e-workflow]   # TEMP — strip before merge to main
+  pull_request:
+    types: [labeled]
+    branches: [main]
 
 # Least-privilege GITHUB_TOKEN: this job only checks out code and runs tests on
 # a self-hosted box — it never writes to the repo. Deny everything except read,
@@ -38,6 +45,10 @@ env:
 
 jobs:
   e2e:
+    # The `pull_request: types: [labeled]` trigger fires for EVERY label, so gate
+    # on the specific one. Without this, any label added to any PR would start a
+    # run on the self-hosted box.
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-e2e'
     # MUST run on the HOST runner (openCairnRunner), which has direct /dev/kvm +
     # docker. The 'host-kvm' label is unique to it — this keeps the job off the
     # pre-existing containerized runner (no KVM, bind-mounted docker) that shares
