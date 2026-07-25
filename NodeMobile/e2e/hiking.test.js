@@ -4,7 +4,10 @@ const path = require('path');
 jest.setTimeout(300000);
 
 describe('hiking flow', () => {
-	beforeAll(async () => {
+	// beforeEach, not beforeAll: jest.retryTimes re-runs this hook, so a retry gets
+	// a clean install + a re-pushed GPX instead of resuming wherever the last
+	// attempt died (which made retries fail on unrelated assertions).
+	beforeEach(async () => {
 		await device.launchApp({
 			newInstance: true,
 			delete: true,

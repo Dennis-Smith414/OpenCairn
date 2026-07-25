@@ -12,11 +12,18 @@ const path = require('path');
 jest.setTimeout(300000);
 
 describe('Report comment flow', () => {
-  const stamp = Date.now();
-  const routeName = `Report Route ${stamp}`;
-  const commentText = `E2E report target ${stamp}`;
+  let routeName;
+  let commentText;
 
-  beforeAll(async () => {
+  // beforeEach, not beforeAll: jest.retryTimes re-runs this hook, so a retry gets
+  // a clean install + a re-pushed GPX instead of resuming wherever the last
+  // attempt died. The names are re-stamped per attempt too — a retry that reused
+  // them could leave two identically named routes behind and make the matchers
+  // ambiguous.
+  beforeEach(async () => {
+    const stamp = Date.now();
+    routeName = `Report Route ${stamp}`;
+    commentText = `E2E report target ${stamp}`;
     await device.launchApp({
       newInstance: true,
       delete: true,

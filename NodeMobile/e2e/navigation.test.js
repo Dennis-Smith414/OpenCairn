@@ -1,9 +1,13 @@
 // Broad navigation smoke test: exercises the main tabs + RouteSelect/RouteCreate
 // navigation + the map screen render, without depending on any seeded data (the
 // hermetic DB starts empty of routes). Complements the deeper flow specs.
+const { launchFresh } = require('./helpers');
+
 describe('Navigation & browse smoke', () => {
-  beforeAll(async () => {
-    await device.launchApp({ newInstance: true, delete: true });
+  // beforeEach, not beforeAll — jest.retryTimes re-runs this hook, so a retry
+  // starts from a clean install instead of wherever the last attempt died.
+  beforeEach(async () => {
+    await launchFresh();
   });
 
   it('login, browse route controls, open+close create, map, logout', async () => {

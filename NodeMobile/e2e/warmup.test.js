@@ -8,9 +8,11 @@
 // still cold. So this spec drives a full login all the way to the Account screen,
 // which is exactly the path the real specs hit first. The custom testSequencer
 // (e2e/sequencer.js) forces this file to run first.
+const { launchFresh } = require('./helpers');
+
 describe('Warm-up', () => {
-  beforeAll(async () => {
-    await device.launchApp({ newInstance: true, delete: true });
+  beforeEach(async () => {
+    await launchFresh();
   });
 
   it('logs in and reaches the account screen (absorbs cold start)', async () => {

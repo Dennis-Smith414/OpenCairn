@@ -148,7 +148,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                         Password must be 8+ characters with 1 uppercase and 1 special character
                     </Text>
 
-                    {error && <Text style={globalStyles.error}>{error}</Text>}
+                    {error && <Text testID="create-account-error" style={globalStyles.error}>{error}</Text>}
 
                     <TouchableOpacity
                         testID="create-account-submit-button"

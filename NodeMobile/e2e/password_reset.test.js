@@ -8,35 +8,29 @@
 //
 // Direct API calls hit the backend on the RUNNER HOST (published :5102); the app
 // inside the emulator reaches the same backend at 10.0.2.2:5102.
-const HOST_API = 'http://localhost:5102';
-
-async function api(path, body) {
-  const res = await fetch(`${HOST_API}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let json = null;
-  try { json = JSON.parse(text); } catch {}
-  return { status: res.status, json, text };
-}
+const { api, launchFresh, expectSubmitSucceeded } = require('./helpers');
 
 describe('Password reset (email OTP) flow', () => {
-  const stamp = Date.now();
-  const username = `e2e_reset_${stamp}`;
-  const email = `e2e_reset_${stamp}@opencairn.xyz`;
   const oldPassword = 'OldPass1!';
   const newPassword = 'NewPass1!';
+  let username;
+  let email;
 
-  beforeAll(async () => {
+  // beforeEach, not beforeAll — jest.retryTimes re-runs this hook but NOT
+  // beforeAll, so a retry gets a clean install AND a fresh target user whose
+  // password hasn't already been rotated by the failed attempt.
+  beforeEach(async () => {
+    const stamp = `${Date.now()}`.slice(-10);
+    username = `e2e_reset_${stamp}`;
+    email = `e2e_reset_${stamp}@opencairn.xyz`;
+
     // Register a throwaway user via the API so the reset flow has a real target
     // and we never touch the shared seed user's password.
     const reg = await api('/api/auth/register', { username, email, password: oldPassword });
     if (reg.status !== 201 && reg.status !== 409) {
       throw new Error(`setup registration failed: ${reg.status} ${reg.text}`);
     }
-    await device.launchApp({ newInstance: true, delete: true });
+    await launchFresh();
   });
 
   it('requests a code, resets the password, and logs in with the new one', async () => {
@@ -74,8 +68,13 @@ describe('Password reset (email OTP) flow', () => {
     // dismissed ("has-window-focus=false"), so the tap never landed and the success
     // Alert never showed.
     await element(by.id('reset-confirm-input')).tapReturnKey();
-    await waitFor(element(by.text('Your password has been reset. Please log in with your new password.')))
-      .toBeVisible().withTimeout(20000);
+    // Fails fast with the screen's own error text (bad code, weak password, ...)
+    // instead of burning 20s to report only "matcher timed out".
+    await expectSubmitSucceeded({
+      successText: 'Your password has been reset. Please log in with your new password.',
+      errorId: 'reset-error',
+      timeout: 20000,
+    });
     await element(by.text('OK')).tap();
 
     console.log('[TEST] Logging in with the NEW password...');

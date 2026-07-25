@@ -257,6 +257,18 @@ jobs:
           adb shell screencap -p /sdcard/screen.png && adb pull /sdcard/screen.png "$RUNNER_TEMP/diag/screen.png" || true
           adb logcat -d > "$RUNNER_TEMP/diag/logcat.txt" || true
           echo "--- Metro tail ---"; tail -n 40 "$RUNNER_TEMP/metro.log" || true
+          # What the app's HTTP calls actually did. Answers "did the request reach
+          # the backend, and what did it return?" — the question a UI timeout
+          # can't. Must run BEFORE the teardown step drops the stack.
+          if [ -d backend-stack ]; then
+            echo "::group::backend request log (last 200 lines)"
+            (cd backend-stack && docker compose logs --tail=200 --no-color backend) || true
+            echo "::endgroup::"
+            (cd backend-stack && docker compose logs --no-color backend > "$RUNNER_TEMP/diag/backend.log") || true
+          fi
+          # Per-test Detox artifacts: screenshot + view hierarchy + logcat for the
+          # failing test only. List them so the artifact bundle is easy to navigate.
+          echo "--- Detox artifacts ---"; ls -R NodeMobile/artifacts 2>/dev/null | head -60 || true
 
       - name: Tear down backend stack
         if: always()
@@ -275,6 +287,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-artifacts
+          # NodeMobile/artifacts must match artifacts.rootDir in .detoxrc.js, and
+          # must NOT be a dotdir — upload-artifact@v4 silently skips hidden files,
+          # which is why every screenshot/hierarchy was missing from past runs.
           path: |
             NodeMobile/artifacts
             ${{ runner.temp }}/emulator.log

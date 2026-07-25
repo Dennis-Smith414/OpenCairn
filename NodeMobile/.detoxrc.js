@@ -10,7 +10,10 @@ module.exports = {
     },
   },
   artifacts: {
-    rootDir: '.artifacts',
+    // NOT a dotdir: actions/upload-artifact@v4 skips hidden files by default, so
+    // a '.artifacts' rootDir uploaded as an empty artifact and every CI failure
+    // had to be debugged blind. Keep this name in sync with e2e.yml's upload path.
+    rootDir: 'artifacts',
     plugins: {
       // Auto-capture a screenshot when a spec finishes; keep only the failing
       // ones. Lets us SEE the exact screen state (e.g. a focus-stealing dialog)
@@ -20,6 +23,13 @@ module.exports = {
         keepOnlyFailedTestsArtifacts: true,
         takeWhen: { testDone: true },
       },
+      // The view-hierarchy XML at the moment of failure. A screenshot shows a
+      // dialog is up; this says which testIDs/text actually existed and whether
+      // they were visible — the difference between "never rendered" and
+      // "rendered but under the 75%-visible threshold".
+      uiHierarchy: 'enabled',
+      // Per-test logcat, kept for failures only (the CLI passes --record-logs all).
+      log: { enabled: true, keepOnlyFailedTestsArtifacts: true },
     },
   },
   apps: {

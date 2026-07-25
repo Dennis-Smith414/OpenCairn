@@ -79,5 +79,6 @@ yarn-error.log
 node_modules/
 android/bulid/
 
-# Detox test artifacts (screenshots, logs)
+# Detox test artifacts (screenshots, view hierarchies, logs)
+artifacts/
 .artifacts/

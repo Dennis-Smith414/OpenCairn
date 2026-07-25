@@ -1,6 +1,10 @@
+const { launchFresh } = require('./helpers');
+
 describe('Login flow', () => {
-  beforeAll(async () => {
-    await device.launchApp({ newInstance: true, delete: true });
+  // beforeEach, not beforeAll — jest.retryTimes re-runs this hook, so a retry
+  // starts from a clean install instead of wherever the last attempt died.
+  beforeEach(async () => {
+    await launchFresh();
   });
 
   it('should log in and log out successfully', async () => {

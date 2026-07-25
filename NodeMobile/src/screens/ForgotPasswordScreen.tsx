@@ -149,7 +149,7 @@ export default function ForgotPasswordScreen({ navigation }: { navigation: any }
                             />
 
                             {info && <Text style={globalStyles.helperText}>{info}</Text>}
-                            {error && <Text style={globalStyles.error}>{error}</Text>}
+                            {error && <Text testID="forgot-error" style={globalStyles.error}>{error}</Text>}
 
                             <TouchableOpacity
                                 testID="forgot-send-button"
@@ -214,7 +214,7 @@ export default function ForgotPasswordScreen({ navigation }: { navigation: any }
                             </Text>
 
                             {info && <Text style={globalStyles.helperText}>{info}</Text>}
-                            {error && <Text style={globalStyles.error}>{error}</Text>}
+                            {error && <Text testID="reset-error" style={globalStyles.error}>{error}</Text>}
 
                             <TouchableOpacity
                                 testID="reset-submit-button"
