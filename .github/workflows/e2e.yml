@@ -58,28 +58,18 @@ jobs:
     steps:
       - name: Checkout app repo
         uses: actions/checkout@v4
+        with:
+          # Self-hosted workspaces are NOT wiped between jobs. The default
+          # (persist-credentials: true) leaves the job's GITHUB_TOKEN sitting in
+          # .git/config on the box after the run, readable by anything that lands
+          # there later. Nothing here pushes, so drop it.
+          persist-credentials: false
 
       - name: Put Android SDK tools on PATH
         run: |
           echo "$ANDROID_HOME/platform-tools"       >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/emulator"             >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-
-      # Ground truth: what the JOB actually sees (user, groups, docker socket).
-      # The interactive shell context has been misleading us — this reports the
-      # real execution context of the workflow.
-      - name: Debug — job execution context
-        run: |
-          echo "whoami: $(whoami)    HOME=$HOME"
-          echo "id: $(id)"
-          echo "--- /var/run/docker.sock (as the job sees it) ---"
-          ls -ln /var/run/docker.sock 2>&1 || echo "MISSING /var/run/docker.sock"
-          ls -ln /run/docker.sock 2>&1 || echo "MISSING /run/docker.sock"
-          echo "resolved: $(readlink -f /var/run/docker.sock 2>&1)"
-          echo "--- is /run a private mount for this job? ---"
-          grep -E ' /run | /var/run ' /proc/self/mountinfo || echo "(no private /run mount)"
-          echo "--- can the job reach docker? ---"
-          docker version 2>&1 | head -8 || true
 
       # env.ts + .env are gitignored / per-machine — regenerate them for the
       # clean checkout. TARGET=local => API_BASE=10.0.2.2:5102 (host from the
@@ -117,9 +107,26 @@ jobs:
           # independent (the runner service's HOME is unreliable for reading
           # ~/.ssh). Clones the private backend repo over SSH.
           install -m 700 -d "$RUNNER_TEMP/ssh"
+          umask 077
           printf '%s\n' "$BACKEND_SSH_KEY" > "$RUNNER_TEMP/ssh/key"
           chmod 600 "$RUNNER_TEMP/ssh/key"
-          GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+          # Host keys straight from GitHub's own API over TLS, instead of the old
+          # StrictHostKeyChecking=no. Blindly accepting any host key while handing
+          # over a deploy key means anything that can answer for github.com on this
+          # network gets the key offered to it. Falls back to accept-new (TOFU) only
+          # if the metadata fetch fails, which is still strictly better than 'no'.
+          KNOWN_HOSTS="$RUNNER_TEMP/ssh/known_hosts"
+          if curl -fsS --max-time 20 https://api.github.com/meta \
+               | tr '{},' '\n\n\n' | grep -oE '"(ssh-|ecdsa-)[A-Za-z0-9+/= -]+"' \
+               | tr -d '"' | sed 's/^/github.com /' > "$KNOWN_HOSTS" \
+             && [ -s "$KNOWN_HOSTS" ]; then
+            SSH_HOSTKEY_OPTS="-o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS"
+            echo "pinned $(wc -l < "$KNOWN_HOSTS") github.com host keys from api.github.com"
+          else
+            SSH_HOSTKEY_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$KNOWN_HOSTS"
+            echo "WARN: could not fetch GitHub host keys; falling back to accept-new"
+          fi
+          GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/ssh/key -o IdentitiesOnly=yes $SSH_HOSTKEY_OPTS" \
             git clone --depth 1 --branch docker-test-stack \
             git@github.com:Dennis-Smith414/OpenCairnDatabase.git backend-stack
           cd backend-stack
@@ -138,7 +145,16 @@ jobs:
               echo "backend healthy"; break
             fi
             sleep 3
-            [ "$i" = "40" ] && { echo "backend never became healthy"; docker compose logs; exit 1; }
+            # Scoped to the two services on purpose: a bare `docker compose logs`
+            # dumps every container's startup output — including anything the db
+            # echoes about its connection string — straight into a build log and
+            # then into an uploaded artifact.
+            [ "$i" = "40" ] && {
+              echo "backend never became healthy"
+              docker compose logs --tail=100 --no-color backend
+              docker compose logs --tail=30 --no-color db
+              exit 1
+            }
           done
           # seed is one-shot; run it explicitly so we don't race the detached
           # `up`. Idempotent (201 created / 409 already-exists both OK).
@@ -293,6 +309,17 @@ jobs:
           pkill -f "react-native start" || true
           pkill -f qemu-system || true
 
+      # The deploy key is a real credential for a private repo. Nothing was
+      # removing it, so it sat in cleartext on the runner until some later job
+      # happened to reuse RUNNER_TEMP. Shred it explicitly, on every path.
+      - name: Destroy the deploy key
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/ssh/key" ]; then
+            shred -u "$RUNNER_TEMP/ssh/key" 2>/dev/null || rm -f "$RUNNER_TEMP/ssh/key"
+          fi
+          rm -rf "$RUNNER_TEMP/ssh"
+
       - name: Upload artifacts (screens/logs on failure)
         if: always()
         uses: actions/upload-artifact@v4
@@ -307,3 +334,7 @@ jobs:
             ${{ runner.temp }}/metro.log
             ${{ runner.temp }}/diag
           if-no-files-found: ignore
+          # logcat and the backend request log can carry the test user's JWT and
+          # request bodies. Throwaway creds, but there's no reason to keep them
+          # for 90 days — and anyone with read access to the repo can download them.
+          retention-days: 7
