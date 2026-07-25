@@ -24,15 +24,13 @@ describe('Registration flow', () => {
     await element(by.id('create-account-confirm-input')).typeText(password);
 
     console.log('[TEST] Submitting...');
-    // The confirm field no longer submits on Return (onSubmitEditing was removed to
-    // kill a double-submit), so tapReturnKey here only dismisses the keyboard —
-    // which uncovers the submit button — and the button tap is the single submit.
-    await device.disableSynchronization();
+    // Submit via the confirm field's onSubmitEditing (returnKeyType="done"), exactly
+    // like the login screen does. tapReturnKey fires handleCreateAccount directly in
+    // RN — an Espresso tap on the submit button hit a window-focus race as the
+    // keyboard dismissed ("has-window-focus=false"), so the tap never landed.
     await element(by.id('create-account-confirm-input')).tapReturnKey();
-    await element(by.id('create-account-submit-button')).tap();
     await waitFor(element(by.text('Account created. Please log in.'))).toBeVisible().withTimeout(20000);
     await element(by.text('OK')).tap();
-    await device.enableSynchronization();
 
     console.log('[TEST] Back on landing...');
     await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(10000);

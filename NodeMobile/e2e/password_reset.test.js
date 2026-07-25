@@ -68,18 +68,15 @@ describe('Password reset (email OTP) flow', () => {
     await element(by.id('reset-code-input')).typeText(String(code));
     await element(by.id('reset-password-input')).typeText(newPassword);
     await element(by.id('reset-confirm-input')).typeText(newPassword);
-    // reset-confirm no longer submits on Return (onSubmitEditing was removed to kill
-    // a double-submit that popped the success Alert BEFORE this button tap, hiding
-    // the button behind it). tapReturnKey now only dismisses the keyboard so the
-    // submit button is uncovered; the button tap below is the single submit.
+    // Submit via reset-confirm's onSubmitEditing (returnKeyType="done"), same as the
+    // request step's email field. tapReturnKey fires handleReset directly in RN — an
+    // Espresso tap on reset-submit-button hit a window-focus race as the keyboard
+    // dismissed ("has-window-focus=false"), so the tap never landed and the success
+    // Alert never showed.
     await element(by.id('reset-confirm-input')).tapReturnKey();
-
-    await device.disableSynchronization();
-    await element(by.id('reset-submit-button')).tap();
     await waitFor(element(by.text('Your password has been reset. Please log in with your new password.')))
       .toBeVisible().withTimeout(20000);
     await element(by.text('OK')).tap();
-    await device.enableSynchronization();
 
     console.log('[TEST] Logging in with the NEW password...');
     await waitFor(element(by.id('login-email-input'))).toBeVisible().withTimeout(10000);
