@@ -101,7 +101,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
             style={{flex: 1, backgroundColor: colors.background}}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-            <ScrollView contentContainerStyle={{flexGrow: 1}}>
+            <ScrollView contentContainerStyle={{flexGrow: 1}} keyboardShouldPersistTaps="handled">
                 <View style={globalStyles.container}>
                     <Image
                         source={require("../assets/images/OCLogoLight.png")}

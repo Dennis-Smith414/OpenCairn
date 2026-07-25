@@ -5,6 +5,8 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
@@ -84,9 +86,14 @@ export default function WaypointCreateScreen({ navigation }: any) {
   };
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={globalStyles.filesContainer}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       {/* Back Button */}
@@ -180,5 +187,6 @@ export default function WaypointCreateScreen({ navigation }: any) {
         <Text style={globalStyles.buttonText}>Save Waypoint</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

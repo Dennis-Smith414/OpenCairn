@@ -78,7 +78,7 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
     return (
         <KeyboardAvoidingView
             style={globalStyles.baseContainer}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
             <ScrollView
                 contentContainerStyle={globalStyles.scrollContent}
