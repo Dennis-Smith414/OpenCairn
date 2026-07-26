@@ -7,6 +7,14 @@ import Geolocation from '@react-native-community/geolocation';
 export interface LocationCoords {
   lat: number;
   lng: number;
+  // Reported horizontal accuracy radius in metres, straight from the platform.
+  // Used to scale off-route colour feedback (a 30 m offset means something very
+  // different with a ±5 m fix than with a ±40 m one). null when unreported.
+  accuracy: number | null;
+  // Course over ground in degrees from true north, straight from the platform.
+  // null when the platform has none — Android reports 0 or -1 while stationary,
+  // and callers must carry the previous heading forward rather than snap north.
+  heading: number | null;
 }
 
 export interface GeolocationOptions {
@@ -30,6 +38,35 @@ export interface UseGeolocationReturn {
   stopWatching: (watchId: number) => void;
   requestPermission: () => Promise<boolean>;
 }
+
+// Read a fix into LocationCoords without deriving anything: lat/lng verbatim,
+// accuracy verbatim, and heading only where the platform actually has one.
+//
+// Course over ground is undefined at zero speed, but Android's provider reports
+// bearing 0 (due north) rather than "unknown" when stationary. Passing that on
+// would swing the heading arrow north every time the user stops, so a fix with
+// no usable speed is reported as heading: null and callers keep the last known
+// heading. Nothing here is written to the recorded track.
+const toLocationCoords = (position: any): LocationCoords => {
+  const c = position?.coords ?? {};
+
+  const accuracy =
+    typeof c.accuracy === "number" && Number.isFinite(c.accuracy) && c.accuracy > 0
+      ? c.accuracy
+      : null;
+
+  const hasCourse =
+    typeof c.speed === "number" && Number.isFinite(c.speed) && c.speed > 0;
+  const heading =
+    hasCourse &&
+    typeof c.heading === "number" &&
+    Number.isFinite(c.heading) &&
+    c.heading >= 0
+      ? ((c.heading % 360) + 360) % 360
+      : null;
+
+  return { lat: c.latitude, lng: c.longitude, accuracy, heading };
+};
 
 export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocationReturn => {
   // Default options
@@ -100,11 +137,7 @@ export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocation
     return new Promise((resolve) => {
       Geolocation.getCurrentPosition(
         (position) => {
-          const coords: LocationCoords = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setLocation(coords);
+          setLocation(toLocationCoords(position));
           setLoading(false);
           setError(null);
           resolve();
@@ -139,11 +172,7 @@ export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocation
 
     const watchId = Geolocation.watchPosition(
       (position) => {
-        const coords: LocationCoords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        setLocation(coords);
+        setLocation(toLocationCoords(position));
         setError(null);
       },
       (error) => {
