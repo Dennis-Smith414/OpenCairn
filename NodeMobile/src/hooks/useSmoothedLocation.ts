@@ -7,6 +7,12 @@
 //
 // DISPLAY ONLY. Callers must still record the raw fixes separately — nothing
 // recorded should come from here.
+//
+// IMPORTANT: pushFix and tick are IDENTITY-STABLE (empty/stable deps, all state
+// via refs). An earlier version depended on the `smoothed` state, so pushFix got
+// a new identity every animation frame; a caller wiring pushFix into a useEffect
+// then re-fired ~60x/sec, resetting the glide and melting the UI. Keep them
+// ref-based.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lerpHeading, lerpPoint, progress } from "../utils/locationSmoothing";
 
@@ -17,7 +23,7 @@ export interface SmoothedLocation {
 }
 
 interface Endpoint extends SmoothedLocation {
-  ts: number; // wall-clock ms when this endpoint's animation window starts/ends
+  ts: number; // wall-clock ms bounding this animation leg
 }
 
 // Clamp the animation window so a stalled GPS (huge gap) doesn't produce a
@@ -28,11 +34,22 @@ const DEFAULT_MS = 1000;
 
 export function useSmoothedLocation(enabled: boolean) {
   const [smoothed, setSmoothed] = useState<SmoothedLocation | null>(null);
+  const currentRef = useRef<SmoothedLocation | null>(null); // latest displayed value
   const fromRef = useRef<Endpoint | null>(null);
   const toRef = useRef<Endpoint | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastFixWallRef = useRef<number>(0);
+  const enabledRef = useRef<boolean>(enabled);
 
+  useEffect(() => {
+    enabledRef.current = enabled;
+    if (!enabled && rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, [enabled]);
+
+  // Stable: reads only refs.
   const tick = useCallback(() => {
     const from = fromRef.current;
     const to = toRef.current;
@@ -43,11 +60,13 @@ export function useSmoothedLocation(enabled: boolean) {
     const now = Date.now();
     const t = progress(from.ts, to.ts, now);
     const p = lerpPoint(from, to, t);
-    setSmoothed({
+    const next: SmoothedLocation = {
       lat: p.lat,
       lng: p.lng,
       heading: lerpHeading(from.heading, to.heading, t),
-    });
+    };
+    currentRef.current = next;
+    setSmoothed(next);
     if (t < 1) {
       rafRef.current = requestAnimationFrame(tick);
     } else {
@@ -55,22 +74,21 @@ export function useSmoothedLocation(enabled: boolean) {
     }
   }, []);
 
+  // Stable: tick is stable and everything else is a ref.
   const pushFix = useCallback(
     (lat: number, lng: number, heading: number | null | undefined) => {
-      if (!enabled) return;
+      if (!enabledRef.current) return;
       const now = Date.now();
       // Duration = measured gap since the last fix, clamped to sane bounds.
       const gap = lastFixWallRef.current ? now - lastFixWallRef.current : DEFAULT_MS;
       lastFixWallRef.current = now;
       const dur = Math.min(MAX_MS, Math.max(MIN_MS, gap));
 
-      // Start the new leg from wherever the dot is right now (the current target
-      // or the last displayed value), so there's no visible teleport on arrival.
+      // Start the new leg from wherever the dot is right now, so no teleport.
       const startPoint: SmoothedLocation =
-        toRef.current ?? smoothed ?? { lat, lng, heading: heading ?? 0 };
+        currentRef.current ?? toRef.current ?? { lat, lng, heading: heading ?? 0 };
 
-      // A missing/invalid course (GPS reports none when stationary) keeps the
-      // previous heading rather than snapping the arrow to 0.
+      // Missing/invalid course (GPS reports none when stationary): keep prior heading.
       const newHeading =
         heading === null || heading === undefined || Number.isNaN(heading)
           ? startPoint.heading
@@ -83,22 +101,17 @@ export function useSmoothedLocation(enabled: boolean) {
         rafRef.current = requestAnimationFrame(tick);
       }
     },
-    [enabled, smoothed, tick],
+    [tick],
   );
 
-  // Cleanup on unmount / when disabled.
   useEffect(() => {
-    if (!enabled && rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
     return () => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
     };
-  }, [enabled]);
+  }, []);
 
   return { smoothed, pushFix };
 }
