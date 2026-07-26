@@ -60,6 +60,14 @@ export interface Track {
   weight?: number;
 }
 
+// How far along a route the user has walked: the last fully-passed segment index
+// plus the exact [lat,lng] point on it where the grey "hiked" line is cut.
+export interface ProgressPoint {
+  seg: number;
+  t: number;
+  point: LatLng;
+}
+
 interface Props {
   tracks?: Track[];
   center?: LatLng;
@@ -71,7 +79,7 @@ interface Props {
   waypoints?: Waypoint[];
   onWaypointPress?: (wp: Waypoint | null) => void;
   showTrackingButton?: boolean; // default true
-  progressMap?: Record<string | number, number>;
+  progressMap?: Record<string | number, ProgressPoint>;
 }
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
@@ -180,14 +188,19 @@ const MapLibreMap: React.FC<Props> = ({
         : (t.coords as LatLng[]);
 
       const flatGeo = flatLatLng.map(([lat, lon]) => [lon, lat]);
-      const progressIdx = progressMap[t.id] ?? -1;
+      const prog = progressMap[t.id];
       const color = t.color || '#0a84ff';
       const weight = t.weight ?? 3;
 
-      const hikedCoords = progressIdx >= 1 ? flatGeo.slice(0, progressIdx + 1) : null;
-      const remainingCoords = progressIdx >= 0 && progressIdx < flatGeo.length - 1
-        ? flatGeo.slice(progressIdx)
-        : flatGeo;
+      // Cut the line at the projected point [lng,lat] on segment `seg`, so the
+      // grey edge slides continuously instead of snapping to a vertex.
+      let hikedCoords: number[][] | null = null;
+      let remainingCoords: number[][] = flatGeo;
+      if (prog) {
+        const cut = [prog.point[1], prog.point[0]]; // [lat,lng] -> [lng,lat]
+        hikedCoords = [...flatGeo.slice(0, prog.seg + 1), cut];
+        remainingCoords = [cut, ...flatGeo.slice(prog.seg + 1)];
+      }
 
       return {
         id: `route-${t.id}`,

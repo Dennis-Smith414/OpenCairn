@@ -12,7 +12,8 @@ import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
 import TripTracker from '../components/TripTracker/TripTracker';
 // NEW: MapLibre map component (Leaflet-compatible props)
-import MapLibreMap, { LatLng, Track } from "../components/MapLibre/MapLibreMap";
+import MapLibreMap, { LatLng, Track, ProgressPoint } from "../components/MapLibre/MapLibreMap";
+import { projectOntoSegment } from "../utils/geoProgress";
 
 //43.075678763073164, -87.88565891395142
 
@@ -50,7 +51,7 @@ const MapScreen: React.FC = () => {
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
-  const [progressMap, setProgressMap] = useState<Record<string | number, number>>({});
+  const [progressMap, setProgressMap] = useState<Record<string | number, ProgressPoint>>({});
   const {
     location,
     loading: locationLoading,
@@ -234,41 +235,43 @@ const MapScreen: React.FC = () => {
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
-  // How far along each loaded GPX route the user has walked, as a vertex index.
-  // Everything up to this index renders grey ("hiked"); the rest stays colored.
+  // How far along each loaded GPX route the user has walked. Stored as the index
+  // of the last fully-passed segment plus the exact projected point on the next
+  // segment, so the grey "hiked" line can be cut at a continuously-sliding point
+  // rather than snapping to a route vertex (which looks chunky on a sparse GPX).
   //
-  // The naive version searched the WHOLE route for the nearest vertex every fix,
-  // so near a switchback or loop the "nearest" vertex teleported to a different
-  // part of the trail and the grey line jumped forward and back. Instead we:
-  //   • advance MONOTONICALLY — progress only moves forward, never rewinds;
-  //   • search only a WINDOW of vertices ahead of current progress, so a nearby
-  //     loop segment can't hijack it;
-  //   • require the user to be within ON_ROUTE_M of the route to count, so
-  //     wandering off-trail doesn't drag progress along.
-  // A one-time global seed lets progress start correctly even if the user joins
-  // the route in the middle rather than at the trailhead.
-  const progressRef = useRef<Record<string | number, number>>({});
+  // To stay smooth AND not jump around we:
+  //   • project the user onto the trail SEGMENT (not the nearest vertex), so the
+  //     cut point slides ~1.4m/fix instead of hopping vertex-to-vertex;
+  //   • advance MONOTONICALLY — progress never rewinds, even at a switchback;
+  //   • search only a WINDOW of segments ahead of current progress, so a nearby
+  //     loop can't hijack it;
+  //   • require the user within ON_ROUTE_M of the route, so wandering off-trail
+  //     doesn't drag progress along.
+  // A one-time global seed lets progress start correctly when joining mid-trail.
+  const progressRef = useRef<Record<string | number, ProgressPoint>>({});
   const seededRef = useRef<Record<string | number, boolean>>({});
 
   useEffect(() => {
     if (!userLocation || tracks.length === 0) return;
 
     const ON_ROUTE_M = 40; // must be this close to the route to count as progress
-    const WINDOW = 60;     // vertices to look ahead from current progress
+    const WINDOW = 60;     // segments to look ahead from current progress
+    const up = { lat: userLocation[0], lng: userLocation[1] };
 
-    const next: Record<string | number, number> = { ...progressRef.current };
+    const next: Record<string | number, ProgressPoint> = { ...progressRef.current };
 
     tracks.forEach((track) => {
       const flat: LatLng[] = Array.isArray(track.coords[0])
         ? (track.coords as LatLng[][]).flat()
         : (track.coords as LatLng[]);
-      if (flat.length === 0) return;
+      if (flat.length < 2) return;
 
-      let start = progressRef.current[track.id] ?? 0;
+      const cur = progressRef.current[track.id];
+      let startSeg = cur ? cur.seg : 0;
 
-      // Seed once, when the user is actually near the route — snaps progress to
-      // wherever on the route they are (handles joining mid-trail). Until then we
-      // keep retrying and don't advance.
+      // Seed once, when the user is actually near the route (handles joining
+      // mid-trail). Until then keep retrying and don't advance.
       if (!seededRef.current[track.id]) {
         let gMin = Infinity;
         let gIdx = 0;
@@ -277,22 +280,35 @@ const MapScreen: React.FC = () => {
           if (d < gMin) { gMin = d; gIdx = i; }
         });
         if (gMin <= ON_ROUTE_M) {
-          start = gIdx;
+          startSeg = Math.min(gIdx, flat.length - 2);
           seededRef.current[track.id] = true;
         }
       }
 
-      // Nearest vertex within a forward window of current progress.
-      const end = Math.min(flat.length - 1, start + WINDOW);
-      let bestIdx = start;
-      let bestDist = calculateDistance(userLocation, flat[start]);
-      for (let i = start + 1; i <= end; i++) {
-        const d = calculateDistance(userLocation, flat[i]);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      // Best (closest) projection onto any segment in the forward window.
+      const endSeg = Math.min(flat.length - 2, startSeg + WINDOW);
+      let best: { seg: number; t: number; point: LatLng; dist: number } | null = null;
+      for (let s = startSeg; s <= endSeg; s++) {
+        const a = { lat: flat[s][0], lng: flat[s][1] };
+        const b = { lat: flat[s + 1][0], lng: flat[s + 1][1] };
+        const proj = projectOntoSegment(up, a, b);
+        const pt: LatLng = [proj.point.lat, proj.point.lng];
+        const dist = calculateDistance(userLocation, pt);
+        if (!best || dist < best.dist) best = { seg: s, t: proj.t, point: pt, dist };
       }
+      if (!best) return;
 
-      // Advance only when on-route and moving forward; never rewind.
-      next[track.id] = bestDist <= ON_ROUTE_M && bestIdx > start ? bestIdx : start;
+      // Forward = a later segment, or the same segment but further along it.
+      const forward =
+        !cur || best.seg > cur.seg || (best.seg === cur.seg && best.t >= cur.t);
+
+      if (best.dist <= ON_ROUTE_M && forward) {
+        next[track.id] = { seg: best.seg, t: best.t, point: best.point };
+      } else if (cur) {
+        next[track.id] = cur; // off-route or would rewind: hold position
+      } else {
+        next[track.id] = { seg: startSeg, t: 0, point: flat[startSeg] };
+      }
     });
 
     progressRef.current = next;
