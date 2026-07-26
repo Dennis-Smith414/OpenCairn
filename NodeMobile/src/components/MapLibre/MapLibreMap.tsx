@@ -30,6 +30,11 @@ import {
 } from "../../offline/basemaps";
 import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
 import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
+import {
+  distanceToSegmentsMeters,
+  offRouteColor,
+  offRouteFactor,
+} from "../../utils/offRoute";
 
 // KILL SWITCH for the smoothed (gliding) location dot. Flip to false to fall
 // straight back to the native MapLibre puck if the custom dot misbehaves on a
@@ -74,6 +79,11 @@ interface Props {
   autoFitOnTracks?: boolean;
   zoom?: number;
   userLocation?: LatLng | null;
+  // Raw metadata for the fix at `userLocation`, passed through untouched from
+  // useGeolocation. Accuracy scales the off-route colour ramp; heading drives the
+  // dot's direction arrow. Both are display-only.
+  userAccuracy?: number | null;
+  userHeading?: number | null;
   onMapReady?: () => void;
   onMapLongPress?: (lat: number, lon: number) => void;
   waypoints?: Waypoint[];
@@ -107,6 +117,8 @@ const MapLibreMap: React.FC<Props> = ({
   autoFitOnTracks,
   zoom = DEFAULT_ZOOM,
   userLocation = null,
+  userAccuracy = null,
+  userHeading = null,
   onMapReady,
   onMapLongPress,
   waypoints = [],
@@ -373,19 +385,67 @@ const MapLibreMap: React.FC<Props> = ({
     return () => clearTimeout(t);
   }, [onMapReady]);
 
-  // Track last user location for the center-on-me button
   // Smoothed dot glides between fixes. Fed from the `userLocation` prop (the
-  // app's own useGeolocation watch) rather than the native puck's onUpdate,
-  // because onUpdate may not fire while the puck is hidden — feeding from the
-  // known-live stream guarantees the dot actually moves on a real walk.
+  // app's own useGeolocation watch) rather than the native puck's onUpdate:
+  // UserLocation returns null outright when visible={false}, so a hidden puck
+  // emits nothing. Feeding from the known-live stream guarantees the dot actually
+  // moves on a real walk.
+  //
+  // Hand-rolled rather than MapLibre's built-in animation on purpose. The
+  // library does animate (UserLocation -> Annotation animated -> AnimatedPoint),
+  // but it lerps POSITION ONLY over a hardcoded 1000 ms, leaves iconRotate to
+  // snap, and sources fixes from its own LocationManager — which would cost us
+  // both the shortest-arc heading glide and the `accuracy` value the off-route
+  // colour needs. useSmoothedLocation does all three off one raw stream.
   const { smoothed, pushFix } = useSmoothedLocation(SMOOTH_DOT);
+
+  // Whether the platform has EVER given us a course. Until it has, the heading
+  // arrow stays hidden rather than confidently pointing north — displaying a
+  // direction we don't have would be exactly the kind of inference the dot is
+  // supposed to avoid. Once set it stays set, so the arrow doesn't blink out
+  // every time the user stops walking.
+  const [hasHeading, setHasHeading] = useState(false);
 
   useEffect(() => {
     if (SMOOTH_DOT && userLocation) {
-      // userLocation is [lat, lng]; heading unavailable here (arrow not drawn yet).
-      pushFix(userLocation[0], userLocation[1], null);
+      // userLocation is [lat, lng]. A null heading means "platform has no course
+      // right now" and the smoother carries the previous one forward.
+      pushFix(userLocation[0], userLocation[1], userHeading);
+      if (userHeading != null) setHasHeading(true);
     }
-  }, [userLocation, pushFix]);
+  }, [userLocation, userHeading, pushFix]);
+
+  // Every polyline of every LOADED route, kept as separate segments. Sub-segments
+  // are not concatenated: joining disjoint GPX tracks would invent a straight
+  // bridge across country that the user could appear to be walking along.
+  const routeSegments = useMemo<LatLng[][]>(() => {
+    const out: LatLng[][] = [];
+    for (const t of tracks) {
+      if (Array.isArray(t.coords[0])) out.push(...(t.coords as LatLng[][]));
+      else out.push(t.coords as LatLng[]);
+    }
+    return out.filter((s) => s.length >= 2);
+  }, [tracks]);
+
+  // Off-route colour feedback, in [0,1]. `tracks` IS the explicit opt-in — the
+  // user loaded these routes on purpose — so with nothing loaded there is no
+  // route to be off and the factor stays 0 (normal colour, no logic running).
+  // Basemap trails are never consulted.
+  //
+  // Keyed on the RAW fix, never on `smoothed`: the polyline scan is O(vertices)
+  // and `smoothed` changes every animation frame, which would run it at 60 Hz
+  // instead of ~1 Hz. Measuring from the raw fix is also the honest thing to do —
+  // the colour reflects where the user actually is, not where the dot is gliding.
+  const offRoute = useMemo(() => {
+    if (routeSegments.length === 0 || !userLocation) return 0;
+    const dist = distanceToSegmentsMeters(
+      { lat: userLocation[0], lng: userLocation[1] },
+      routeSegments,
+    );
+    return offRouteFactor(dist, userAccuracy);
+  }, [routeSegments, userLocation, userAccuracy]);
+
+  const dotColor = useMemo(() => offRouteColor(offRoute), [offRoute]);
 
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
@@ -468,6 +528,7 @@ const MapLibreMap: React.FC<Props> = ({
             hazard: require("../../assets/icons/waypoints/hazard.png"),
             landmark: require("../../assets/icons/waypoints/landmark.png"),
             "parking-trailhead": require("../../assets/icons/waypoints/parking-trailhead.png"),
+            "user-heading": require("../../assets/icons/user-heading.png"),
           }}
         />
 
@@ -617,7 +678,11 @@ const MapLibreMap: React.FC<Props> = ({
           onUpdate={onUserLocUpdate}
         />
 
-        {/* Smoothed (interpolated) location dot — display only. */}
+        {/* Smoothed (interpolated) location dot — display only.
+            The coordinates are the smoothed REAL position: interpolated between
+            consecutive raw fixes so the dot glides, never relocated onto a route.
+            A dot pulled onto the line would hide from a lost user that they are
+            off it, so the only thing the loaded route changes here is `dotColor`. */}
         {SMOOTH_DOT && smoothed && (
           <ShapeSource
             id="smooth-user-dot"
@@ -635,8 +700,26 @@ const MapLibreMap: React.FC<Props> = ({
               id="smooth-user-dot-halo"
               style={{
                 circleRadius: 16,
-                circleColor: "#1E88E5",
+                circleColor: dotColor,
                 circleOpacity: 0.18,
+              }}
+            />
+            {/* Heading arrow, drawn under the core so the core overlaps its base.
+                iconRotate takes the smoothed heading, which lerps along the
+                shortest arc — 359° to 1° sweeps 2° through north, not 358° back.
+                iconRotationAlignment "map" keeps it pinned to compass bearing
+                rather than to the screen. */}
+            <SymbolLayer
+              id="smooth-user-dot-heading"
+              style={{
+                iconOpacity: hasHeading ? 1 : 0,
+                iconImage: "user-heading",
+                iconRotate: smoothed.heading,
+                iconRotationAlignment: "map",
+                iconPitchAlignment: "map",
+                iconAllowOverlap: true,
+                iconIgnorePlacement: true,
+                iconSize: 0.5,
               }}
             />
             {/* solid core with white ring */}
@@ -644,7 +727,7 @@ const MapLibreMap: React.FC<Props> = ({
               id="smooth-user-dot-core"
               style={{
                 circleRadius: 7,
-                circleColor: "#1E88E5",
+                circleColor: dotColor,
                 circleStrokeColor: "#FFFFFF",
                 circleStrokeWidth: 2.5,
               }}

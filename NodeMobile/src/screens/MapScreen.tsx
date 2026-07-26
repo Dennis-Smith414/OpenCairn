@@ -352,6 +352,11 @@ const MapScreen: React.FC = () => {
       <MapLibreMap
         tracks={tracks}
         userLocation={userLocation}
+        // Raw fix metadata, passed straight through for display: accuracy scales
+        // the dot's off-route colour ramp, heading aims its arrow. Neither is
+        // derived here and neither feeds the recorded track or the distance math.
+        userAccuracy={location?.accuracy ?? null}
+        userHeading={location?.heading ?? null}
         autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
