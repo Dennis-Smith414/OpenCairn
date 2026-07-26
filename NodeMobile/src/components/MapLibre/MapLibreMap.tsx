@@ -71,10 +71,7 @@ interface Props {
   waypoints?: Waypoint[];
   onWaypointPress?: (wp: Waypoint | null) => void;
   showTrackingButton?: boolean; // default true
-  // Actual path the user has physically walked, as [lat, lng] fixes. Drawn as a
-  // grey breadcrumb behind them. DISPLAY ONLY — accumulated from GPS fixes by the
-  // parent; it is not the recorded/uploaded track.
-  hikedPath?: LatLng[];
+  progressMap?: Record<string | number, number>;
 }
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
@@ -107,7 +104,7 @@ const MapLibreMap: React.FC<Props> = ({
   waypoints = [],
   onWaypointPress,
   showTrackingButton = true,
-  hikedPath = [],
+  progressMap = {},
 }) => {
   const cameraRef = useRef<any>(null);
   const [tracking, setTracking] = useState<boolean>(true);
@@ -175,44 +172,40 @@ const MapLibreMap: React.FC<Props> = ({
     []
   );
 
-  // Loaded routes → one full-color line each. (We used to project the user's
-  // position onto the route and grey out the "passed" portion, but that snaps to
-  // the nearest route vertex and jumps around near switchbacks/loops. The grey
-  // line is now the user's ACTUAL walked path — see hikedPathFeature below.)
-  const routeFeatures = useMemo(() => {
+  // Convert tracks → split hiked (gray) + remaining (blue) features
+  const splitRouteFeatures = useMemo(() => {
     return tracks.map((t) => {
       const flatLatLng: LatLng[] = Array.isArray(t.coords[0])
         ? (t.coords as LatLng[][]).flat()
         : (t.coords as LatLng[]);
 
       const flatGeo = flatLatLng.map(([lat, lon]) => [lon, lat]);
+      const progressIdx = progressMap[t.id] ?? -1;
       const color = t.color || '#0a84ff';
       const weight = t.weight ?? 3;
 
+      const hikedCoords = progressIdx >= 1 ? flatGeo.slice(0, progressIdx + 1) : null;
+      const remainingCoords = progressIdx >= 0 && progressIdx < flatGeo.length - 1
+        ? flatGeo.slice(progressIdx)
+        : flatGeo;
+
       return {
         id: `route-${t.id}`,
-        feature: {
+        color,
+        weight,
+        hikedFeature: hikedCoords && hikedCoords.length >= 2 ? {
           type: 'Feature' as const,
-          geometry: { type: 'LineString' as const, coordinates: flatGeo },
+          geometry: { type: 'LineString' as const, coordinates: hikedCoords },
+          properties: { weight },
+        } : null,
+        remainingFeature: {
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: remainingCoords },
           properties: { color, weight },
         },
       };
     });
-  }, [tracks]);
-
-  // The grey breadcrumb of where the user has actually walked. [lat,lng] → [lng,lat].
-  // Needs at least two points to form a line.
-  const hikedPathFeature = useMemo(() => {
-    if (!hikedPath || hikedPath.length < 2) return null;
-    return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: hikedPath.map(([lat, lon]) => [lon, lat]),
-      },
-      properties: {},
-    };
-  }, [hikedPath]);
+  }, [tracks, progressMap]);
 
   // Waypoints as FeatureCollection
   const waypointFC = useMemo(() => {
@@ -496,37 +489,33 @@ const MapLibreMap: React.FC<Props> = ({
           }}
         />
 
-        {/* Loaded routes — single full-color line each */}
-        {routeFeatures.map(({ id, feature }) => (
-          <ShapeSource key={id} id={`${id}-line-src`} shape={feature}>
-            <LineLayer
-              id={`${id}-line`}
-              style={{
-                lineColor: ["get", "color"],
-                lineWidth: ["get", "weight"],
-                lineOpacity: 0.95,
-                lineJoin: "round",
-                lineCap: "round",
-              }}
-            />
-          </ShapeSource>
+        {/* Routes — split into hiked (gray) and remaining (blue) */}
+        {splitRouteFeatures.map(({ id, hikedFeature, remainingFeature }) => (
+          <React.Fragment key={id}>
+            <ShapeSource id={`${id}-remaining`} shape={remainingFeature}>
+              <LineLayer
+                id={`${id}-remaining-line`}
+                style={{
+                  lineColor: ["get", "color"],
+                  lineWidth: ["get", "weight"],
+                  lineOpacity: 0.95,
+                }}
+              />
+            </ShapeSource>
+            {hikedFeature && (
+              <ShapeSource id={`${id}-hiked`} shape={hikedFeature}>
+                <LineLayer
+                  id={`${id}-hiked-line`}
+                  style={{
+                    lineColor: "#888888",
+                    lineWidth: ["get", "weight"],
+                    lineOpacity: 0.7,
+                  }}
+                />
+              </ShapeSource>
+            )}
+          </React.Fragment>
         ))}
-
-        {/* Grey breadcrumb — the path the user has actually hiked */}
-        {hikedPathFeature && (
-          <ShapeSource id="hiked-path" shape={hikedPathFeature}>
-            <LineLayer
-              id="hiked-path-line"
-              style={{
-                lineColor: "#888888",
-                lineWidth: 4,
-                lineOpacity: 0.85,
-                lineJoin: "round",
-                lineCap: "round",
-              }}
-            />
-          </ShapeSource>
-        )}
 
         {/* Waypoints (clustered) */}
         <ShapeSource
