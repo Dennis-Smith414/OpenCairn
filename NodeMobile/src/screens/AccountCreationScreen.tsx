@@ -17,7 +17,7 @@ import { createGlobalStyles } from '../styles/globalStyles';
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AccountCreationScreen({ navigation }: { navigation: any }) {
-    const { colors } = useThemeStyles();
+    const { colors, isDark } = useThemeStyles();
     const globalStyles = createGlobalStyles(colors);
     
     const [username, setUsername] = useState("");
@@ -85,7 +85,9 @@ export default function AccountCreationScreen({ navigation }: { navigation: any 
                 keyboardShouldPersistTaps="handled"
             >
                 <Image
-                    source={require("../assets/images/OCLogoLight.png")}
+                    source={isDark
+                        ? require("../assets/images/OCLogoDark.png")
+                        : require("../assets/images/OCLogoLight.png")}
                     style={globalStyles.logo}
                     resizeMode="contain"
                 />
