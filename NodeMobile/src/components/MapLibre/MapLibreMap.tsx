@@ -29,6 +29,13 @@ import {
   syncActiveBasemapToNode,
 } from "../../offline/basemaps";
 import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
+import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
+
+// KILL SWITCH for the smoothed (gliding) location dot. Flip to false to fall
+// straight back to the native MapLibre puck if the custom dot misbehaves on a
+// device — the native path is the known-good fallback the code comment warns
+// about. This ONLY changes what's DRAWN; recorded tracks are unaffected.
+const SMOOTH_DOT = true;
 
 export type LatLng = [number, number];
 
@@ -354,12 +361,19 @@ const MapLibreMap: React.FC<Props> = ({
   }, [onMapReady]);
 
   // Track last user location for the center-on-me button
+  // Smoothed dot: consumes the native puck's OWN fix stream (onUpdate fires per
+  // native fix, even while the native puck is hidden) and glides between fixes.
+  const { smoothed, pushFix } = useSmoothedLocation(SMOOTH_DOT);
+
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
     if (coords?.latitude && coords?.longitude) {
       lastUserLocRef.current = [coords.latitude, coords.longitude];
+      // Feed the smoother the raw fix (incl. GPS course when present). This is
+      // display-only — the recorded track is written elsewhere from raw fixes.
+      pushFix(coords.latitude, coords.longitude, coords.heading);
     }
-  }, []);
+  }, [pushFix]);
 
   // Center on tracks
   useEffect(() => {
@@ -572,14 +586,52 @@ const MapLibreMap: React.FC<Props> = ({
           </ShapeSource>
         )}
 
-        {/* User location dot — native render mode so the OS draws. Other ways have been to inconsitant */}
+        {/* User location. When SMOOTH_DOT is on, the native puck is HIDDEN but
+            kept mounted so its onUpdate keeps feeding fixes to the smoother; the
+            gliding dot below is drawn instead. Flip SMOOTH_DOT to false to show
+            the native puck again (the known-good fallback). */}
         <UserLocation
-          visible={true}
+          visible={!SMOOTH_DOT}
           renderMode="native"
           androidRenderMode="compass"
           showsUserHeadingIndicator={true}
           onUpdate={onUserLocUpdate}
         />
+
+        {/* Smoothed (interpolated) location dot — display only. */}
+        {SMOOTH_DOT && smoothed && (
+          <ShapeSource
+            id="smooth-user-dot"
+            shape={{
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "Point",
+                coordinates: [smoothed.lng, smoothed.lat],
+              },
+            }}
+          >
+            {/* soft accuracy-ish halo */}
+            <CircleLayer
+              id="smooth-user-dot-halo"
+              style={{
+                circleRadius: 16,
+                circleColor: "#1E88E5",
+                circleOpacity: 0.18,
+              }}
+            />
+            {/* solid core with white ring */}
+            <CircleLayer
+              id="smooth-user-dot-core"
+              style={{
+                circleRadius: 7,
+                circleColor: "#1E88E5",
+                circleStrokeColor: "#FFFFFF",
+                circleStrokeWidth: 2.5,
+              }}
+            />
+          </ShapeSource>
+        )}
       </MapView>
 
       {/* Zoom controls */}
