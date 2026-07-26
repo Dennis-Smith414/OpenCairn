@@ -67,6 +67,8 @@ type Palette = {
   danger: string;
   success: string;
   text: string;
+  muted: string;
+  card: string;
 };
 
 export const lightColors: Palette = {
@@ -83,6 +85,8 @@ export const lightColors: Palette = {
   danger: '#DC143C',
   success: '#28a745',
   text: "#222222",
+  muted: "#666666",
+  card: "#F8F9FA",    // surface/card background (mirrors backgroundAlt)
 };
 
 export const darkColors: Palette = {
@@ -99,6 +103,8 @@ export const darkColors: Palette = {
   danger: '#DC143C',
   success: '#28a745',
   text: "#EAEAEA",
+  muted: "#C7CBD1",   // was undefined -> rendered black (invisible) on dark; FileManager uses colors.muted
+  card: "#1A1F23",    // surface/card background (mirrors backgroundAlt); was undefined -> transparent
 };
 export const lightNavTheme: NavTheme = {
   ...NavDefaultTheme,
