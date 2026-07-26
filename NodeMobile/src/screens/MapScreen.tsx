@@ -50,7 +50,7 @@ const MapScreen: React.FC = () => {
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
-  const [hikedPath, setHikedPath] = useState<LatLng[]>([]);
+  const [progressMap, setProgressMap] = useState<Record<string | number, number>>({});
   const {
     location,
     loading: locationLoading,
@@ -234,21 +234,70 @@ const MapScreen: React.FC = () => {
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
-  // Grey breadcrumb of where the user has ACTUALLY walked. We append each fresh
-  // fix once it's moved far enough from the last breadcrumb point to be real
-  // movement rather than GPS jitter. DISPLAY ONLY — the uploaded/recorded track
-  // is written elsewhere; nothing here feeds it.
+  // How far along each loaded GPX route the user has walked, as a vertex index.
+  // Everything up to this index renders grey ("hiked"); the rest stays colored.
+  //
+  // The naive version searched the WHOLE route for the nearest vertex every fix,
+  // so near a switchback or loop the "nearest" vertex teleported to a different
+  // part of the trail and the grey line jumped forward and back. Instead we:
+  //   • advance MONOTONICALLY — progress only moves forward, never rewinds;
+  //   • search only a WINDOW of vertices ahead of current progress, so a nearby
+  //     loop segment can't hijack it;
+  //   • require the user to be within ON_ROUTE_M of the route to count, so
+  //     wandering off-trail doesn't drag progress along.
+  // A one-time global seed lets progress start correctly even if the user joins
+  // the route in the middle rather than at the trailhead.
+  const progressRef = useRef<Record<string | number, number>>({});
+  const seededRef = useRef<Record<string | number, boolean>>({});
+
   useEffect(() => {
-    if (!userLocation) return;
-    setHikedPath((prev) => {
-      const last = prev[prev.length - 1];
-      // First point, or moved > ~4m: append. Otherwise ignore jitter.
-      if (!last || calculateDistance(last, userLocation) > 4) {
-        return [...prev, userLocation];
+    if (!userLocation || tracks.length === 0) return;
+
+    const ON_ROUTE_M = 40; // must be this close to the route to count as progress
+    const WINDOW = 60;     // vertices to look ahead from current progress
+
+    const next: Record<string | number, number> = { ...progressRef.current };
+
+    tracks.forEach((track) => {
+      const flat: LatLng[] = Array.isArray(track.coords[0])
+        ? (track.coords as LatLng[][]).flat()
+        : (track.coords as LatLng[]);
+      if (flat.length === 0) return;
+
+      let start = progressRef.current[track.id] ?? 0;
+
+      // Seed once, when the user is actually near the route — snaps progress to
+      // wherever on the route they are (handles joining mid-trail). Until then we
+      // keep retrying and don't advance.
+      if (!seededRef.current[track.id]) {
+        let gMin = Infinity;
+        let gIdx = 0;
+        flat.forEach((p, i) => {
+          const d = calculateDistance(userLocation, p);
+          if (d < gMin) { gMin = d; gIdx = i; }
+        });
+        if (gMin <= ON_ROUTE_M) {
+          start = gIdx;
+          seededRef.current[track.id] = true;
+        }
       }
-      return prev;
+
+      // Nearest vertex within a forward window of current progress.
+      const end = Math.min(flat.length - 1, start + WINDOW);
+      let bestIdx = start;
+      let bestDist = calculateDistance(userLocation, flat[start]);
+      for (let i = start + 1; i <= end; i++) {
+        const d = calculateDistance(userLocation, flat[i]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+
+      // Advance only when on-route and moving forward; never rewind.
+      next[track.id] = bestDist <= ON_ROUTE_M && bestIdx > start ? bestIdx : start;
     });
-  }, [userLocation]);
+
+    progressRef.current = next;
+    setProgressMap(next);
+  }, [userLocation, tracks]);
 
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
@@ -292,7 +341,7 @@ const MapScreen: React.FC = () => {
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}
         waypoints={waypoints}
-        hikedPath={hikedPath}
+        progressMap={progressMap}
         onWaypointPress={(wp) => {
           if (!wp) {
             setSelectedWaypoint(null);
