@@ -68,14 +68,6 @@ export interface ProgressPoint {
   point: LatLng;
 }
 
-// Where to draw the location dot, and whether we're honestly off the route.
-// On-route: `position` is snapped to the trail (map-matched). Off-route:
-// `position` is the real GPS fix and `offRoute` is true so the dot can flag it.
-export interface DotState {
-  position: LatLng;
-  offRoute: boolean;
-}
-
 interface Props {
   tracks?: Track[];
   center?: LatLng;
@@ -88,9 +80,6 @@ interface Props {
   onWaypointPress?: (wp: Waypoint | null) => void;
   showTrackingButton?: boolean; // default true
   progressMap?: Record<string | number, ProgressPoint>;
-  // Snapped/real dot position + off-route flag (map-matching). Falls back to the
-  // raw userLocation when absent.
-  dotState?: DotState | null;
 }
 
 const DEFAULT_CENTER: LatLng = [37.7749, -122.4194];
@@ -124,7 +113,6 @@ const MapLibreMap: React.FC<Props> = ({
   onWaypointPress,
   showTrackingButton = true,
   progressMap = {},
-  dotState = null,
 }) => {
   const cameraRef = useRef<any>(null);
   const [tracking, setTracking] = useState<boolean>(true);
@@ -393,15 +381,11 @@ const MapLibreMap: React.FC<Props> = ({
   const { smoothed, pushFix } = useSmoothedLocation(SMOOTH_DOT);
 
   useEffect(() => {
-    // Prefer the map-matched (snapped) position; fall back to the raw fix. The
-    // glide smooths whichever we feed it — but on-route the input is already on
-    // the trail line, so the glide's job is easy and the dot rides the trail.
-    const pos = dotState?.position ?? userLocation;
-    if (SMOOTH_DOT && pos) {
-      // pos is [lat, lng]; heading unavailable here (arrow not drawn yet).
-      pushFix(pos[0], pos[1], null);
+    if (SMOOTH_DOT && userLocation) {
+      // userLocation is [lat, lng]; heading unavailable here (arrow not drawn yet).
+      pushFix(userLocation[0], userLocation[1], null);
     }
-  }, [dotState, userLocation, pushFix]);
+  }, [userLocation, pushFix]);
 
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
@@ -633,46 +617,40 @@ const MapLibreMap: React.FC<Props> = ({
           onUpdate={onUserLocUpdate}
         />
 
-        {/* Smoothed (interpolated) location dot — display only.
-            Blue = on the trail (snapped) or free-roaming with no route loaded.
-            Orange = a route IS loaded but you're off it: honest, not snapped. */}
-        {SMOOTH_DOT && smoothed && (() => {
-          const offRoute = dotState?.offRoute ?? false;
-          const dotColor = offRoute ? "#FB8C00" : "#1E88E5";
-          return (
-            <ShapeSource
-              id="smooth-user-dot"
-              shape={{
-                type: "Feature",
-                properties: {},
-                geometry: {
-                  type: "Point",
-                  coordinates: [smoothed.lng, smoothed.lat],
-                },
+        {/* Smoothed (interpolated) location dot — display only. */}
+        {SMOOTH_DOT && smoothed && (
+          <ShapeSource
+            id="smooth-user-dot"
+            shape={{
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "Point",
+                coordinates: [smoothed.lng, smoothed.lat],
+              },
+            }}
+          >
+            {/* soft accuracy-ish halo */}
+            <CircleLayer
+              id="smooth-user-dot-halo"
+              style={{
+                circleRadius: 16,
+                circleColor: "#1E88E5",
+                circleOpacity: 0.18,
               }}
-            >
-              {/* soft accuracy-ish halo */}
-              <CircleLayer
-                id="smooth-user-dot-halo"
-                style={{
-                  circleRadius: 16,
-                  circleColor: dotColor,
-                  circleOpacity: 0.18,
-                }}
-              />
-              {/* solid core with white ring */}
-              <CircleLayer
-                id="smooth-user-dot-core"
-                style={{
-                  circleRadius: 7,
-                  circleColor: dotColor,
-                  circleStrokeColor: "#FFFFFF",
-                  circleStrokeWidth: 2.5,
-                }}
-              />
-            </ShapeSource>
-          );
-        })()}
+            />
+            {/* solid core with white ring */}
+            <CircleLayer
+              id="smooth-user-dot-core"
+              style={{
+                circleRadius: 7,
+                circleColor: "#1E88E5",
+                circleStrokeColor: "#FFFFFF",
+                circleStrokeWidth: 2.5,
+              }}
+            />
+          </ShapeSource>
+        )}
       </MapView>
 
       {/* Zoom controls */}
