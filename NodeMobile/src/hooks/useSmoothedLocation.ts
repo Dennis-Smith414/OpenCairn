@@ -26,10 +26,15 @@ interface Endpoint extends SmoothedLocation {
   ts: number; // wall-clock ms bounding this animation leg
 }
 
-// Clamp the animation window so a stalled GPS (huge gap) doesn't produce a
-// 30-second crawl, and a burst of fixes doesn't divide by ~0.
-const MIN_MS = 250;
-const MAX_MS = 3000;
+// The dot glides across the measured gap between fixes, so motion is continuous
+// (no pause-then-jump). Clamped: a GPS stall shouldn't cause a multi-second
+// crawl, and a burst shouldn't divide by ~0.
+//   Want SMOOTHER (more glide, more follow-lag)? raise MAX_MS.
+//   Want SNAPPIER (less lag, slightly steppier)? lower MAX_MS.
+// The earlier "hard lag" was a feedback loop resetting the glide every frame,
+// now fixed — this duration is just the smooth/snappy dial.
+const MIN_MS = 300;
+const MAX_MS = 1500;
 const DEFAULT_MS = 1000;
 
 export function useSmoothedLocation(enabled: boolean) {
@@ -79,7 +84,7 @@ export function useSmoothedLocation(enabled: boolean) {
     (lat: number, lng: number, heading: number | null | undefined) => {
       if (!enabledRef.current) return;
       const now = Date.now();
-      // Duration = measured gap since the last fix, clamped to sane bounds.
+      // Glide over the measured gap since the last fix, clamped.
       const gap = lastFixWallRef.current ? now - lastFixWallRef.current : DEFAULT_MS;
       lastFixWallRef.current = now;
       const dur = Math.min(MAX_MS, Math.max(MIN_MS, gap));
