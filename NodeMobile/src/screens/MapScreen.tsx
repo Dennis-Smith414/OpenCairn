@@ -12,7 +12,7 @@ import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
 import TripTracker from '../components/TripTracker/TripTracker';
 // NEW: MapLibre map component (Leaflet-compatible props)
-import MapLibreMap, { LatLng, Track, ProgressPoint } from "../components/MapLibre/MapLibreMap";
+import MapLibreMap, { LatLng, Track, ProgressPoint, DotState } from "../components/MapLibre/MapLibreMap";
 import { projectOntoSegment } from "../utils/geoProgress";
 
 //43.075678763073164, -87.88565891395142
@@ -52,6 +52,7 @@ const MapScreen: React.FC = () => {
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
   const [progressMap, setProgressMap] = useState<Record<string | number, ProgressPoint>>({});
+  const [dotState, setDotState] = useState<DotState | null>(null);
   const {
     location,
     loading: locationLoading,
@@ -251,15 +252,31 @@ const MapScreen: React.FC = () => {
   // A one-time global seed lets progress start correctly when joining mid-trail.
   const progressRef = useRef<Record<string | number, ProgressPoint>>({});
   const seededRef = useRef<Record<string | number, boolean>>({});
+  // Whether the dot is currently snapped to a route. Hysteresis keeps it from
+  // flickering at the snap boundary — we snap ON at SNAP_ENTER_M but only let go
+  // at the looser SNAP_EXIT_M.
+  const snappedRef = useRef<boolean>(false);
 
   useEffect(() => {
-    if (!userLocation || tracks.length === 0) return;
+    if (!userLocation) return;
 
-    const ON_ROUTE_M = 40; // must be this close to the route to count as progress
-    const WINDOW = 60;     // segments to look ahead from current progress
+    const ON_ROUTE_M = 40;    // within this, grey progress advances
+    const SNAP_ENTER_M = 20;  // within this, the dot snaps to the trail
+    const SNAP_EXIT_M = 35;   // beyond this, the dot lets go (hysteresis)
+    const WINDOW = 60;        // segments to search around current progress
     const up = { lat: userLocation[0], lng: userLocation[1] };
 
+    // No route loaded → plain free-roaming GPS dot, no snapping, no warning.
+    if (tracks.length === 0) {
+      snappedRef.current = false;
+      setDotState({ position: userLocation, offRoute: false });
+      return;
+    }
+
     const next: Record<string | number, ProgressPoint> = { ...progressRef.current };
+    // Closest instantaneous projection across all routes — this drives the dot
+    // (allowed to move backward, unlike the monotonic grey progress).
+    let dotBest: { point: LatLng; dist: number } | null = null;
 
     tracks.forEach((track) => {
       const flat: LatLng[] = Array.isArray(track.coords[0])
@@ -285,7 +302,7 @@ const MapScreen: React.FC = () => {
         }
       }
 
-      // Best (closest) projection onto any segment in the forward window.
+      // GREY PROGRESS: monotonic best projection in a FORWARD window.
       const endSeg = Math.min(flat.length - 2, startSeg + WINDOW);
       let best: { seg: number; t: number; point: LatLng; dist: number } | null = null;
       for (let s = startSeg; s <= endSeg; s++) {
@@ -296,23 +313,53 @@ const MapScreen: React.FC = () => {
         const dist = calculateDistance(userLocation, pt);
         if (!best || dist < best.dist) best = { seg: s, t: proj.t, point: pt, dist };
       }
-      if (!best) return;
+      if (best) {
+        const forward =
+          !cur || best.seg > cur.seg || (best.seg === cur.seg && best.t >= cur.t);
+        if (best.dist <= ON_ROUTE_M && forward) {
+          next[track.id] = { seg: best.seg, t: best.t, point: best.point };
+        } else if (cur) {
+          next[track.id] = cur; // off-route or would rewind: hold position
+        } else {
+          next[track.id] = { seg: startSeg, t: 0, point: flat[startSeg] };
+        }
+      }
 
-      // Forward = a later segment, or the same segment but further along it.
-      const forward =
-        !cur || best.seg > cur.seg || (best.seg === cur.seg && best.t >= cur.t);
-
-      if (best.dist <= ON_ROUTE_M && forward) {
-        next[track.id] = { seg: best.seg, t: best.t, point: best.point };
-      } else if (cur) {
-        next[track.id] = cur; // off-route or would rewind: hold position
-      } else {
-        next[track.id] = { seg: startSeg, t: 0, point: flat[startSeg] };
+      // DOT: instantaneous best projection in a SYMMETRIC window (so it can
+      // track you backward on an out-and-back), kept local so a loop can't
+      // teleport it.
+      const from = Math.max(0, startSeg - WINDOW);
+      const to = Math.min(flat.length - 2, startSeg + WINDOW);
+      for (let s = from; s <= to; s++) {
+        const a = { lat: flat[s][0], lng: flat[s][1] };
+        const b = { lat: flat[s + 1][0], lng: flat[s + 1][1] };
+        const proj = projectOntoSegment(up, a, b);
+        const pt: LatLng = [proj.point.lat, proj.point.lng];
+        const dist = calculateDistance(userLocation, pt);
+        if (!dotBest || dist < dotBest.dist) dotBest = { point: pt, dist };
       }
     });
 
     progressRef.current = next;
     setProgressMap(next);
+
+    // Snap decision with hysteresis. A route is loaded here, so if we're beyond
+    // tolerance we show the TRUTH (raw position) flagged off-route, never a lie.
+    if (dotBest) {
+      const db: { point: LatLng; dist: number } = dotBest;
+      if (snappedRef.current ? db.dist > SNAP_EXIT_M : db.dist > SNAP_ENTER_M) {
+        snappedRef.current = false;
+      } else {
+        snappedRef.current = true;
+      }
+      setDotState(
+        snappedRef.current
+          ? { position: db.point, offRoute: false }
+          : { position: userLocation, offRoute: true }
+      );
+    } else {
+      setDotState({ position: userLocation, offRoute: true });
+    }
   }, [userLocation, tracks]);
 
   const handleMapLongPress = (lat: number, lon: number) => {
@@ -358,6 +405,7 @@ const MapScreen: React.FC = () => {
         onMapLongPress={handleMapLongPress}
         waypoints={waypoints}
         progressMap={progressMap}
+        dotState={dotState}
         onWaypointPress={(wp) => {
           if (!wp) {
             setSelectedWaypoint(null);
