@@ -17,7 +17,7 @@ import { useThemeStyles } from '../styles/theme';
 import { createGlobalStyles } from '../styles/globalStyles';
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
-    const { colors } = useThemeStyles();
+    const { colors, isDark } = useThemeStyles();
     const globalStyles = createGlobalStyles(colors);
     
     const [email, setEmail] = useState("");
@@ -104,7 +104,9 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
             <ScrollView contentContainerStyle={{flexGrow: 1}} keyboardShouldPersistTaps="handled">
                 <View style={globalStyles.container}>
                     <Image
-                        source={require("../assets/images/OCLogoLight.png")}
+                        source={isDark
+                            ? require("../assets/images/OCLogoDark.png")
+                            : require("../assets/images/OCLogoLight.png")}
                         style={globalStyles.logo}
                         resizeMode="contain"
                     />

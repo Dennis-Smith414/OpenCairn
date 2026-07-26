@@ -21,7 +21,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Step = "request" | "reset";
 
 export default function ForgotPasswordScreen({ navigation }: { navigation: any }) {
-    const { colors } = useThemeStyles();
+    const { colors, isDark } = useThemeStyles();
     const globalStyles = createGlobalStyles(colors);
 
     const [step, setStep] = useState<Step>("request");
@@ -119,7 +119,9 @@ export default function ForgotPasswordScreen({ navigation }: { navigation: any }
                 keyboardShouldPersistTaps="handled"
             >
                 <Image
-                    source={require("../assets/images/OCLogoLight.png")}
+                    source={isDark
+                        ? require("../assets/images/OCLogoDark.png")
+                        : require("../assets/images/OCLogoLight.png")}
                     style={globalStyles.logo}
                     resizeMode="contain"
                 />
