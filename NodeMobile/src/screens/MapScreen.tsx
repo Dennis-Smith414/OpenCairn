@@ -50,7 +50,7 @@ const MapScreen: React.FC = () => {
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
-  const [progressMap, setProgressMap] = useState<Record<string | number, number>>({});
+  const [hikedPath, setHikedPath] = useState<LatLng[]>([]);
   const {
     location,
     loading: locationLoading,
@@ -234,23 +234,21 @@ const MapScreen: React.FC = () => {
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
+  // Grey breadcrumb of where the user has ACTUALLY walked. We append each fresh
+  // fix once it's moved far enough from the last breadcrumb point to be real
+  // movement rather than GPS jitter. DISPLAY ONLY — the uploaded/recorded track
+  // is written elsewhere; nothing here feeds it.
   useEffect(() => {
-    if (!userLocation || tracks.length === 0) return;
-    const next: Record<string | number, number> = {};
-    tracks.forEach((track) => {
-      const flat: LatLng[] = Array.isArray(track.coords[0])
-        ? (track.coords as LatLng[][]).flat()
-        : (track.coords as LatLng[]);
-      let minDist = Infinity;
-      let nearestIdx = 0;
-      flat.forEach((point, i) => {
-        const d = calculateDistance(userLocation, point);
-        if (d < minDist) { minDist = d; nearestIdx = i; }
-      });
-      next[track.id] = nearestIdx;
+    if (!userLocation) return;
+    setHikedPath((prev) => {
+      const last = prev[prev.length - 1];
+      // First point, or moved > ~4m: append. Otherwise ignore jitter.
+      if (!last || calculateDistance(last, userLocation) > 4) {
+        return [...prev, userLocation];
+      }
+      return prev;
     });
-    setProgressMap(next);
-  }, [userLocation, tracks]);
+  }, [userLocation]);
 
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
@@ -294,7 +292,7 @@ const MapScreen: React.FC = () => {
         zoom={DEFAULT_ZOOM}
         onMapLongPress={handleMapLongPress}
         waypoints={waypoints}
-        progressMap={progressMap}
+        hikedPath={hikedPath}
         onWaypointPress={(wp) => {
           if (!wp) {
             setSelectedWaypoint(null);
