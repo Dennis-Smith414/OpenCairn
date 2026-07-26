@@ -361,19 +361,25 @@ const MapLibreMap: React.FC<Props> = ({
   }, [onMapReady]);
 
   // Track last user location for the center-on-me button
-  // Smoothed dot: consumes the native puck's OWN fix stream (onUpdate fires per
-  // native fix, even while the native puck is hidden) and glides between fixes.
+  // Smoothed dot glides between fixes. Fed from the `userLocation` prop (the
+  // app's own useGeolocation watch) rather than the native puck's onUpdate,
+  // because onUpdate may not fire while the puck is hidden — feeding from the
+  // known-live stream guarantees the dot actually moves on a real walk.
   const { smoothed, pushFix } = useSmoothedLocation(SMOOTH_DOT);
+
+  useEffect(() => {
+    if (SMOOTH_DOT && userLocation) {
+      // userLocation is [lat, lng]; heading unavailable here (arrow not drawn yet).
+      pushFix(userLocation[0], userLocation[1], null);
+    }
+  }, [userLocation, pushFix]);
 
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
     if (coords?.latitude && coords?.longitude) {
       lastUserLocRef.current = [coords.latitude, coords.longitude];
-      // Feed the smoother the raw fix (incl. GPS course when present). This is
-      // display-only — the recorded track is written elsewhere from raw fixes.
-      pushFix(coords.latitude, coords.longitude, coords.heading);
     }
-  }, [pushFix]);
+  }, []);
 
   // Center on tracks
   useEffect(() => {

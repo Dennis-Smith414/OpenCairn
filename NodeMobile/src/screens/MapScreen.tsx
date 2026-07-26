@@ -61,8 +61,10 @@ const MapScreen: React.FC = () => {
     stopWatching,
   } = useGeolocation({
     enableHighAccuracy: true,
-    distanceFilter: 5,
-    interval: 3000,
+    // Tighter than before (was 5m / 3s) so the dot updates ~1/sec and the
+    // smoothed dot has fresh, frequent targets to glide toward on a walk.
+    distanceFilter: 2,
+    interval: 1000,
     showPermissionAlert: true,
     showErrorAlert: false,
   });
