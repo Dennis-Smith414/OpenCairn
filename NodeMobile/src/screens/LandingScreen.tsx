@@ -8,14 +8,18 @@ export default function LandingScreen({ navigation }: any) {
     // Was importing the STATIC globalStyles, which is createGlobalStyles(lightColors)
     // — so the landing screen was hardcoded light while every other screen builds
     // its styles from the active theme. Match the standard pattern.
-    const { colors } = useThemeStyles();
+    const { colors, isDark } = useThemeStyles();
     const globalStyles = createGlobalStyles(colors);
 
     return (
         <View style={globalStyles.container}>
 
             <Image
-                source={require("../assets/images/OCLogoLight.png")}
+                // Match the logo to the theme — the light logo was unreadable on
+                // the dark background.
+                source={isDark
+                    ? require("../assets/images/OCLogoDark.png")
+                    : require("../assets/images/OCLogoLight.png")}
                 style={styles.logo}
                 resizeMode="contain" // scaled to fit
             />
