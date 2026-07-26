@@ -46,3 +46,29 @@ export function progress(fromTs: number, toTs: number, now: number): number {
   const p = (now - fromTs) / span;
   return p < 0 ? 0 : p > 1 ? 1 : p;
 }
+
+export interface Velocity {
+  vlat: number; // degrees latitude per ms
+  vlng: number; // degrees longitude per ms
+}
+
+/**
+ * Per-ms velocity between two timestamped points. Returns a zero vector when the
+ * time delta is non-positive or implausibly large (>5s → treat as a fresh start,
+ * not real motion), so a GPS gap can't launch the dot off at a stale speed.
+ */
+export function velocity(
+  a: LatLngPoint,
+  aTs: number,
+  b: LatLngPoint,
+  bTs: number,
+): Velocity {
+  const dt = bTs - aTs;
+  if (dt <= 0 || dt > 5000) return { vlat: 0, vlng: 0 };
+  return { vlat: (b.lat - a.lat) / dt, vlng: (b.lng - a.lng) / dt };
+}
+
+/** Project a point forward along a velocity over `leadMs` (dead reckoning). */
+export function extrapolate(p: LatLngPoint, v: Velocity, leadMs: number): LatLngPoint {
+  return { lat: p.lat + v.vlat * leadMs, lng: p.lng + v.vlng * leadMs };
+}

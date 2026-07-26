@@ -1,4 +1,11 @@
-import { lerp, lerpHeading, lerpPoint, progress } from "../src/utils/locationSmoothing";
+import {
+  lerp,
+  lerpHeading,
+  lerpPoint,
+  progress,
+  velocity,
+  extrapolate,
+} from "../src/utils/locationSmoothing";
 
 describe("lerp", () => {
   test("endpoints and midpoint", () => {
@@ -56,5 +63,32 @@ describe("progress", () => {
   test("zero or negative span snaps to newest (no divide-by-zero)", () => {
     expect(progress(1000, 1000, 1000)).toBe(1);
     expect(progress(2000, 1000, 1500)).toBe(1);
+  });
+});
+
+describe("velocity", () => {
+  test("constant rate over the interval", () => {
+    const v = velocity({ lat: 43.0, lng: -87.0 }, 1000, { lat: 43.001, lng: -87.002 }, 2000);
+    expect(v.vlat).toBeCloseTo(0.001 / 1000, 12);
+    expect(v.vlng).toBeCloseTo(-0.002 / 1000, 12);
+  });
+  test("non-positive dt is a zero vector", () => {
+    expect(velocity({ lat: 1, lng: 1 }, 2000, { lat: 2, lng: 2 }, 2000)).toEqual({ vlat: 0, vlng: 0 });
+    expect(velocity({ lat: 1, lng: 1 }, 3000, { lat: 2, lng: 2 }, 2000)).toEqual({ vlat: 0, vlng: 0 });
+  });
+  test("implausibly large gap (>5s) is treated as a fresh start", () => {
+    expect(velocity({ lat: 1, lng: 1 }, 0, { lat: 5, lng: 5 }, 6000)).toEqual({ vlat: 0, vlng: 0 });
+  });
+});
+
+describe("extrapolate", () => {
+  test("projects forward by velocity * leadMs", () => {
+    const p = extrapolate({ lat: 43.0, lng: -87.0 }, { vlat: 0.001 / 1000, vlng: -0.002 / 1000 }, 1000);
+    expect(p.lat).toBeCloseTo(43.001, 9);
+    expect(p.lng).toBeCloseTo(-87.002, 9);
+  });
+  test("zero velocity leaves the point where it is", () => {
+    const p = extrapolate({ lat: 10, lng: 20 }, { vlat: 0, vlng: 0 }, 5000);
+    expect(p).toEqual({ lat: 10, lng: 20 });
   });
 });
