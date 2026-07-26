@@ -92,9 +92,9 @@ export const darkColors: Palette = {
   background: "#101214ff",
   backgroundAlt: "#1A1F23",
   textPrimary: "#F9FAFB",      // ← light text for dark mode
-  textSecondary: "#A6A6A6",
+  textSecondary: "#E5E7EB",    // near-white: subtitles/helper text were too dim on dark
   border: "#2B3137",
-  placeholder: '#A9A9A9',
+  placeholder: '#C7CBD1',      // brighter placeholder, still a touch below entered text
   buttonText: '#FFFFFF',
   danger: '#DC143C',
   success: '#28a745',
