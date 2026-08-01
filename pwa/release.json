@@ -1,7 +1,7 @@
 {
   "manifest": {
-    "version": "v15",
-    "builtAt": "2026-08-01T19:57:14.599Z",
+    "version": "v16",
+    "builtAt": "2026-08-01T20:17:50.960Z",
     "files": {
       "./": "f5d0b888dd1d5c2418332d534369a3609ca521c62ea04260725394f6b4b22b60",
       "./index.html": "f5d0b888dd1d5c2418332d534369a3609ca521c62ea04260725394f6b4b22b60",
@@ -12,7 +12,7 @@
       "./install/install.html": "7ec237d235b4dbdd1a5538b7fdbbab467b925ddb889d291c0ce1007ccb525596",
       "./install/install.js": "16bd66d5be0e6092f60fc0cedc4fc83e73326ff0d01e26be930cb61a111af298",
       "./manifest.webmanifest": "3baed9fd060ef1a655cc2a2ce89250de7952355fb8ce5373cadc5e939b16b83b",
-      "./trails.min.json": "6046b0454854e3bffc4ac1986c9ccf4420b24172ff89962f1c01bf24090a56f3",
+      "./trails.min.json": "ac3e013e8a3269117e3e3febaa5de972c290abf02817386ba500bd3ff99ce198",
       "./logo-mark.png": "5b673d46920acede91f508776890a90ed8bb5bdc17889f6cd6c721781a22cbd2",
       "./logo-mark@2x.png": "17941ec4402cc24ccb340cd563b794f5b4d47b3501be45ff7a0800dac302e253",
       "./icon-192.png": "fcbac0ad0d35e3b7f1f018ec6c0100a0b131f6ebe17d02e29cb6f67337ec56c2",
@@ -27,5 +27,5 @@
       "./vendor/fonts/Open Sans Regular/256-511.pbf": "9962ad38d064edbeb226a6c7dcf1d58e7678508a805f980d2fe81bb3178ba68a"
     }
   },
-  "signature": "Zr7uti+X0E6UC7N+Ygl/QSmaFTq15g4BVwmm7qKjWXdQWdP8QVaCmyNUfQWbHn3Hjk7Zac3wy+dN4wMkNAS7sw=="
+  "signature": "oc4YsH56eVaHNdgoCHNBttDcGtTxgRmOiQz0phms0858tcJi47l0biNmC6qmqI556w/3DRmLzKG5e6/MLY23wA=="
 }

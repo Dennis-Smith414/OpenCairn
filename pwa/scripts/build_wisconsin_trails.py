@@ -154,18 +154,34 @@ def douglas_peucker(pts, epsilon):
     return dp(pts)
 
 
+# Nearest-anchor-point classification, not axis-aligned rectangles. Rectangles
+# cut clean across real geography: the original rule bucketed everything at
+# longitude <= -88.3 into "Madison" regardless of latitude, which put actual
+# southeastern Wisconsin — both Kettle Moraine units, Whitewater, Palmyra,
+# Delavan, Lake Geneva, East Troy — under "Madison & Southern Lakes" just for
+# being a few miles west of an arbitrary line, even though they're 15-40km
+# closer to Milwaukee. A short haversine-nearest-neighbor to one representative
+# point per region gives each region a naturally-shaped catchment area instead.
+# Anchors are hand-picked to represent each named region, not just its biggest
+# city — e.g. Milwaukee's anchor is nudged west of downtown toward the Kettle
+# Moraine units, since the region name promises both.
+REGION_ANCHORS = {
+    'Northwoods & Apostle Islands, WI': (45.9, -90.0),
+    'Door County & Lakeshore, WI': (44.83, -87.38),
+    'Milwaukee & Kettle Moraine, WI': (43.0, -88.1),
+    'Madison & Southern Lakes, WI': (43.07, -89.4),
+    'Driftless Area / Mississippi River Valley, WI': (43.8, -91.0),
+    'Central Sands & Wisconsin Dells, WI': (44.35, -89.7),
+}
+
+
 def classify_region(lat, lon):
-    if lat > 45.3:
-        return 'Northwoods & Apostle Islands, WI'
-    if 43.6 <= lat <= 45.3 and lon > -87.9:
-        return 'Door County & Lakeshore, WI'
-    if 42.4 <= lat <= 43.6 and lon > -88.3:
-        return 'Milwaukee & Kettle Moraine, WI'
-    if 42.4 <= lat <= 43.6 and -89.6 <= lon <= -88.3:
-        return 'Madison & Southern Lakes, WI'
-    if lon < -90.2:
-        return 'Driftless Area / Mississippi River Valley, WI'
-    return 'Central Sands & Wisconsin Dells, WI'
+    best_region, best_dist = None, float('inf')
+    for region, (alat, alon) in REGION_ANCHORS.items():
+        dist = haversine_m(lat, lon, alat, alon)
+        if dist < best_dist:
+            best_region, best_dist = region, dist
+    return best_region
 
 
 REGION_SHORT = {
