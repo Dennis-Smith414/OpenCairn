@@ -182,6 +182,84 @@ MIN_LEN_NAMED_FALLBACK = 500  # synthetic-name fallback only kicks in above this
 CAP_PER_REGION = 700
 DP_EPSILON_DEG = 0.00007
 
+# Segment-merging (Part 8): OSM maps a single real trail as many short ways —
+# without this, the Ice Age Trail alone shows up as hundreds of ~1-2-point
+# fragments. Roles that mark a relation member as a side trip/bypass rather
+# than the main line — these are excluded from the merge walk (but still kept
+# as their own small features via the normal per-way fallback path below,
+# never dropped). Matched against real production data, which includes at
+# least one dirty role string with a stray trailing backtick.
+EXCLUDED_ROLES = {'alternative', 'excursion', 'approach', 'link'}
+# Real long-distance trails (e.g. the North Country Trail, 336km in one
+# low-branching relation) still need a safety-valve cap so one relation can't
+# merge into a single unbrowsable mega-feature. This is a backstop, not the
+# primary fix — the primary fix is that OSM already segments most named
+# trails (e.g. the Ice Age Trail is 221 separately-named relations, not one).
+MAX_CHAIN_LEN_M = 40000
+
+
+def normalize_role(role):
+    return (role or '').strip().rstrip('`').lower()
+
+
+def endpoint_key(pt):
+    # Real OSM data: ways that truly connect share a bit-identical node
+    # coordinate (Overpass's `out geom` echoes the authoritative stored node),
+    # so an exact match after rounding is reliable — deliberately NOT a
+    # distance-tolerance match, which would risk silently fusing unrelated
+    # trails that merely pass close to each other (e.g. at a road crossing).
+    return (round(pt[0], 7), round(pt[1], 7))
+
+
+def merge_group(way_ids, way_geom):
+    """way_ids: iterable of way ids sharing one trail identity (one relation's
+    primary-role members, or one standalone name). way_geom: wid -> [(lat,lon),...].
+    Returns a list of chains (each a list of (lat,lon) points), splitting at
+    real branch points / dead ends / the length cap rather than guessing."""
+    node_ways = {}  # endpoint_key -> [(way_id, 'start'|'end'), ...]
+    for wid in way_ids:
+        pts = way_geom.get(wid)
+        if not pts or len(pts) < 2:
+            continue
+        node_ways.setdefault(endpoint_key(pts[0]), []).append((wid, 'start'))
+        node_ways.setdefault(endpoint_key(pts[-1]), []).append((wid, 'end'))
+
+    visited = set()
+    chains = []
+
+    def extend(chain, chain_len, forward):
+        while True:
+            probe = chain[-1] if forward else chain[0]
+            candidates = [(w, e) for (w, e) in node_ways.get(endpoint_key(probe), []) if w not in visited]
+            if len(candidates) != 1:
+                return chain, chain_len  # branch, dead end, or nothing left unvisited
+            nwid, nend = candidates[0]
+            npts = way_geom[nwid]
+            nlen = track_length_m(npts)
+            if chain_len + nlen > MAX_CHAIN_LEN_M:
+                return chain, chain_len
+            if forward:
+                oriented = npts if nend == 'start' else list(reversed(npts))
+                chain = chain + oriented[1:]
+            else:
+                oriented = npts if nend == 'end' else list(reversed(npts))
+                chain = oriented[:-1] + chain
+            chain_len += nlen
+            visited.add(nwid)
+
+    for wid in sorted(way_ids):
+        if wid in visited:
+            continue
+        visited.add(wid)
+        pts = way_geom.get(wid)
+        if not pts or len(pts) < 2:
+            continue
+        chain, chain_len = list(pts), track_length_m(pts)
+        chain, chain_len = extend(chain, chain_len, True)
+        chain, chain_len = extend(chain, chain_len, False)
+        chains.append(chain)
+    return chains
+
 
 def cmd_convert(args):
     with open(CACHE_FILE) as f:
@@ -189,7 +267,6 @@ def cmd_convert(args):
     elements = raw['elements']
 
     standalone = {}   # way_id -> {'geometry': [(lat,lon),...], 'tags': {...}}
-    rel_name_for_way = {}   # way_id -> relation name
     rel_geom_for_way = {}   # way_id -> geometry, for members not independently matched
 
     for el in elements:
@@ -197,64 +274,121 @@ def cmd_convert(args):
             pts = [(g['lat'], g['lon']) for g in el['geometry']]
             standalone[el['id']] = {'geometry': pts, 'tags': el.get('tags') or {}}
 
+    # Named hiking/foot relations -> their primary-role member way ids
+    # (many-to-many: a way can be a member of more than one named relation —
+    # confirmed in real data, e.g. shared tread under "Bugline Trail" and an
+    # Ice Age Trail segment — so this must NOT be first-relation-wins).
+    relation_name = {}          # rel_id -> name
+    way_to_relations = {}       # way_id -> [rel_id, ...] (primary-role only)
     for el in elements:
         if el.get('type') != 'relation':
             continue
-        rname = (el.get('tags') or {}).get('name')
+        tags = el.get('tags') or {}
+        if str(tags.get('route')) not in ('hiking', 'foot'):
+            continue
+        rname = tags.get('name')
+        if not rname:
+            continue
+        relation_name[el['id']] = rname
         for m in el.get('members', []):
             if m.get('type') != 'way':
                 continue
             wid = m.get('ref')
-            if rname and wid not in rel_name_for_way:
-                rel_name_for_way[wid] = rname
             if m.get('geometry') and wid not in standalone and wid not in rel_geom_for_way:
                 rel_geom_for_way[wid] = [(g['lat'], g['lon']) for g in m['geometry']]
+            if normalize_role(m.get('role')) in EXCLUDED_ROLES:
+                continue
+            way_to_relations.setdefault(wid, []).append(el['id'])
 
     all_ids = set(standalone) | set(rel_geom_for_way)
     print('Distinct ways: %d (standalone matched: %d, relation-only: %d)' %
           (len(all_ids), len(standalone), len(rel_geom_for_way)), file=sys.stderr)
 
+    def way_geometry(wid):
+        rec = standalone.get(wid)
+        return rec['geometry'] if rec else rel_geom_for_way.get(wid)
+
+    def way_tags(wid):
+        rec = standalone.get(wid)
+        return rec['tags'] if rec else {}
+
+    # Standalone same-name groups: ways with their own name that aren't a
+    # primary-role member of any named relation (those are handled below).
+    standalone_groups = {}  # name -> [way_id, ...]
+    for wid in all_ids:
+        if wid in way_to_relations:
+            continue
+        name = way_tags(wid).get('name')
+        if name:
+            standalone_groups.setdefault(name, []).append(wid)
+
+    way_geom_all = {wid: way_geometry(wid) for wid in all_ids}
+
     by_region = {}  # region -> list of feature dicts (pre-cap)
 
-    for wid in all_ids:
-        rec = standalone.get(wid)
-        geometry = rec['geometry'] if rec else rel_geom_for_way[wid]
-        tags = rec['tags'] if rec else {}
-        if len(geometry) < 2:
+    def add_record(name, coords, has_real_name):
+        if len(coords) < 2:
+            return
+        length_m = track_length_m(coords)
+        if length_m < MIN_LEN_HARD:
+            return
+        lat_c = sum(p[0] for p in coords) / len(coords)
+        lon_c = sum(p[1] for p in coords) / len(coords)
+        region = classify_region(lat_c, lon_c)
+        simplified = douglas_peucker(coords, DP_EPSILON_DEG)
+        if len(simplified) < 2:
+            return
+        by_region.setdefault(region, []).append({
+            'name': name, 'region': region, 'has_real_name': has_real_name,
+            'length_m': length_m, 'coords': simplified,
+        })
+
+    # 1) Relation groups (invert way_to_relations -> rel_id -> member way ids)
+    rel_members = {}
+    for wid, rel_ids in way_to_relations.items():
+        for rid in rel_ids:
+            rel_members.setdefault(rid, []).append(wid)
+    merged_relation_chains = 0
+    for rid, wids in rel_members.items():
+        for chain in merge_group(wids, way_geom_all):
+            add_record(relation_name[rid], chain, True)
+            merged_relation_chains += 1
+
+    # 2) Standalone same-name groups
+    merged_standalone_chains = 0
+    for name, wids in standalone_groups.items():
+        for chain in merge_group(wids, way_geom_all):
+            add_record(name, chain, True)
+            merged_standalone_chains += 1
+
+    print('Merged %d relation-member ways -> %d chains; %d standalone-named ways -> %d chains' %
+          (len(way_to_relations), merged_relation_chains, sum(len(v) for v in standalone_groups.values()), merged_standalone_chains),
+          file=sys.stderr)
+
+    # 3) Leftover ways: no named relation membership, no own name — unchanged
+    # per-way ref-fallback / synthetic-name / drop logic, exactly as before.
+    merge_claimed = set(way_to_relations) | {wid for wids in standalone_groups.values() for wid in wids}
+    leftover_ids = all_ids - merge_claimed
+    for wid in leftover_ids:
+        geometry = way_geometry(wid)
+        tags = way_tags(wid)
+        if not geometry or len(geometry) < 2:
             continue
-
         length_m = track_length_m(geometry)
-
-        real_name = rel_name_for_way.get(wid) or tags.get('name')
+        real_name = tags.get('name')
         if not real_name and tags.get('ref'):
             real_name = 'Trail ' + str(tags['ref'])
         has_real_name = bool(real_name)
-
         lat_c = sum(p[0] for p in geometry) / len(geometry)
         lon_c = sum(p[1] for p in geometry) / len(geometry)
         region = classify_region(lat_c, lon_c)
-
         name = real_name
         if not name:
             if length_m >= MIN_LEN_NAMED_FALLBACK:
                 name = '%s Trail %d' % (REGION_SHORT[region], wid % 10000)
             else:
                 continue  # unnamed and short — drop
-
-        if length_m < MIN_LEN_HARD:
-            continue  # too short regardless of name
-
-        simplified = douglas_peucker(geometry, DP_EPSILON_DEG)
-        if len(simplified) < 2:
-            continue
-
-        by_region.setdefault(region, []).append({
-            'name': name,
-            'region': region,
-            'has_real_name': has_real_name,
-            'length_m': length_m,
-            'coords': simplified,  # (lat,lon) pairs
-        })
+        add_record(name, geometry, has_real_name)
 
     features = []
     next_id = 1
