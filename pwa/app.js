@@ -21,12 +21,12 @@
 /* REGION_COLOR is the single source of truth: the legend, the browse dots AND
  * the map layer's match expression are all generated from it. */
 const REGION_COLOR = {
-  'Northwoods & Apostle Islands, WI': '#0e7c66',
-  'Door County & Lakeshore, WI': '#1f7a99',
-  'Milwaukee & Kettle Moraine, WI': '#149c96',
-  'Madison & Southern Lakes, WI': '#00838f',
-  'Driftless Area / Mississippi River Valley, WI': '#3d8f7a',
-  'Central Sands & Wisconsin Dells, WI': '#2f6f8f',
+  'Northwoods & Apostle Islands, WI': '#58913b',
+  'Door County & Lakeshore, WI': '#346cb2',
+  'Milwaukee & Kettle Moraine, WI': '#218c85',
+  'Madison & Southern Lakes, WI': '#7751b8',
+  'Driftless Area / Mississippi River Valley, WI': '#b25a34',
+  'Central Sands & Wisconsin Dells, WI': '#b18725',
 };
 const REGION_DEFAULT = '#5c6b66';
 const REGION_SHORT = {
