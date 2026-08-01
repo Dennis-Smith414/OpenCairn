@@ -124,3 +124,7 @@ apk_release_bulid.sh
 # Android build artifacts (compiled bundles contain hardcoded config)
 *.bundle
 NodeMobile/android/app/src/main/assets/index.android.bundle
+
+# PWA trail-data build cache (raw Overpass dumps, 100MB+ — regenerate via
+# pwa/scripts/build_wisconsin_trails.py fetch, never commit)
+pwa/scripts/.cache/

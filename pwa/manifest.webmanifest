@@ -1,10 +1,10 @@
 {
-  "name": "OpenCairn — Seattle Trails",
+  "name": "OpenCairn — Wisconsin Trails",
   "short_name": "OpenCairn",
-  "description": "Offline-first trail map for Seattle Tech Week — 2,000+ trails, honest GPS accuracy, and no-signup hike coordination. No account, no backend.",
+  "description": "Offline-first trail map for Wisconsin — thousands of trails, honest GPS accuracy, and no-signup hike coordination. No account, no backend.",
   "start_url": "./?src=pwa",
   "scope": "./",
-  "id": "opencairn-seattle",
+  "id": "opencairn-wisconsin",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",

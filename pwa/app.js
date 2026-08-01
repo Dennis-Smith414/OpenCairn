@@ -1,15 +1,15 @@
-/* OpenCairn PWA — Seattle Tech Week.
+/* OpenCairn PWA — Wisconsin trail demo.
  * Vanilla JS, no framework. Persistent MapLibre shell + hash router + bottom sheets.
- * Data: 2,000+ trail LineStrings from trails.min.json (id/name/region). No backend.
+ * Data: 4,000+ trail LineStrings from trails.min.json (id/name/region). No backend.
  *
- * Perf strategy for ~2k trails / ~38k vertices:
+ * Perf strategy for ~4k trails / ~78k vertices:
  *   - ALL trail lines live in ONE GeoJSON source / ONE WebGL line layer (data-driven
  *     colour by region) — GPU-rendered, effectively free to pan/zoom.
  *   - The GeoJSON source is tiled+simplified by zoom by MapLibre's built-in
  *     geojson-vt (explicit `tolerance`/`maxzoom`/`buffer` below): at overview zooms
- *     each tile carries a few hundred simplified vertices, never all 38k.
+ *     each tile carries a few hundred simplified vertices, never all 78k.
  *   - Trailhead "cairns" (one Point per trail) live in a CLUSTERED GeoJSON source,
- *     so the map only ever draws a few dozen circles, not 2,000 DOM markers.
+ *     so the map only ever draws a few dozen circles, not thousands of DOM markers.
  *   - LITE tier (webProfile.js): coarser simplification, no retina tiles, lines
  *     hidden below z10 (clusters carry the overview), zero animation.
  *   - The browse list renders incrementally (60 at a time) from an in-memory index.
@@ -21,17 +21,21 @@
 /* REGION_COLOR is the single source of truth: the legend, the browse dots AND
  * the map layer's match expression are all generated from it. */
 const REGION_COLOR = {
-  'Snoqualmie Valley / North Bend, WA': '#c0503f',
-  'Cascade Foothills, WA': '#4f8a3f',
-  'Seattle / Puget Sound, WA': '#0e83a3',
-  'Issaquah Alps, WA': '#7a5cc0',
+  'Northwoods & Apostle Islands, WI': '#0e7c66',
+  'Door County & Lakeshore, WI': '#1f7a99',
+  'Milwaukee & Kettle Moraine, WI': '#149c96',
+  'Madison & Southern Lakes, WI': '#00838f',
+  'Driftless Area / Mississippi River Valley, WI': '#3d8f7a',
+  'Central Sands & Wisconsin Dells, WI': '#2f6f8f',
 };
-const REGION_DEFAULT = '#7c6c4f';
+const REGION_DEFAULT = '#5c6b66';
 const REGION_SHORT = {
-  'Snoqualmie Valley / North Bend, WA': 'Snoqualmie / North Bend',
-  'Cascade Foothills, WA': 'Cascade Foothills',
-  'Seattle / Puget Sound, WA': 'Seattle / Puget Sound',
-  'Issaquah Alps, WA': 'Issaquah Alps',
+  'Northwoods & Apostle Islands, WI': 'Northwoods',
+  'Door County & Lakeshore, WI': 'Door County',
+  'Milwaukee & Kettle Moraine, WI': 'Milwaukee',
+  'Madison & Southern Lakes, WI': 'Madison',
+  'Driftless Area / Mississippi River Valley, WI': 'Driftless Area',
+  'Central Sands & Wisconsin Dells, WI': 'Central Sands',
 };
 // waypoint type → {colour var, glyph}
 const TYPE = {
@@ -193,7 +197,7 @@ function initMap() {
           layout: { visibility: dark ? 'visible' : 'none' } },
       ],
     },
-    center: [-121.9, 47.5], zoom: 8.6, maxZoom: 19,
+    center: [-89.5, 44.5], zoom: 6.6, maxZoom: 19,
     dragRotate: false, pitchWithRotate: false,
     fadeDuration: animOK() ? 300 : 0,
   });
@@ -729,7 +733,7 @@ function placeSearch() {
   State.view = 'place';
   openSheet(
     '<h2>Find a place</h2>' +
-    '<input id="q" placeholder="e.g. North Bend, WA" autocomplete="off" aria-label="Place search">' +
+    '<input id="q" placeholder="e.g. Baraboo, WI" autocomplete="off" aria-label="Place search">' +
     '<div class="row"><button class="btn" id="go">Search</button></div>' +
     '<div id="qres" style="margin-top:12px"></div>' +
     '<p class="tiny" style="margin-top:14px">Geocoding via OpenStreetMap Nominatim — online only; cached results stay available offline.</p>'
@@ -1074,7 +1078,7 @@ function showShare(h) {
   document.getElementById('who').onclick = () => rosterCard(h);
 }
 function regionOf(h) { const r = State.byId.get(h.id) || State.routes.find((x) => x.name === h.t); return r ? r.region : ''; }
-function startOf(h) { const r = State.byId.get(h.id) || State.routes.find((x) => x.name === h.t); return r ? r.start : [-122, 47.5]; }
+function startOf(h) { const r = State.byId.get(h.id) || State.routes.find((x) => x.name === h.t); return r ? r.start : [-89.5, 44.5]; }
 
 function joinCard(h) {
   State.view = 'hike';
