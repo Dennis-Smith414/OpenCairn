@@ -3,8 +3,16 @@
 // list, bundle the hashes + sw.js's VERSION into a manifest, sign the manifest
 // with the project's private key, and write pwa/release.json.
 //
-// Run this before every deploy, after bumping VERSION in sw.js:
+// Run this before every deploy:
 //   node scripts/sign_release.mjs
+//
+// By default this ALSO bumps VERSION in sw.js (vN -> vN+1) before signing —
+// deliberately, not a side effect. sw.js's own bytes changing is what makes
+// the browser notice there's a new version to check at all; a content change
+// signed under an unchanged VERSION string is invisible to every client
+// that already has the old shell cached (this bit us once — app.js changed,
+// VERSION didn't, nobody's browser ever re-fetched it). Pass --no-bump only
+// if you're re-signing without any content change (e.g. fixing this script).
 //
 // Requires pwa/scripts/.release-private-key.json (see keygen.mjs — run that once
 // first). The signature is verified client-side by sw.js before it will accept
@@ -44,6 +52,13 @@ function extractVersion(swSrc) {
   return m[1];
 }
 
+// vN -> vN+1. Throws on anything else rather than guess.
+function bumpVersion(v) {
+  const m = v.match(/^v(\d+)$/);
+  if (!m) throw new Error('VERSION "' + v + '" is not in the expected vN form — bump it by hand.');
+  return 'v' + (parseInt(m[1], 10) + 1);
+}
+
 function extractShell(swSrc) {
   const start = swSrc.indexOf('const SHELL = [');
   if (start === -1) throw new Error('Could not find `const SHELL = [` in sw.js');
@@ -59,8 +74,18 @@ function sha256Hex(bytes) {
 }
 
 async function main() {
-  const swSrc = readFileSync(SW_PATH, 'utf-8');
-  const version = extractVersion(swSrc);
+  const noBump = process.argv.includes('--no-bump');
+  let swSrc = readFileSync(SW_PATH, 'utf-8');
+  let version = extractVersion(swSrc);
+
+  if (!noBump) {
+    const next = bumpVersion(version);
+    swSrc = swSrc.replace(`const VERSION = '${version}'`, `const VERSION = '${next}'`);
+    writeFileSync(SW_PATH, swSrc);
+    console.log('Bumped sw.js VERSION %s -> %s (pass --no-bump to skip)', version, next);
+    version = next;
+  }
+
   const shellPaths = extractShell(swSrc);
 
   const files = {};

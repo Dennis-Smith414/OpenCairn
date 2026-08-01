@@ -1,7 +1,7 @@
 {
   "manifest": {
-    "version": "v13",
-    "builtAt": "2026-08-01T17:10:38.463Z",
+    "version": "v14",
+    "builtAt": "2026-08-01T17:13:24.089Z",
     "files": {
       "./": "f5d0b888dd1d5c2418332d534369a3609ca521c62ea04260725394f6b4b22b60",
       "./index.html": "f5d0b888dd1d5c2418332d534369a3609ca521c62ea04260725394f6b4b22b60",
@@ -27,5 +27,5 @@
       "./vendor/fonts/Open Sans Regular/256-511.pbf": "9962ad38d064edbeb226a6c7dcf1d58e7678508a805f980d2fe81bb3178ba68a"
     }
   },
-  "signature": "JooNRJuDt4hkVeVlTwDUE8uEbEis53UcXCZ8gEJzUC7wtAvVXJlZqhqKB4UfDKenKddnaRILbwKgzzULbUaa2g=="
+  "signature": "nPrROlrRDUynxvpwv7ZEOrL83oeiVwUVCBO6MgAU9uGZxLdE+utQDAFSo0vAiRM10AstFZIz668RwKNJm3fzkA=="
 }
