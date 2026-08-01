@@ -15,7 +15,20 @@
  *
  * Update path: a new VERSION installs in the background; the page shows a
  * "new version" pill, posts 'skipWaiting', and reloads on controllerchange.
- * >>> Bump VERSION on every deploy. <<<
+ * >>> Bump VERSION on every deploy, then run scripts/sign_release.mjs. <<<
+ *
+ * Signed releases (TOFU: this origin is trusted the same way HTTPS normally
+ * is — on first visit; this protects the UPDATE path after that). Before
+ * precaching, install() fetches release.json (a signed manifest of every
+ * SHELL file's SHA-256, produced by scripts/sign_release.mjs) and
+ * release-pubkey.json (the project's public key, committed — see
+ * scripts/keygen.mjs), verifies the signature, then re-fetches and hashes
+ * every SHELL file and compares. Any mismatch throws, which makes the
+ * browser DISCARD this install — the previous version keeps serving and the
+ * "new version" pill never appears. If release.json is simply absent (signing
+ * was never run for this deploy), that's treated as "not yet signed" rather
+ * than tampering: precaching proceeds unverified, with a console warning —
+ * see verifyRelease() below for the exact reasoning.
  */
 const VERSION = 'v12';
 const SHELL_CACHE = 'opencairn-shell-' + VERSION;
@@ -53,8 +66,88 @@ const SHELL = [
 // used to be cached forever here — an unbounded, never-evicted cache).
 const SHELL_URLS = new Set(SHELL.map((p) => new URL(p, self.location.href).href));
 
+/* ---------- signed-release verification (see file header) ---------- */
+
+// Deterministic JSON: object keys sorted at every level, so the bytes we hash
+// here are byte-identical to what scripts/sign_release.mjs signed. Keep this
+// function IN SYNC with the copy there.
+function canonicalize(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']';
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonicalize(value[k])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+async function sha256Hex(buf) {
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function base64ToBytes(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+// Returns one of:
+//   { ok: true }                              — verified, safe to precache
+//   { ok: false, hard: false, reason }         — not signed (yet); precache
+//                                                 unverified rather than
+//                                                 brick installs over a
+//                                                 missed deploy step
+//   { ok: false, hard: true,  reason }         — signed but INVALID; caller
+//                                                 must refuse this install
+async function verifyRelease() {
+  let release, pubJwk;
+  try {
+    const [rRes, pRes] = await Promise.all([
+      fetch('./release.json', { cache: 'no-store' }),
+      fetch('./release-pubkey.json', { cache: 'no-store' }),
+    ]);
+    if (!rRes.ok || !pRes.ok) return { ok: false, hard: false, reason: 'release.json/release-pubkey.json not found' };
+    release = await rRes.json();
+    pubJwk = await pRes.json();
+  } catch (err) {
+    return { ok: false, hard: false, reason: 'could not fetch release manifest: ' + err };
+  }
+
+  try {
+    const pubKey = await crypto.subtle.importKey(
+      'jwk', pubJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'],
+    );
+    const manifestBytes = new TextEncoder().encode(canonicalize(release.manifest));
+    const sigBytes = base64ToBytes(release.signature);
+    const validSig = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pubKey, sigBytes, manifestBytes);
+    if (!validSig) return { ok: false, hard: true, reason: 'signature does not match manifest' };
+
+    for (const [relPath, expectedHash] of Object.entries(release.manifest.files || {})) {
+      const res = await fetch(relPath, { cache: 'no-store' });
+      if (!res.ok) return { ok: false, hard: true, reason: 'could not fetch ' + relPath + ' to verify' };
+      const hash = await sha256Hex(await res.arrayBuffer());
+      if (hash !== expectedHash) return { ok: false, hard: true, reason: relPath + ' hash mismatch — served bytes do not match the signed manifest' };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, hard: true, reason: 'verification error: ' + err };
+  }
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
+    const verdict = await verifyRelease();
+    if (verdict.hard) {
+      // Reject the install entirely — the browser discards this SW version
+      // and the currently-active one (if any) keeps serving. No "new
+      // version" pill appears for a release that fails verification.
+      console.error('[SW] Refusing this release — signed verification failed:', verdict.reason);
+      throw new Error('release verification failed: ' + verdict.reason);
+    }
+    if (!verdict.ok) {
+      console.warn('[SW] Precaching WITHOUT signature verification (%s). Run scripts/sign_release.mjs before deploying to enable it.', verdict.reason);
+    }
     const c = await caches.open(SHELL_CACHE);
     // addAll is atomic and rejects on any non-ok response → a broken deploy
     // never half-installs; the old SW keeps serving and we retry next load.

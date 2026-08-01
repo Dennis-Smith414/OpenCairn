@@ -966,6 +966,8 @@ function settingsView() {
            '<div class="tiny" style="margin-top:7px">' + p.reasons.map(esc).join('<br>') + '</div>'
          : 'Profile unavailable — running standard defaults.') +
     '</div>' +
+    '<label>Release</label>' +
+    '<div class="callout" id="releaseInfo">Checking…</div>' +
     '<div class="row"><button class="btn ghost" id="aboutLink">About &amp; honesty →</button></div>'
   );
   document.querySelectorAll('#unitSeg button').forEach((b) => b.onclick = () => { LS.set('unit', b.dataset.u); settingsView(); });
@@ -982,6 +984,24 @@ function settingsView() {
     if ('caches' in window) { for (const k of await caches.keys()) if (k.includes('tiles')) await caches.delete(k); }
     toast('Tile cache cleared'); updateCacheInfo();
   };
+  updateReleaseInfo();
+}
+/* Release version + signed-update status. release.json existing means this
+ * version passed sw.js's signature/hash verification before it was ever
+ * allowed to install (see sw.js's verifyRelease()) — this reads it back
+ * purely to show that honestly, it doesn't re-verify anything itself. */
+async function updateReleaseInfo() {
+  const el = document.getElementById('releaseInfo'); if (!el) return;
+  try {
+    const res = await fetch('./release.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('no release.json');
+    const rel = await res.json();
+    const built = rel.manifest && rel.manifest.builtAt ? new Date(rel.manifest.builtAt).toLocaleDateString() : '?';
+    el.innerHTML = '<b>Signed ✓</b> version ' + esc(rel.manifest.version) + ' · built ' + built +
+      '<br><span class="tiny">This build’s files were verified against a signed manifest before install.</span>';
+  } catch {
+    el.innerHTML = '<b>Unsigned build.</b> No release.json found — this deploy was not signed with scripts/sign_release.mjs.';
+  }
 }
 async function updateCacheInfo() {
   const el = document.getElementById('cacheInfo'); if (!el) return;
