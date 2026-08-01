@@ -645,7 +645,8 @@ function routeDetail(id) {
         '<span class="wp-sub">' + w.type.replace(/-/g, ' ') + ' · ' + w.coord[1].toFixed(4) + ', ' + w.coord[0].toFixed(4) + '</span></span>' +
       '</button>';
     }).join('') + '</div>' +
-    '<div class="callout"><b>Honest note.</b> This seed carries the GPX <b>track</b> only, so waypoints are derived from the line (trailhead / midpoint / turnaround). Named cairns, photos, votes &amp; comments live in the full OpenCairn app.</div>'
+    '<div class="callout"><b>Honest note.</b> This seed carries the GPX <b>track</b> only, so waypoints are derived from the line (trailhead / midpoint / turnaround). Named cairns, photos, votes &amp; comments live in the full OpenCairn app.</div>' +
+    '<div class="callout"><b>Trail data may be out of date.</b> Routes come from OpenStreetMap, a community-edited map — closures, reroutes, washouts and seasonal or permit access changes aren\'t always reflected right away. Treat this as a planning aid, not a substitute for checking current conditions before you go.</div>'
   );
   document.getElementById('fav').onclick = (e) => { const on = toggleFav(id); e.target.textContent = on ? '★ Saved' : '☆ Save'; e.target.setAttribute('aria-pressed', on); toast(on ? 'Saved to favorites' : 'Removed'); };
   document.getElementById('off').onclick = (e) => {
@@ -951,7 +952,6 @@ function settingsView() {
     '<label>Install</label>' +
     '<div class="row"><button class="btn" id="installBtn">Add to Home Screen</button></div>' +
     '<p class="tiny" id="installHint" style="margin-top:6px"></p>' +
-    '<div class="row"><a class="btn ghost" id="installDiag" href="./install/install.html" style="flex:1;text-align:center;text-decoration:none">Install diagnostics →</a></div>' +
     '<label>Share this app</label>' +
     '<div class="qrwrap"><canvas id="shareQr" role="img" aria-label="QR code to open OpenCairn"></canvas>' +
       '<div class="tiny" style="text-align:center">Scan to open OpenCairn on another phone — no app store, no account.</div></div>' +
@@ -1041,6 +1041,8 @@ function aboutView() {
       '<li>Breadcrumb home — records your walked path and points you back along it; pure GPS, zero signal, every device</li>' +
       '<li>Self-tiering: the app probes this device and enables exactly what it can carry' + (p ? ' (this one: <b>' + esc(p.tier) + '</b>)' : '') + '</li>' +
     '</ul>' +
+    '<h3>Where the trail data comes from</h3>' +
+    '<div class="callout"><b>OpenStreetMap, not a park service.</b> Every trail in this seed comes from OpenStreetMap, a free, community-edited map — it\'s not an official or authoritative source. Closures, reroutes, washouts, and seasonal or permit access changes aren\'t always reflected right away. Use this to plan and discover, but check current conditions (land manager sites, trailhead postings) before you go.</div>' +
     '<h3>What only native can do</h3>' +
     '<div class="callout"><b>Background GPS</b> — a PWA only tracks while foregrounded; it can’t log a hike screen-off.</div>' +
     '<div class="callout"><b>Real sync &amp; writes</b> — no auth server here. Favorites &amp; rosters are device-local; hike coordination is peer-relayed through the link itself. Create/edit routes, GPX upload, votes &amp; comments need the write API + native files.</div>' +
