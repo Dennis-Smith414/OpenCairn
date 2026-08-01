@@ -46,7 +46,7 @@
 <body>
 
 <h1>Install &amp; Secure-Context Doctor</h1>
-<p class="sub">Path C diagnostics. Open this page <b>from the app’s origin</b> (e.g. <code>https://hawktalk.ai/pwademo/install/install.html</code> or <code>http://localhost/…</code>) — the readout reflects the origin it is served from.</p>
+<p class="sub">Open this page <b>from the app’s origin</b> (e.g. <code>https://opencairn.xyz/install/install.html</code> or <code>http://localhost/…</code>) — the readout reflects the origin it is served from.</p>
 
 <div class="card">
   <div id="verdict" class="verdict">Running diagnostics…</div>
@@ -59,8 +59,8 @@
 
 <h2>What this means</h2>
 <div class="card">
-  <p><span class="pill">RESEARCHED</span> A phone on <code>http://&lt;LAN-or-USB-IP&gt;</code> is <b>not</b> a secure context: it can never register a Service Worker or use WebGPU. So a fresh phone cannot be bootstrapped to a runnable offline app by a peer over http alone.</p>
-  <p><span class="pill">RESEARCHED</span> The working model: visit the <b>https</b> origin <i>once</i> → the shell precaches and the SW registers. After that the device is offline-forever-capable; a peer need only ship the <b>131&nbsp;MB model</b> into <code>transformers-cache</code> (P2P), and the code runs from the already-secured cached origin.</p>
+  <p><span class="pill">RESEARCHED</span> A phone on <code>http://&lt;LAN-or-USB-IP&gt;</code> is <b>not</b> a secure context: it can never register a Service Worker or persist Cache Storage. So a fresh phone can't be bootstrapped to a runnable offline app over plain http.</p>
+  <p><span class="pill">RESEARCHED</span> The working model: visit the <b>https</b> origin <i>once</i> → the shell and trail data precache and the SW registers. After that the device is offline-forever-capable — reopen from the home screen or the same link with zero signal.</p>
   <p><span class="pill">RESEARCHED</span> iOS Safari never fires <code>beforeinstallprompt</code>; install is the manual <b>Share → Add to Home Screen</b>. Android/Chromium offers the one-tap button above when criteria are met.</p>
 </div>
 

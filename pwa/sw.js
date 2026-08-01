@@ -31,6 +31,8 @@ const SHELL = [
   './app.js',
   './webProfile.js',
   './breadcrumb.js',
+  './install/install.html',
+  './install/install.js',
   './manifest.webmanifest',
   './trails.min.json',
   './icon-192.png',

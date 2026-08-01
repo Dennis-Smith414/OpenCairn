@@ -1,6 +1,6 @@
-/* OpenCairn — CROSS-PLATFORM INSTALL module  (Path C, concern #2)
+/* OpenCairn — cross-platform install module.
  * ==================================================================
- * Makes the (received / reconstructed) PWA installable on BOTH:
+ * Makes the PWA installable on BOTH:
  *   - Android / Chromium : captures `beforeinstallprompt`, offers a
  *     real one-tap install button, drives prompt() + userChoice.
  *   - iOS Safari         : NEVER fires beforeinstallprompt. We detect
@@ -9,18 +9,12 @@
  *     all — we detect and say so.)
  *
  * It ALSO exposes a diagnostics probe (`diagnose()`) that reports the
- * hard installability truth per-OS + the secure-context verdict, so a
- * page reconstructed from a peer can tell the user honestly whether it
- * will ever be installable/runnable on THIS device, or what blocks it.
+ * hard installability truth per-OS + the secure-context verdict, so
+ * someone opening the app fresh from a shared link/QR can tell honestly
+ * whether it will run offline on THIS device, or what blocks it.
  *
  * Zero dependencies. Works as an ES module (`import`) OR a classic
  * <script> (attaches `window.OCInstall`). No build step.
- *
- * EVIDENCE GRADE of the runtime claims encoded here: RESEARCHED +
- * independently confirmed against p2p/receiver.js (sibling Path B).
- * The DOM/UX wiring is PROTOTYPED (written + statically verified);
- * it has not been MEASURED on physical Android/iOS hardware from this
- * environment (headless Linux, no mobile browser).
  * ================================================================== */
 
 'use strict';
@@ -241,7 +235,7 @@ export function attachButton(btn, opts = {}) {
 /**
  * Rigorous per-device readout of whether this page can become an
  * installed, runnable, OFFLINE PWA — and if not, exactly what blocks it.
- * Async because it probes SW registration + Cache Storage + the model.
+ * Async because it probes SW registration + Cache Storage.
  *
  * Returns { checks: [{id,label,ok,grade,detail}], verdict, canRunOffline }.
  */
@@ -253,7 +247,7 @@ export async function diagnose() {
   const secure = isSecure();
   add('secure-context', 'Secure context (https / localhost)', secure,
       secure ? 'origin=' + safeOrigin()
-             : 'origin=' + safeOrigin() + ' is http/LAN/USB → SW + WebGPU + Cache Storage BLOCKED.');
+             : 'origin=' + safeOrigin() + ' is http/LAN/USB → SW + Cache Storage BLOCKED.');
 
   // 2) Service Worker API present AND a controller/registration exists.
   const swApi = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
@@ -273,7 +267,7 @@ export async function diagnose() {
 
   // 3) Cache Storage reachable + shell present.
   let cacheApi = typeof caches !== 'undefined';
-  let shellCached = false, modelCached = false, shellCacheName = '', modelBytes = 0;
+  let shellCached = false, shellCacheName = '';
   if (cacheApi) {
     try {
       const names = await caches.keys();
@@ -283,66 +277,36 @@ export async function diagnose() {
         const c = await caches.open(shellName);
         shellCached = !!(await c.match('./index.html')) || !!(await c.match('./'));
       }
-      if (names.includes('transformers-cache')) {
-        const mc = await caches.open('transformers-cache');
-        const keys = await mc.keys();
-        const onnx = keys.filter((r) => /\.onnx(_data)?$/.test(r.url) || /\/onnx\//.test(r.url));
-        modelCached = onnx.length > 0;
-        // best-effort size (content-length headers)
-        for (const r of onnx) {
-          try {
-            const res = await mc.match(r);
-            const len = res && res.headers.get('content-length');
-            if (len) modelBytes += parseInt(len, 10) || 0;
-          } catch (_e) {}
-        }
-      }
     } catch (_e) { cacheApi = false; }
   }
   add('cache-storage', 'Cache Storage reachable', cacheApi,
       cacheApi ? '' : 'Cache Storage unavailable (insecure context or file://).');
-  add('shell-cached', 'App shell cached (boots offline)', shellCached,
+  add('shell-cached', 'App shell + trail data cached (boots offline)', shellCached,
       shellCached ? ('cache=' + shellCacheName) : 'Visit the secure origin online once to precache the shell.');
-  add('model-cached', 'Feedseed model present (131MB) in transformers-cache', modelCached,
-      modelCached ? ('~' + Math.round(modelBytes / 1048576) + ' MB cached')
-                  : 'Model not cached yet — download once online OR receive it P2P from a peer.');
 
-  // 4) WebGPU — required to actually RUN Feedseed (also needs secure ctx).
-  let webgpu = false;
-  try { webgpu = typeof navigator !== 'undefined' && !!navigator.gpu; } catch (_e) {}
-  add('webgpu', 'WebGPU available (runs the model)', webgpu,
-      webgpu ? '' : (secure ? 'No navigator.gpu on this browser/device.'
-                            : 'WebGPU is gated on secure context too — insecure origin blocks it.'));
-
-  // 5) Manifest link present (install metadata).
+  // 4) Manifest link present (install metadata).
   let hasManifest = false;
   try { hasManifest = !!document.querySelector('link[rel="manifest"]'); } catch (_e) {}
   add('manifest', 'Web App Manifest linked', hasManifest,
       hasManifest ? '' : 'No <link rel="manifest"> — Android install prompt will not trigger.');
 
-  // 6) Installability strategy on THIS OS.
+  // 5) Installability strategy on THIS OS.
   const st = strategy();
   add('installable', 'Installable on this OS', st !== 'insecure' && st !== 'ios-webview',
       'strategy=' + st + (isIOS() ? ' (iOS = manual Share→A2HS; no auto prompt)' : ''));
 
   // Verdict synthesis.
-  const canRunOffline = secure && shellCached && modelCached && webgpu;
+  const canRunOffline = secure && shellCached;
   let verdict;
   if (!secure) {
     verdict = 'BLOCKED: insecure origin. This device can neither install nor run the ' +
               'offline app from here. It must load the app’s https origin once.';
   } else if (canRunOffline) {
-    verdict = 'READY: secure origin, shell + model cached, WebGPU present. Runs fully ' +
-              'offline; installable to home screen.';
-  } else if (secure && shellCached && !modelCached) {
-    verdict = 'ARMED: code is secured + cached and installable. Missing ONLY the model ' +
-              '— receive the 131MB weights from a peer (P2P) into transformers-cache, ' +
-              'then it runs offline. No internet required for this step.';
-  } else if (secure && !shellCached) {
-    verdict = 'PARTIAL: secure origin but shell not fully cached. Load online once to ' +
-              'precache, then it works offline.';
+    verdict = 'READY: secure origin, shell + trail data cached. Runs fully offline; ' +
+              'installable to home screen.';
   } else {
-    verdict = 'PARTIAL: secure origin; some capability missing (see checks).';
+    verdict = 'PARTIAL: secure origin but shell not fully cached yet. Load online once ' +
+              'to precache, then it works offline.';
   }
 
   return { checks, verdict, canRunOffline, strategy: st, secure };

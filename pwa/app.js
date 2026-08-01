@@ -951,6 +951,11 @@ function settingsView() {
     '<label>Install</label>' +
     '<div class="row"><button class="btn" id="installBtn">Add to Home Screen</button></div>' +
     '<p class="tiny" id="installHint" style="margin-top:6px"></p>' +
+    '<div class="row"><a class="btn ghost" id="installDiag" href="./install/install.html" style="flex:1;text-align:center;text-decoration:none">Install diagnostics →</a></div>' +
+    '<label>Share this app</label>' +
+    '<div class="qrwrap"><canvas id="shareQr" role="img" aria-label="QR code to open OpenCairn"></canvas>' +
+      '<div class="tiny" style="text-align:center">Scan to open OpenCairn on another phone — no app store, no account.</div></div>' +
+    '<div class="row"><button class="btn ghost" id="shareBtn" style="flex:1">Share link</button></div>' +
     '<label>Offline / cache</label>' +
     '<div class="callout" id="cacheInfo">Reading cache…</div>' +
     '<div class="row"><button class="btn ghost" id="clearCache">Clear cached tiles</button></div>' +
@@ -969,6 +974,9 @@ function settingsView() {
   const ib = document.getElementById('installBtn');
   ib.onclick = doInstall;
   document.getElementById('installHint').innerHTML = installHintText();
+  const appUrl = location.origin + location.pathname;
+  renderQR(document.getElementById('shareQr'), appUrl, 180);
+  document.getElementById('shareBtn').onclick = () => shareOrCopy('OpenCairn — offline Wisconsin trail map', appUrl);
   updateCacheInfo();
   document.getElementById('clearCache').onclick = async () => {
     if ('caches' in window) { for (const k of await caches.keys()) if (k.includes('tiles')) await caches.delete(k); }
