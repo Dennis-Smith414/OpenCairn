@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpenCairn P2P — pass the app to a peer</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; max-width: 720px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 20px 0 6px; }
+  .sub { opacity: .7; margin: 0 0 12px; }
+  button { font: inherit; padding: 10px 14px; border-radius: 10px; border: 1px solid #8884;
+           background: #0e83a3; color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: inherit; }
+  button:disabled { opacity: .4; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .card { border: 1px solid #8883; border-radius: 12px; padding: 14px; margin: 12px 0; }
+  canvas#qr { background:#fff; border-radius:8px; display:block; }
+  video { width: 100%; max-width: 320px; border-radius: 8px; background:#000; }
+  pre#log { background:#0002; padding:10px; border-radius:8px; max-height:220px; overflow:auto;
+            font-size:12px; white-space:pre-wrap; word-break:break-all; }
+  .bar { height: 10px; background:#8883; border-radius: 6px; overflow: hidden; }
+  .bar > div { height:100%; width:0; background:#0e83a3; transition: width .2s; }
+  .verdict { border-left: 4px solid #d9534f; padding-left: 12px; }
+  .ok { color:#2c8; } .bad { color:#e66; }
+  small { opacity:.7; }
+</style>
+</head>
+<body>
+<h1>OpenCairn P2P — pass the app to a peer</h1>
+<p class="sub">Pure-browser WebRTC transfer of the cached PWA + the 131&nbsp;MB model. QR signaling, no STUN/TURN, no internet.</p>
+
+<div class="card">
+  <div class="row">
+    <button id="btnSeed">I HAVE the app — Seed it</button>
+    <button id="btnRecv" class="ghost">I WANT the app — Receive</button>
+    <button id="btnLoop" class="ghost">Local self-test (measure)</button>
+  </div>
+  <div id="ctx"></div>
+</div>
+
+<!-- SEED -->
+<div class="card" id="seedPanel" hidden>
+  <h2>Seeder</h2>
+  <p class="sub">1) Show this to the receiver's camera. 2) Then scan their answer QR.</p>
+  <canvas id="qr" width="260" height="260"></canvas>
+  <div class="row"><small id="qrCap"></small></div>
+  <div class="row">
+    <button id="btnScanAns">Scan receiver's answer</button>
+  </div>
+  <video id="seedVid" hidden playsinline></video>
+</div>
+
+<!-- RECEIVE -->
+<div class="card" id="recvPanel" hidden>
+  <h2>Receiver</h2>
+  <p class="sub">1) Scan the seeder's QR. 2) Show your answer QR back to them.</p>
+  <video id="recvVid" playsinline></video>
+  <div class="row"><small id="recvScanCap">Point at the seeder's QR…</small></div>
+  <canvas id="ansQr" width="260" height="260" hidden></canvas>
+  <div class="row"><small id="ansCap"></small></div>
+  <div class="row"><button id="btnFinalize" hidden>Reconstruct &amp; register SW</button></div>
+</div>
+
+<!-- progress -->
+<div class="card" id="progPanel" hidden>
+  <h2>Transfer</h2>
+  <div class="bar"><div id="progBar"></div></div>
+  <div class="row"><small id="progCap">idle</small></div>
+</div>
+
+<pre id="log"></pre>
+
+<div class="card verdict">
+  <h2>Honest verdict (read this)</h2>
+  <p><b>Two independent walls block the "brand-new hiker, just a browser, deep offline" story — and neither is a bug you can code around:</b></p>
+  <ol>
+    <li><b>No browser-created network.</b> A browser cannot start a hotspot, cannot use Wi-Fi Direct, cannot open a listening socket. WebRTC here uses <code>iceServers: []</code> (host candidates only) and connects fine — <i>but only if the two phones already share an L2 network.</i> Someone must enable an OS-level Personal Hotspot (a manual Settings step, no internet needed) and the other must join it. That step is outside the browser. Web Bluetooth is GATT-<i>client</i> only (a browser can't be a peripheral), Web Serial is wired, Web NFC is a few hundred bytes — <b>there is no browser-accessible peer radio that works without a pre-shared network.</b></li>
+    <li><b>No browser-served origin to bootstrap the receiver.</b> Cache Storage and Service Workers are origin-scoped and require <code>isSecureContext</code> (https or localhost). To end up with a runnable, installable PWA the receiver's page must already be running on <code>https://hawktalk.ai/pwademo</code>. Offline, a never-visited receiver cannot load that origin, and no browser API lets a peer <i>mint</i> it locally: a received bundle opened as <code>file://</code> cannot register a SW, and a peer served over <code>http://192.168.x.x</code> is not a secure context either.</li>
+  </ol>
+  <p><b>What IS real (and prototyped here):</b> the QR→WebRTC handshake, the DataChannel stream with backpressure, and reconstruction into Cache Storage + SW registration — <i>when the receiver is already on the origin</i> (installed shell, or localhost). That makes a genuinely useful narrower product: <b>offline peer top-up</b> — a hiker who has the shell but not the 131 MB model (or has a stale version) receives it from a peer with zero internet. "Viral to a stranger with a blank browser" is <b>blocked</b>.</p>
+  <p><b>iOS specifics:</b> Safari does WebRTC DataChannels, Cache Storage, and Service Workers, and A2HS works — but (a) getUserMedia/SW need https, (b) storage for an origin can be evicted after ~7 days of non-use, which can silently delete a 131 MB received model between hikes, and (c) per-origin quota prompts can appear around a 131 MB write.</p>
+  <p><b>Bottom line:</b> Path B's <i>data plane</i> (WebRTC + QR + cache reconstruction) is viable and built. Path B's <i>"outside civilization, stranger, browser-only"</i> premise is not, because the browser can neither create the link nor bootstrap the origin. A native seeder (Path A) that runs the hotspot AND serves the origin over a trusted-cert https local server is what would create the link Path B's WebRTC then rides.</p>
+</div>
+
+<script src="../vendor/qrcode-generator.js"></script>
+<script src="../vendor/jsQR.js"></script>
+<script type="module">
+import { createSeeder } from './seeder.js';
+import { createReceiver } from './receiver.js';
+import { buildManifest } from './seeder.js';
+import { drawQR, makeScanner, newPeer, waitIceComplete } from './protocol.js';
+
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+const log = (...a) => { logEl.textContent += a.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' ') + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+const fmt = (b) => (b/1e6).toFixed(1) + ' MB';
+
+$('ctx').innerHTML = `secureContext: <b class="${self.isSecureContext?'ok':'bad'}">${self.isSecureContext}</b> · BarcodeDetector: ${('BarcodeDetector' in self)} · CompressionStream: ${(typeof CompressionStream!=='undefined')}`;
+
+function animateFrames(canvas, frames, cap, ecc='L') {
+  let i = 0;
+  const tick = () => {
+    drawQR(canvas, frames[i % frames.length], 260, ecc);
+    cap.textContent = `frame ${(i % frames.length)+1}/${frames.length}` + (frames.length>1 ? ' — hold steady, it cycles' : '');
+    i++;
+  };
+  tick();
+  return setInterval(tick, frames.length > 1 ? 900 : 100000);
+}
+
+function progress(sent, total, mbps) {
+  $('progPanel').hidden = false;
+  $('progBar').style.width = total ? (100*sent/total).toFixed(1)+'%' : '0%';
+  $('progCap').textContent = `${fmt(sent)} / ${total?fmt(total):'?'}  ·  ${mbps? mbps.toFixed(1):'—'} Mbps`;
+}
+
+/* ---------------- SEED ---------------- */
+$('btnSeed').onclick = async () => {
+  $('seedPanel').hidden = false;
+  const s = createSeeder((e) => {
+    log('[seed]', e);
+    if (e.type === 'progress' || e.type === 'complete') progress(e.sent, e.total || e.sent, e.mbps);
+  });
+  const frames = await s.makeOfferFrames();
+  log('[seed] offer:', frames.length, 'QR frame(s)');
+  animateFrames($('qr'), frames, $('qrCap'));
+
+  $('btnScanAns').onclick = async () => {
+    $('seedVid').hidden = false;
+    const scan = makeScanner($('seedVid'), document.createElement('canvas'));
+    const feed = s.makeAnswerCollector();
+    await scan.start(async (text) => {
+      const r = await feed(text);
+      if (r.done) { scan.stop(); $('seedVid').hidden = true; log('[seed] answer applied — connecting…'); }
+    });
+  };
+};
+
+/* ---------------- RECEIVE ---------------- */
+$('btnRecv').onclick = async () => {
+  $('recvPanel').hidden = false;
+  const r = createReceiver((e) => {
+    log('[recv]', e);
+    if (e.type === 'progress' || e.type === 'stream-complete') progress(e.received, e.total || e.received, e.mbps);
+    if (e.type === 'stream-complete') $('btnFinalize').hidden = false;
+  });
+  const scan = makeScanner($('recvVid'), document.createElement('canvas'));
+  const feed = r.makeOfferCollector();
+  await scan.start(async (text) => {
+    const res = await feed(text);
+    if (res.progress) $('recvScanCap').textContent = `scanning… ${res.progress.have}/${res.progress.need||'?'}`;
+    if (res.done && res.answerFrames) {
+      scan.stop();
+      $('recvVid').hidden = true;
+      $('ansQr').hidden = false;
+      animateFrames($('ansQr'), res.answerFrames, $('ansCap'));
+      log('[recv] answer:', res.answerFrames.length, 'QR frame(s) — show to seeder');
+    }
+  });
+  $('btnFinalize').onclick = async () => {
+    const out = await r.finalizeAndRegisterSW();
+    log('[recv] finalize:', out);
+    log('[recv] summary:', r.summary());
+  };
+};
+
+/* ---------------- LOCAL SELF-TEST (real measurement) ----------------
+ * Wires a seeder PC and a receiver PC in the SAME page and exchanges SDP
+ * directly (no QR, no radio). This measures the REAL path that matters:
+ * read Cache Storage -> chunk -> DataChannel -> reassemble -> write Cache
+ * Storage. It is loopback (no Wi-Fi PHY), so it is an UPPER BOUND on
+ * throughput, not a field number. Labeled as such. */
+$('btnLoop').onclick = async () => {
+  $('btnLoop').disabled = true;
+  log('=== LOCAL SELF-TEST (loopback, upper bound) ===');
+  const man = await buildManifest();
+  log('manifest:', man.count, 'files,', fmt(man.totalBytes));
+
+  const seed = createSeeder(() => {});
+  const recv = createReceiver((e) => {
+    if (e.type === 'progress') progress(e.received, e.total, e.mbps);
+    if (e.type === 'stream-complete') { progress(e.received, e.received, e.mbps);
+      log(`DONE: ${fmt(e.received)} in ${e.secs.toFixed(1)}s = ${e.mbps.toFixed(0)} Mbps (loopback) · ${e.written} files re-cached`);
+      log('receiver summary:', recv.summary());
+      $('btnLoop').disabled = false;
+    }
+  });
+  // Manual SDP bridge (bypass QR): seeder offer -> receiver -> answer -> seeder
+  const so = await seed._pc.createOffer();
+  await seed._pc.setLocalDescription(so); await waitIceComplete(seed._pc);
+  await recv._pc.setRemoteDescription(seed._pc.localDescription);
+  const ra = await recv._pc.createAnswer();
+  await recv._pc.setLocalDescription(ra); await waitIceComplete(recv._pc);
+  await seed._pc.setRemoteDescription(recv._pc.localDescription);
+  log('loopback connected — streaming…');
+};
+</script>
+</body>
+</html>

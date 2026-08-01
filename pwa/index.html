@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0e83a3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1316" media="(prefers-color-scheme: dark)">
+<meta name="description" content="OpenCairn — offline-first trail map for Seattle Tech Week. 2,000+ trails, honest GPS accuracy, no-signup hike coordination. No account, no backend.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OpenCairn">
+<title>OpenCairn — Seattle Trails</title>
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" href="./icon-192.png">
+
+<!-- Fully self-hosted: no CDN, no external font host. One origin = one point of failure. -->
+<link href="./vendor/maplibre-gl.css" rel="stylesheet">
+<link href="./styles.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- Persistent map shell -->
+<div id="map" aria-label="Trail map"></div>
+
+<!-- Top bar -->
+<header class="topbar">
+  <button class="brand" id="homeBtn" aria-label="Home / map">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M10 2 L17 16 H3 Z"/><path d="M6.5 16 L10 9 L13.5 16"/></svg>
+    <span class="brand-txt">OpenCairn<small>Seattle Tech Week · offline trail map</small></span>
+  </button>
+  <div class="spacer"></div>
+  <button class="btn ghost icon" id="routesBtn" aria-label="Browse trails" title="Browse trails">☰</button>
+  <button class="btn ghost icon" id="searchBtn" aria-label="Find a place" title="Find a place">🔍&#xFE0E;</button>
+  <button class="btn ghost icon" id="gpsBtn" aria-label="GPS accuracy" title="GPS accuracy">◎</button>
+  <!-- Off-grid group chat (Meshtastic over Web Bluetooth) — unhidden by app.js
+       only when webProfile tier allows it AND the browser has Web Bluetooth -->
+  <button class="btn ghost icon" id="groupBtn" hidden aria-label="Off-grid group chat" title="Off-grid group (LoRa mesh)">⌁</button>
+  <button class="btn ghost icon" id="settingsBtn" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.4v2.2M10 15.4v2.2M2.4 10h2.2M15.4 10h2.2M4.6 4.6l1.6 1.6M13.8 13.8l1.6 1.6M15.4 4.6l-1.6 1.6M6.2 13.8l-1.6 1.6"/></svg>
+  </button>
+  <button class="btn" id="planBtn">Plan a hike</button>
+</header>
+
+<!-- Offline / update status pill -->
+<div class="statuspill" id="statusPill" hidden></div>
+
+<!-- Region legend (bottom-left over map) — rows are generated from REGION_COLOR -->
+<div class="legend" id="legend">
+  <div class="legend-title">Regions</div>
+  <div id="legendRows"></div>
+  <div class="legend-hint" id="legendCount">Loading trails…</div>
+</div>
+
+<!-- Breadcrumb-home dock — SAFETY feature: present on EVERY tier, works with a
+     dead map and zero signal (pure GPS math in breadcrumb.js) -->
+<div class="crumbdock" id="crumbDock">
+  <button class="crumbbtn" id="crumbRec" aria-pressed="false">
+    <span class="cdot" aria-hidden="true"></span><span id="crumbRecLabel">Breadcrumb</span>
+  </button>
+  <button class="crumbbtn home" id="crumbHome">⌂ <span>Guide me home</span></button>
+</div>
+
+<!-- Voice assistant (tiered: hidden on lite, typed fallback off-flagship) -->
+<button class="voicefab" id="voiceBtn" hidden aria-label="Voice assistant">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>
+  </svg>
+</button>
+
+<!-- Bottom sheet (all detail/forms render here) -->
+<section class="sheet" id="sheet" role="dialog" aria-modal="false" aria-label="Detail panel" tabindex="-1">
+  <div class="grip" id="grip" aria-hidden="true"></div>
+  <button class="close" id="sheetClose" aria-label="Close panel">×</button>
+  <div id="sheetBody"></div>
+</section>
+<button class="scrim" id="scrim" hidden aria-label="Close panel"></button>
+
+<!-- Install chip -->
+<button class="installchip" id="installChip" hidden>⤓ Install OpenCairn</button>
+
+<!-- Toast -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="./vendor/maplibre-gl.js" defer></script>
+<script src="./vendor/qrcode-generator.js" defer></script>
+<script src="./webProfile.js" defer></script>
+<!-- feature modules — classic scripts (globals: Breadcrumb, TrailPulse, TrailDiscover) -->
+<script src="./breadcrumb.js" defer></script>
+<script src="./pulse.js" defer></script>
+<script src="./discover.js" defer></script>
+<!-- ES modules (globals: EdgeAI, MeshComms); modules defer by default and run
+     in document order relative to the deferred classic scripts, so app.js
+     (last) always sees every module global that loaded successfully -->
+<script type="module" src="./edgeAI.js"></script>
+<!-- Tier-2 edge AI: OUR Feedseed model on WebGPU (transformers.js). Dormant
+     until the user opts in from the voice sheet; safe to load everywhere. -->
+<script type="module" src="./feedseedBackend.js"></script>
+<script type="module" src="./comms.js"></script>
+<!-- Deterministic emergency layer (no model, no network): screen-free dial,
+     spoken numbers, volume-rocker patterns. Self-contained + inline-styled. -->
+<script type="module" src="./emergency.mjs"></script>
+<script type="module" src="./emergencyTrigger.mjs"></script>
+<script src="./emergencyUI.js" defer></script>
+<script src="./app.js" defer></script>
+</body>
+</html>

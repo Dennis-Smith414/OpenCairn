@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>OpenCairn — Install &amp; Secure-Context Doctor</title>
+<!-- iOS install metadata (Safari ignores the manifest for A2HS labelling) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="OpenCairn">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<link rel="icon" href="../icon-192.png">
+<style>
+  :root {
+    --bg: #f4f1e8; --fg: #16202a; --muted: #5a6b78; --card: #fff;
+    --line: #dcd6c8; --ok: #1f8a4c; --bad: #c0392b; --accent: #0e83a3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d1316; --fg:#e6edf1; --muted:#8fa2ad; --card:#141d23;
+            --line:#233038; --ok:#3ecb7a; --bad:#ff6b5e; --accent:#37b6d6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--fg); padding:16px; max-width:720px; margin-inline:auto; }
+  h1 { font-size:20px; margin:.2em 0 .1em; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:1.6em 0 .5em; }
+  .sub { color:var(--muted); margin:0 0 1em; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:10px 0; }
+  .verdict { font-weight:600; }
+  .btn { appearance:none; border:0; border-radius:10px; padding:12px 18px; font-size:16px; font-weight:600;
+         background:var(--accent); color:#fff; cursor:pointer; }
+  .btn[hidden] { display:none; }
+  .hint { color:var(--muted); margin:10px 0 0; }
+  ul.checks { list-style:none; padding:0; margin:0; }
+  ul.checks li { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start; }
+  ul.checks li:last-child { border-bottom:0; }
+  .mark { font-weight:700; min-width:1.4em; }
+  .mark.ok { color:var(--ok); } .mark.bad { color:var(--bad); }
+  .clabel { font-weight:600; }
+  .cdetail { color:var(--muted); font-size:13px; }
+  code { background:rgba(128,128,128,.15); padding:1px 5px; border-radius:5px; font-size:.9em; }
+  .pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>Install &amp; Secure-Context Doctor</h1>
+<p class="sub">Path C diagnostics. Open this page <b>from the app’s origin</b> (e.g. <code>https://hawktalk.ai/pwademo/install/install.html</code> or <code>http://localhost/…</code>) — the readout reflects the origin it is served from.</p>
+
+<div class="card">
+  <div id="verdict" class="verdict">Running diagnostics…</div>
+  <p id="hint" class="hint"></p>
+  <button id="installBtn" class="btn" hidden>Add to Home Screen</button>
+</div>
+
+<h2>Per-check truth</h2>
+<div class="card"><ul id="checks" class="checks"></ul></div>
+
+<h2>What this means</h2>
+<div class="card">
+  <p><span class="pill">RESEARCHED</span> A phone on <code>http://&lt;LAN-or-USB-IP&gt;</code> is <b>not</b> a secure context: it can never register a Service Worker or use WebGPU. So a fresh phone cannot be bootstrapped to a runnable offline app by a peer over http alone.</p>
+  <p><span class="pill">RESEARCHED</span> The working model: visit the <b>https</b> origin <i>once</i> → the shell precaches and the SW registers. After that the device is offline-forever-capable; a peer need only ship the <b>131&nbsp;MB model</b> into <code>transformers-cache</code> (P2P), and the code runs from the already-secured cached origin.</p>
+  <p><span class="pill">RESEARCHED</span> iOS Safari never fires <code>beforeinstallprompt</code>; install is the manual <b>Share → Add to Home Screen</b>. Android/Chromium offers the one-tap button above when criteria are met.</p>
+</div>
+
+<script type="module">
+  import { attachButton, diagnose } from './install.js';
+
+  const btn = document.getElementById('installBtn');
+  const hint = document.getElementById('hint');
+  attachButton(btn, { hintEl: hint, onResult: (r) => { render(); } });
+
+  async function render() {
+    const d = await diagnose();
+    document.getElementById('verdict').textContent = d.verdict;
+    const ul = document.getElementById('checks');
+    ul.innerHTML = '';
+    for (const c of d.checks) {
+      const li = document.createElement('li');
+      const m = document.createElement('span');
+      m.className = 'mark ' + (c.ok ? 'ok' : 'bad');
+      m.textContent = c.ok ? '✓' : '✗';
+      const body = document.createElement('div');
+      const label = document.createElement('div');
+      label.className = 'clabel';
+      label.textContent = c.label;
+      body.appendChild(label);
+      if (c.detail) {
+        const det = document.createElement('div');
+        det.className = 'cdetail';
+        det.textContent = c.detail;
+        body.appendChild(det);
+      }
+      li.appendChild(m); li.appendChild(body);
+      ul.appendChild(li);
+    }
+  }
+  render();
+  // Re-run when the SW takes control or install completes.
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener?.('controllerchange', render);
+  window.addEventListener('appinstalled', render);
+</script>
+</body>
+</html>

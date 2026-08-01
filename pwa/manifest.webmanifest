@@ -1,0 +1,27 @@
+{
+  "name": "OpenCairn — Seattle Trails",
+  "short_name": "OpenCairn",
+  "description": "Offline-first trail map for Seattle Tech Week — 2,000+ trails, honest GPS accuracy, and no-signup hike coordination. No account, no backend.",
+  "start_url": "./?src=pwa",
+  "scope": "./",
+  "id": "opencairn-seattle",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#f4f1e8",
+  "theme_color": "#0e83a3",
+  "categories": ["navigation", "travel", "sports"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Browse trails", "url": "./#/routes" },
+    { "name": "Plan a hike", "url": "./#/plan" },
+    { "name": "GPS accuracy", "url": "./#/accuracy" }
+  ]
+}
