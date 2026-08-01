@@ -1223,8 +1223,8 @@ function setThemeColorMeta() {
   const dark = isDarkTheme();
   const forced = themePref() !== 'system';
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-    if (forced) meta.setAttribute('content', dark ? '#0d1316' : '#0e83a3');
-    else meta.setAttribute('content', meta.media && meta.media.includes('dark') ? '#0d1316' : '#0e83a3');
+    if (forced) meta.setAttribute('content', dark ? '#0d1316' : '#00707a');
+    else meta.setAttribute('content', meta.media && meta.media.includes('dark') ? '#0d1316' : '#00707a');
   });
 }
 function applyTheme() {

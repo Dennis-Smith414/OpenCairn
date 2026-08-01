@@ -1,7 +1,8 @@
-/* OpenCairn PWA — shared design system (topo / survey identity, cyan accent).
-   Lifted from the demo tokens so PWA + demo read as one product. */
+/* OpenCairn PWA — shared design system (topo / survey identity, brand teal accent).
+   Accent is OpenCairn's brand turquoise (see NodeMobile/src/styles/theme.ts),
+   darkened for WCAG AA (5.17:1) on the light "survey paper" ground. */
 :root{
-  --accent:#0c718d; --accent-ink:#fff; /* darkened for WCAG AA (4.95:1) on the light ground */
+  --accent:#00707a; --accent-ink:#fff;
   --ink:#20262b; --ink-soft:#4a545b;
   --bg:#f4f1e8; --surface:#fbf9f2; --surface-2:#efe9db;
   --line:rgba(30,40,46,.14); --line-strong:rgba(30,40,46,.28);
@@ -11,16 +12,26 @@
   --sans:"Avenir Next","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --brand-font:"Comfortaa",var(--sans); /* buttons only — matches NodeMobile's fonts.button */
   --shadow:0 8px 30px -12px rgba(0,0,0,.5);
   --safe-top:env(safe-area-inset-top);
   --safe-bottom:env(safe-area-inset-bottom);
+}
+/* Brand typeface (buttons only — the sheet's serif headers are this app's own
+   "survey document" identity and are left alone). Bold weight only, matching
+   NodeMobile's Comfortaa-Bold usage for fonts.button. */
+@font-face{
+  font-family:"Comfortaa";
+  src:url("./vendor/fonts/Comfortaa-Bold.ttf") format("truetype");
+  font-weight:700;
+  font-display:swap;
 }
 @media (prefers-color-scheme:dark){
   :root{
     --ink:#e7edf0; --ink-soft:#9fb0b8;
     --bg:#0d1316; --surface:#151d21; --surface-2:#1d272c;
     --line:rgba(231,237,240,.14); --line-strong:rgba(231,237,240,.28);
-    --accent:#43c9e6; --accent-ink:#04222b;
+    --accent:#40e0d0; --accent-ink:#04222b; /* the brand turquoise itself — plenty of contrast on dark */
   }
 }
 /* explicit theme overrides (Settings toggle) beat the media query */
@@ -28,13 +39,13 @@
   --ink:#e7edf0; --ink-soft:#9fb0b8;
   --bg:#0d1316; --surface:#151d21; --surface-2:#1d272c;
   --line:rgba(231,237,240,.14); --line-strong:rgba(231,237,240,.28);
-  --accent:#43c9e6; --accent-ink:#04222b;
+  --accent:#40e0d0; --accent-ink:#04222b;
 }
 :root[data-theme="light"]{
   --ink:#20262b; --ink-soft:#4a545b;
   --bg:#f4f1e8; --surface:#fbf9f2; --surface-2:#efe9db;
   --line:rgba(30,40,46,.14); --line-strong:rgba(30,40,46,.28);
-  --accent:#0e83a3; --accent-ink:#fff;
+  --accent:#00707a; --accent-ink:#fff;
 }
 
 *{box-sizing:border-box}
@@ -56,15 +67,15 @@ a{color:var(--accent)}
   background:linear-gradient(var(--bg),color-mix(in srgb,var(--bg) 15%,transparent));pointer-events:none}
 .brand{display:flex;align-items:center;gap:.5rem;font-weight:700;pointer-events:auto;
   background:none;border:none;color:var(--ink);cursor:pointer;font-size:1rem;padding:4px 4px 4px 0;text-align:left;
-  min-height:44px}
-.brand svg{width:22px;height:22px;color:var(--accent);flex:none}
+  min-height:44px;font-family:var(--brand-font)}
+.brand-mark{width:22px;height:22px;flex:none;display:block}
 .brand small{font-weight:400;font-size:.66rem;opacity:.7;display:block;line-height:1.1;font-family:var(--mono);
   letter-spacing:.02em;margin-top:2px}
 .brand-txt{display:flex;flex-direction:column}
 .spacer{flex:1}
 .btn{pointer-events:auto;border:none;border-radius:999px;background:var(--accent);color:var(--accent-ink);
-  font-weight:600;font-size:.85rem;padding:.55rem .9rem;box-shadow:0 4px 14px -6px rgba(0,0,0,.5);cursor:pointer;
-  font-family:inherit;line-height:1;white-space:nowrap;min-height:44px}
+  font-weight:700;font-size:.85rem;padding:.55rem .9rem;box-shadow:0 4px 14px -6px rgba(0,0,0,.5);cursor:pointer;
+  font-family:var(--brand-font);line-height:1;white-space:nowrap;min-height:44px}
 .btn:active{transform:translateY(1px)}
 .btn.ghost{background:var(--surface);color:var(--accent);border:1px solid var(--line)}
 .btn.icon{width:44px;height:44px;padding:0;display:inline-grid;place-items:center;font-size:1.05rem}

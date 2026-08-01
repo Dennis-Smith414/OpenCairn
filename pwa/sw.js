@@ -30,7 +30,7 @@
  * than tampering: precaching proceeds unverified, with a console warning —
  * see verifyRelease() below for the exact reasoning.
  */
-const VERSION = 'v12';
+const VERSION = 'v13';
 const SHELL_CACHE = 'opencairn-shell-' + VERSION;
 const TILE_CACHE = 'opencairn-tiles-' + VERSION;   // runtime raster tiles (LRU-capped)
 const DATA_CACHE = 'opencairn-runtime-' + VERSION; // geocode / forecast responses
@@ -48,6 +48,8 @@ const SHELL = [
   './install/install.js',
   './manifest.webmanifest',
   './trails.min.json',
+  './logo-mark.png',
+  './logo-mark@2x.png',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-192.png',
@@ -55,6 +57,7 @@ const SHELL = [
   './vendor/maplibre-gl.js',
   './vendor/maplibre-gl.css',
   './vendor/qrcode-generator.js',
+  './vendor/fonts/Comfortaa-Bold.ttf',
   // Glyphs are needed at FIRST render (cluster counts show at the initial zoom),
   // so they live in the precache — never evictable by the tile LRU.
   './vendor/fonts/Open Sans Regular/0-255.pbf',

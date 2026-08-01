@@ -9,7 +9,7 @@
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#f4f1e8",
-  "theme_color": "#0e83a3",
+  "theme_color": "#00707a",
   "categories": ["navigation", "travel", "sports"],
   "lang": "en-US",
   "dir": "ltr",
