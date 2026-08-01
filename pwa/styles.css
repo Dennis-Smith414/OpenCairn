@@ -1,0 +1,275 @@
+/* OpenCairn PWA — shared design system (topo / survey identity, brand teal accent).
+   Accent is OpenCairn's brand turquoise (see NodeMobile/src/styles/theme.ts),
+   darkened for WCAG AA (5.17:1) on the light "survey paper" ground. */
+:root{
+  --accent:#00707a; --accent-ink:#fff;
+  --ink:#20262b; --ink-soft:#4a545b;
+  --bg:#f4f1e8; --surface:#fbf9f2; --surface-2:#efe9db;
+  --line:rgba(30,40,46,.14); --line-strong:rgba(30,40,46,.28);
+  /* waypoint / survey legend palette */
+  --water:#3f8bbf; --hazard:#c0503f; --landmark:#0e83a3; --nav:#4f8a3f;
+  --park:#7a5cc0; --road:#8a7f6a; --gen:#7c6c4f;
+  --sans:"Avenir Next","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --brand-font:"Comfortaa",var(--sans); /* buttons only — matches NodeMobile's fonts.button */
+  --shadow:0 8px 30px -12px rgba(0,0,0,.5);
+  --safe-top:env(safe-area-inset-top);
+  --safe-bottom:env(safe-area-inset-bottom);
+}
+/* Brand typeface (buttons only — the sheet's serif headers are this app's own
+   "survey document" identity and are left alone). Bold weight only, matching
+   NodeMobile's Comfortaa-Bold usage for fonts.button. */
+@font-face{
+  font-family:"Comfortaa";
+  src:url("./vendor/fonts/Comfortaa-Bold.ttf") format("truetype");
+  font-weight:700;
+  font-display:swap;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e7edf0; --ink-soft:#9fb0b8;
+    --bg:#0d1316; --surface:#151d21; --surface-2:#1d272c;
+    --line:rgba(231,237,240,.14); --line-strong:rgba(231,237,240,.28);
+    --accent:#40e0d0; --accent-ink:#04222b; /* the brand turquoise itself — plenty of contrast on dark */
+  }
+}
+/* explicit theme overrides (Settings toggle) beat the media query */
+:root[data-theme="dark"]{
+  --ink:#e7edf0; --ink-soft:#9fb0b8;
+  --bg:#0d1316; --surface:#151d21; --surface-2:#1d272c;
+  --line:rgba(231,237,240,.14); --line-strong:rgba(231,237,240,.28);
+  --accent:#40e0d0; --accent-ink:#04222b;
+}
+:root[data-theme="light"]{
+  --ink:#20262b; --ink-soft:#4a545b;
+  --bg:#f4f1e8; --surface:#fbf9f2; --surface-2:#efe9db;
+  --line:rgba(30,40,46,.14); --line-strong:rgba(30,40,46,.28);
+  --accent:#00707a; --accent-ink:#fff;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:var(--sans);color:var(--ink);background:var(--bg);
+  overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{overflow:hidden}
+a{color:var(--accent)}
+#map{position:absolute;inset:0}
+.maplibregl-ctrl-bottom-right{margin-bottom:calc(var(--safe-bottom) + 6px)}
+
+/* ---------- accessibility: visible focus everywhere ---------- */
+:where(button,a,[tabindex],input,select,textarea):focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.btn:focus-visible,.pill:focus-visible,.installchip:focus-visible{border-radius:999px}
+
+/* ---------- top bar ---------- */
+.topbar{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:.4rem;
+  padding:calc(var(--safe-top) + 8px) 12px 8px;
+  background:linear-gradient(var(--bg),color-mix(in srgb,var(--bg) 15%,transparent));pointer-events:none}
+.brand{display:flex;align-items:center;gap:.5rem;font-weight:700;pointer-events:auto;
+  background:none;border:none;color:var(--ink);cursor:pointer;font-size:1rem;padding:4px 4px 4px 0;text-align:left;
+  min-height:44px;font-family:var(--brand-font)}
+.brand-mark{width:22px;height:22px;flex:none;display:block}
+.brand small{font-weight:400;font-size:.66rem;opacity:.7;display:block;line-height:1.1;font-family:var(--mono);
+  letter-spacing:.02em;margin-top:2px}
+.brand-txt{display:flex;flex-direction:column}
+.spacer{flex:1}
+.btn{pointer-events:auto;border:none;border-radius:999px;background:var(--accent);color:var(--accent-ink);
+  font-weight:700;font-size:.85rem;padding:.55rem .9rem;box-shadow:0 4px 14px -6px rgba(0,0,0,.5);cursor:pointer;
+  font-family:var(--brand-font);line-height:1;white-space:nowrap;min-height:44px}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:var(--surface);color:var(--accent);border:1px solid var(--line)}
+.btn.icon{width:44px;height:44px;padding:0;display:inline-grid;place-items:center;font-size:1.05rem}
+.btn.icon svg{width:20px;height:20px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+@media (max-width:560px){
+  .brand small{display:none}
+  .btn{font-size:.8rem;padding:.5rem .7rem}
+  /* icon buttons stay 44x44 — the WCAG/platform minimum touch target — even
+     on narrow screens (they were the buttons most used one-thumbed) */
+  .btn.icon{width:44px;height:44px}
+}
+
+/* ---------- legend / regions ---------- */
+/* raised above the breadcrumb dock (bottom-center) so they never overlap */
+.legend{position:absolute;left:10px;bottom:calc(var(--safe-bottom) + 72px);z-index:4;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:10px;
+  padding:8px 11px;font-size:.7rem;line-height:1.7;pointer-events:none;backdrop-filter:blur(6px);max-width:52vw}
+.legend-title{font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-size:.6rem;
+  opacity:.7;margin-bottom:3px}
+.legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.legend-hint{margin-top:5px;padding-top:5px;border-top:1px solid var(--line);opacity:.7;font-family:var(--mono);font-size:.6rem}
+@media (max-width:560px){ .legend{font-size:.64rem;padding:6px 9px} }
+
+/* ---------- status / offline / update pill ---------- */
+.statuspill{position:absolute;top:calc(var(--safe-top) + 64px);left:50%;transform:translateX(-50%);z-index:7;
+  background:var(--hazard);color:#fff;font-size:.74rem;font-weight:600;padding:.45rem .9rem;border-radius:999px;
+  box-shadow:var(--shadow);pointer-events:none;border:none;font-family:inherit;max-width:88vw;text-align:center}
+.statuspill.info{background:var(--accent);color:var(--accent-ink)}
+.statuspill.tappable{pointer-events:auto;cursor:pointer;min-height:44px;display:flex;align-items:center}
+
+.tierchip{display:inline-block;font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:999px;padding:.22rem .6rem;color:var(--ink-soft);margin:2px 4px 2px 0}
+.tierchip.on{border-color:var(--accent);color:var(--accent)}
+
+/* ---------- markers / pins ---------- */
+.pin{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  display:flex;align-items:center;justify-content:center;border:2px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer}
+.pin span{transform:rotate(45deg);font-size:12px;line-height:1;color:#fff;font-weight:700}
+.maplibregl-popup-content{font-family:var(--sans);border-radius:12px;padding:11px 13px;background:var(--surface);color:var(--ink)}
+.maplibregl-popup-tip{border-top-color:var(--surface)!important;border-bottom-color:var(--surface)!important}
+.pop-t{font-weight:700;font-size:.95rem;margin-bottom:.15rem}
+.pop-type{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:.35rem}
+.pop-d{font-size:.82rem;color:var(--ink-soft);line-height:1.4}
+.pop-link{display:inline-block;margin-top:6px;font-size:.78rem;font-weight:600;padding:6px 0}
+
+/* ---------- bottom sheet ---------- */
+.scrim{position:absolute;inset:0;z-index:7;background:rgba(0,0,0,.28);border:none;padding:0;cursor:pointer;width:100%}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:8;background:var(--surface);
+  border-radius:18px 18px 0 0;box-shadow:var(--shadow);
+  padding:0 18px calc(var(--safe-bottom) + 20px);transform:translateY(112%);
+  /* closed sheet is visibility:hidden so its ~15 interactive children leave the
+     tab order / accessibility tree; the 0s visibility flip is DELAYED .28s so
+     the close slide stays visible, and turns instant again on .open */
+  visibility:hidden;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s .28s;
+  max-height:86vh;max-height:86dvh;overflow-y:auto;
+  width:min(560px,100%);margin:0 auto;left:0;right:0;outline:none}
+.sheet.open{transform:translateY(0);visibility:visible;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s 0s}
+.sheet.dragging{transition:none}
+.sheet h2{font-family:var(--serif);margin:.35rem 0 .1rem;font-size:1.35rem;line-height:1.15}
+.sheet h3{font-family:var(--serif);margin:1.1rem 0 .3rem;font-size:1.02rem}
+.sheet .close{position:absolute;top:4px;right:6px;width:44px;height:44px;display:grid;place-items:center;
+  background:none;border:none;font-size:1.5rem;color:var(--ink);cursor:pointer;opacity:.55;line-height:1}
+.sheet .close:hover{opacity:.9}
+/* grip: 22px-tall touch strip (drag-to-dismiss), 5px visual bar */
+.grip{position:sticky;top:0;z-index:3;width:100%;height:26px;display:flex;align-items:center;justify-content:center;
+  cursor:grab;touch-action:none;background:linear-gradient(var(--surface) 65%,transparent)}
+.grip::before{content:"";width:44px;height:5px;border-radius:99px;background:var(--line-strong)}
+.grip:active{cursor:grabbing}
+label{display:block;font-size:.7rem;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink);opacity:.62;margin:.95rem 0 .3rem}
+select,input,textarea{width:100%;font:inherit;font-size:.95rem;padding:.6rem .7rem;border:1px solid var(--line);
+  border-radius:10px;background:var(--bg);color:var(--ink);min-height:44px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.muted{font-size:.85rem;color:var(--ink-soft);line-height:1.5}
+.tiny{font-size:.74rem;color:var(--ink-soft);line-height:1.5}
+
+/* ---------- buttons rows ---------- */
+.row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.row .btn{flex:1;text-align:center;min-width:120px}
+.row.tight .btn{min-width:0}
+
+/* ---------- QR / hike cards ---------- */
+.qrwrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:14px 0}
+.qrwrap canvas{border-radius:10px;background:#fff;padding:8px;box-shadow:0 4px 16px -8px rgba(0,0,0,.4)}
+.hikecard{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--bg);margin:10px 0}
+.hikecard .when{font-family:var(--mono);font-size:.8rem;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
+.hikecard b{display:block;font-size:1.05rem;margin:.15rem 0 .1rem}
+
+/* ---------- stat grid (route detail / accuracy) ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin:12px 0}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 11px}
+.stat .k{font-family:var(--mono);font-size:.58rem;text-transform:uppercase;letter-spacing:.07em;opacity:.6}
+.stat .v{font-size:1.15rem;font-weight:700;margin-top:2px;font-family:var(--serif)}
+.stat .v small{font-size:.7rem;font-weight:400;opacity:.7;font-family:var(--sans)}
+
+/* ---------- search / browse list ---------- */
+.searchbar{position:sticky;top:26px;background:var(--surface);padding:2px 0 8px;z-index:2}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
+.pill{position:relative;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;
+  padding:.5rem .8rem;font-size:.76rem;cursor:pointer;font-family:var(--sans);white-space:nowrap;min-height:36px}
+/* extend the hit area past the visual pill (≥44px effective target) */
+.pill::after{content:"";position:absolute;inset:-5px;border-radius:999px}
+.pill.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.list{margin-top:6px}
+.listitem{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:none;
+  border-bottom:1px solid var(--line);padding:12px 2px;cursor:pointer;color:var(--ink);font-family:inherit;min-height:52px}
+.listitem:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.listitem .dot{width:11px;height:11px;border-radius:3px;flex:none}
+.listitem .li-main{flex:1;min-width:0}
+.listitem .li-name{font-weight:600;font-size:.94rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.listitem .li-sub{font-size:.74rem;color:var(--ink-soft);font-family:var(--mono);margin-top:1px}
+.listitem .li-meta{font-size:.72rem;color:var(--ink-soft);font-family:var(--mono);text-align:right;flex:none}
+.listitem .star{color:var(--accent)}
+.emptynote{text-align:center;padding:30px 10px;color:var(--ink-soft)}
+.loadmore{width:100%;margin-top:12px}
+
+/* type badge / waypoint chips */
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.66rem;
+  text-transform:uppercase;letter-spacing:.05em;padding:.25rem .55rem;border-radius:999px;color:#fff}
+.wp{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);
+  width:100%;text-align:left;background:none;border-left:none;border-right:none;border-top:none;
+  cursor:pointer;color:var(--ink);font-family:inherit;min-height:48px}
+.wp .wpin{width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;
+  align-items:center;justify-content:center;flex:none;border:2px solid var(--surface)}
+.wp .wpin span{transform:rotate(45deg);font-size:10px;color:#fff;font-weight:700}
+.wp .wp-name{font-weight:600;font-size:.9rem}
+.wp .wp-sub{font-size:.72rem;color:var(--ink-soft);font-family:var(--mono)}
+
+/* segmented control */
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:.3rem}
+.seg button{flex:1;background:var(--bg);border:none;padding:.72rem .55rem;font:inherit;font-size:.85rem;
+  color:var(--ink);cursor:pointer;min-height:44px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible{outline-offset:-3px;border-radius:0}
+
+/* honesty note / callout */
+.callout{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--bg);
+  border-radius:8px;padding:10px 12px;margin:12px 0;font-size:.82rem;line-height:1.5;color:var(--ink-soft)}
+.callout b{color:var(--ink)}
+.verdict{border-radius:10px;padding:12px 14px;margin:12px 0;font-weight:600}
+.verdict.good{background:color-mix(in srgb,var(--nav) 16%,var(--bg));border:1px solid var(--nav)}
+.verdict.ok{background:color-mix(in srgb,var(--road) 16%,var(--bg));border:1px solid var(--road)}
+.verdict.bad{background:color-mix(in srgb,var(--hazard) 16%,var(--bg));border:1px solid var(--hazard)}
+.verdict small{display:block;font-weight:400;font-size:.8rem;margin-top:3px;color:var(--ink-soft)}
+
+/* install chip */
+.installchip{position:absolute;right:12px;bottom:calc(var(--safe-bottom) + 96px);z-index:5;
+  background:var(--accent);color:var(--accent-ink);border:none;border-radius:999px;padding:.6rem 1rem;
+  font-weight:600;font-size:.82rem;box-shadow:var(--shadow);cursor:pointer;font-family:inherit;min-height:44px}
+
+/* toast */
+.toast{position:absolute;left:50%;top:calc(var(--safe-top) + 64px);transform:translateX(-50%);z-index:9;
+  background:var(--ink);color:var(--bg);padding:.5rem .9rem;border-radius:999px;font-size:.82rem;
+  opacity:0;transition:opacity .3s;pointer-events:none;max-width:80vw;text-align:center}
+.toast.show{opacity:.96}
+
+/* misc link list */
+.linklist{list-style:none;padding:0;margin:10px 0}
+.linklist li{padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- breadcrumb-home dock (safety feature: every tier, map-dead OK) ---------- */
+.crumbdock{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-bottom) + 14px);
+  z-index:5;display:flex;gap:8px;pointer-events:none;max-width:96vw}
+.crumbbtn{pointer-events:auto;display:inline-flex;align-items:center;gap:7px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:inherit;
+  font-weight:600;font-size:.8rem;padding:.55rem .9rem;min-height:44px;box-shadow:var(--shadow);
+  cursor:pointer;white-space:nowrap;line-height:1}
+.crumbbtn .cdot{width:9px;height:9px;border-radius:50%;background:var(--ink-soft);flex:none}
+.crumbbtn.rec{border-color:var(--hazard);color:var(--hazard)}
+.crumbbtn.rec .cdot{background:var(--hazard);animation:crumbblink 1.2s step-start infinite}
+@keyframes crumbblink{50%{opacity:.25}}
+.crumbbtn.home{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.crumbbtn:active{transform:translateY(1px)}
+@media (max-width:560px){ .crumbbtn{font-size:.74rem;padding:.5rem .7rem} }
+
+/* guide-home sheet: big bearing arrow + distance readout */
+.homearrow-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin:16px 0 10px}
+.homearrow{width:136px;height:136px;border-radius:50%;border:2px solid var(--accent);
+  display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.homearrow svg{width:76px;height:76px;color:var(--accent);transition:transform .3s ease}
+.homedist{font-family:var(--serif);font-size:2.1rem;font-weight:700;text-align:center;line-height:1.1}
+.homedist small{display:block;font-family:var(--sans);font-size:.78rem;font-weight:400;color:var(--ink-soft);margin-top:3px}
+
+/* ---------- reduced motion: kill transitions/animations, keep function ---------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001s!important;animation-iteration-count:1!important;
+    transition-duration:.001s!important}
+  .spin{animation:none}
+}
