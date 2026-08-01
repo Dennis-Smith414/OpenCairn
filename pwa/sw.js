@@ -17,11 +17,10 @@
  * "new version" pill, posts 'skipWaiting', and reloads on controllerchange.
  * >>> Bump VERSION on every deploy. <<<
  */
-const VERSION = 'v11';
+const VERSION = 'v12';
 const SHELL_CACHE = 'opencairn-shell-' + VERSION;
 const TILE_CACHE = 'opencairn-tiles-' + VERSION;   // runtime raster tiles (LRU-capped)
 const DATA_CACHE = 'opencairn-runtime-' + VERSION; // geocode / forecast responses
-const AI_CACHE = 'opencairn-ai-' + VERSION;        // transformers.js runtime (JS+wasm)
 const TILE_LIMIT = 1600;                           // ~1600 tiles ≈ a few tens of MB @2x
 
 // Everything the app needs to boot offline — all same-origin, all deterministic.
@@ -31,17 +30,7 @@ const SHELL = [
   './styles.css',
   './app.js',
   './webProfile.js',
-  './edgeAI.js',
-  './retrieval_decode.mjs',
-  './grammarDecode.mjs',
-  './feedseedBackend.js',
-  './emergency.mjs',
-  './emergencyTrigger.mjs',
-  './emergencyUI.js',
   './breadcrumb.js',
-  './discover.js',
-  './pulse.js',
-  './comms.js',
   './manifest.webmanifest',
   './trails.min.json',
   './icon-192.png',
@@ -75,7 +64,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
-    const keep = new Set([SHELL_CACHE, TILE_CACHE, DATA_CACHE, AI_CACHE]);
+    const keep = new Set([SHELL_CACHE, TILE_CACHE, DATA_CACHE]);
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)));
     await self.clients.claim();
@@ -147,28 +136,6 @@ self.addEventListener('fetch', (e) => {
         return res;
       } catch {
         return (await caches.match(req)) || Response.error();
-      }
-    })());
-    return;
-  }
-
-  // 2b) Feedseed edge-AI RUNTIME (transformers.js JS + ONNX-Runtime wasm) —
-  //     cache-first into a dedicated bucket so the on-device model keeps working
-  //     fully offline after the user opts in. Only the RUNTIME is cached here;
-  //     the ~90MB model weights under ./models/ are deliberately left to
-  //     transformers.js's own Cache Storage ('transformers-cache') so they're
-  //     not double-stored. ok-only, same-origin only.
-  if (url.origin === self.location.origin && url.pathname.includes('/vendor/transformers/')) {
-    e.respondWith((async () => {
-      const c = await caches.open(AI_CACHE);
-      const hit = await c.match(req);
-      if (hit) return hit;
-      try {
-        const res = await fetch(req);
-        if (res && res.ok) c.put(req, res.clone()).catch(() => {});
-        return res;
-      } catch {
-        return Response.error();
       }
     })());
     return;

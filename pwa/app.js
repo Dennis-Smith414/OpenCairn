@@ -418,9 +418,6 @@ function openSheet(html) {
 }
 function closeSheet(navigate) {
   const wasOpen = sheet.classList.contains('open');
-  // Mic leak fix: closing the voice sheet must kill any in-flight recognizer
-  // immediately — otherwise the mic stays hot ~9 s with no UI on screen.
-  try { if (window.EdgeAI && typeof window.EdgeAI.cancelListen === 'function') window.EdgeAI.cancelListen(); } catch {}
   runViewCleanup();
   sheet.classList.remove('open'); scrim.hidden = true;
   sheet.setAttribute('aria-modal', 'false');
@@ -561,7 +558,6 @@ function routesView() {
       '<div class="pills tight">' +
         '<button class="pill' + (Browse.fav ? ' on' : '') + '" id="pFav" aria-pressed="' + Browse.fav + '">★ Favorites</button>' +
         '<button class="pill' + (Browse.nearby ? ' on' : '') + '" id="pNear" aria-pressed="' + Browse.nearby + '">☉ Near me</button>' +
-        '<button class="pill" id="pDisc">✨ Describe a hike</button>' +
       '</div>' +
     '</div>' +
     '<div class="list" id="list"></div>'
@@ -571,7 +567,6 @@ function routesView() {
     '<button class="pill' + (Browse.region === r ? ' on' : '') + '" data-r="' + esc(r) + '" aria-pressed="' + (Browse.region === r) + '">' +
     (r === 'all' ? 'All regions' : esc(regionShort(r))) + '</button>').join('');
   document.querySelectorAll('#regionPills .pill').forEach((b) => b.onclick = () => { Browse.region = b.dataset.r; Browse.shown = 60; routesView(); });
-  document.getElementById('pDisc').onclick = () => { location.hash = '#/discover'; };
   document.getElementById('pFav').onclick = () => { Browse.fav = !Browse.fav; Browse.shown = 60; routesView(); };
   document.getElementById('pNear').onclick = () => {
     if (Browse.nearby) { Browse.nearby = false; Browse.shown = 60; routesView(); return; }
@@ -637,19 +632,6 @@ function routeDetail(id) {
       '<button class="btn ghost" id="dir">Directions</button>' +
       '<button class="btn" id="plan">Plan hike</button>' +
     '</div>' +
-    (window.TrailPulse ? // conditions layer (pulse.js) — localStorage-only, every tier
-      '<h3>Trail pulse <span class="tiny">(conditions)</span></h3>' +
-      '<div id="pulseWrap"></div>' +
-      '<div class="row tight"><button class="btn ghost" id="pulseReport">⚑ Report conditions</button></div>' +
-      '<div id="pulseForm" hidden>' +
-        '<label for="pulseKind">Condition</label>' +
-        '<select id="pulseKind">' + window.TrailPulse.KINDS.map((k) =>
-          '<option value="' + esc(k) + '">' + esc(k.replace(/-/g, ' ')) + '</option>').join('') + '</select>' +
-        '<label for="pulseNote">Where / note (optional)</label>' +
-        '<input id="pulseNote" maxlength="280" placeholder="e.g. big blowdown at the second creek crossing" autocomplete="off">' +
-        '<div class="row tight"><button class="btn" id="pulseSave">Post report</button></div>' +
-      '</div>'
-    : '') +
     '<h3>Waypoints <span class="tiny">(derived from track)</span></h3>' +
     '<div id="wps">' + wps.map((w) => {
       const t = TYPE[w.type] || TYPE.generic;
@@ -671,29 +653,6 @@ function routeDetail(id) {
   document.getElementById('dir').onclick = () => window.open('https://www.google.com/maps/dir/?api=1&destination=' + r.start[1] + ',' + r.start[0], '_blank');
   document.getElementById('plan').onclick = () => { location.hash = '#/plan?t=' + id; };
   document.querySelectorAll('#wps .wp').forEach((b) => b.onclick = () => { location.hash = '#/waypoint/' + b.dataset.wp; });
-
-  // Trail pulse wiring (only when pulse.js loaded — section is absent otherwise)
-  const pw = document.getElementById('pulseWrap');
-  if (pw && window.TrailPulse) {
-    const TP = window.TrailPulse;
-    const renderPulse = () => {
-      // renderPulseBadge escapes every user string itself (module contract)
-      try { pw.innerHTML = TP.renderPulseBadge(TP.getPulse(id)); } catch { pw.innerHTML = ''; }
-    };
-    renderPulse();
-    const form = document.getElementById('pulseForm');
-    document.getElementById('pulseReport').onclick = () => { form.hidden = !form.hidden; if (!form.hidden) document.getElementById('pulseNote').focus(); };
-    document.getElementById('pulseSave').onclick = () => {
-      const kind = document.getElementById('pulseKind').value;
-      const note = document.getElementById('pulseNote').value;
-      const rep = TP.addReport({ trailId: id, kind, note });
-      if (!rep) { toast('Could not save that report'); return; }
-      document.getElementById('pulseNote').value = '';
-      form.hidden = true;
-      renderPulse();
-      toast('Condition report saved' + (TP.getPulse(id).local ? ' on this device' : ''));
-    };
-  }
 }
 
 /* ---- #/waypoint/:id ---- */
@@ -792,349 +751,6 @@ function placeSearch() {
   };
   document.getElementById('go').onclick = run;
   document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
-}
-
-/* ================================================================
- *  VOICE  (#/voice — tiered by webProfile + edgeAI)
- *    flagship : push-to-talk mic → Chrome built-in AI (Gemini Nano) → tools
- *    standard : typed command box → rules (or Nano when present) → tools
- *    lite     : hidden entirely (FAB never shows; deep-link gets an honest note)
- * ================================================================ */
-function edgeAI() { return (typeof window !== 'undefined' && window.EdgeAI) ? window.EdgeAI : null; }
-
-function setupVoiceFab() {
-  const btn = document.getElementById('voiceBtn');
-  if (!btn) return;
-  const p = State.profile;
-  if (!p || p.tier === 'lite') { btn.hidden = true; return; }
-  const flagship = !!(p.features && p.features.voice);
-  btn.hidden = false;
-  btn.classList.toggle('degraded', !flagship);
-  btn.setAttribute('aria-label', flagship ? 'Voice assistant (push to talk)' : 'Trail assistant (typed commands)');
-  btn.title = btn.getAttribute('aria-label');
-  btn.onclick = () => { location.hash = '#/voice'; };
-}
-
-/* ---- TTS read-back (Web Speech Synthesis) — speaks tool-call results back,
- *      hands-free. Voice + speed are user-selectable and persisted. All guarded:
- *      on a browser without speechSynthesis this is simply inert. ---- */
-const TTS = { supported: (typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'), voices: [] };
-function ttsLoadVoices() {
-  if (!TTS.supported) return [];
-  try {
-    const all = window.speechSynthesis.getVoices() || [];
-    const en = all.filter((v) => /^en/i.test(v.lang || ''));
-    TTS.voices = en.length ? en : all;   // prefer English, fall back to everything
-  } catch { TTS.voices = []; }
-  return TTS.voices;
-}
-if (TTS.supported) { try { ttsLoadVoices(); window.speechSynthesis.addEventListener('voiceschanged', ttsLoadVoices); } catch {} }
-function ttsStrip(html) { try { const d = document.createElement('div'); d.innerHTML = html; return (d.textContent || '').replace(/\s+/g, ' ').trim(); } catch { return String(html || ''); } }
-function ttsSpeak(text) {
-  if (!TTS.supported || !LS.get('ttsEnabled', true)) return;
-  const t = String(text || '').trim(); if (!t) return;
-  try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t);
-    const uri = LS.get('ttsVoice', '');
-    if (uri) { const v = (TTS.voices || []).find((x) => x.voiceURI === uri); if (v) u.voice = v; }
-    u.rate = Number(LS.get('ttsRate', 1)) || 1;
-    u.lang = (u.voice && u.voice.lang) || 'en-US';
-    window.speechSynthesis.speak(u);
-  } catch {}
-}
-
-function voiceView() {
-  const p = State.profile;
-  const EA = edgeAI();
-  if (!p || p.tier === 'lite') {
-    State.view = 'voice';
-    openSheet('<h2>Trail assistant</h2>' +
-      '<div class="callout"><b>Not on this device.</b> This browser/device reported a low-resource profile (' +
-      esc(p ? p.reasons.join(' ') : 'no profile') + ') — the assistant is switched off rather than shipped broken.</div>');
-    return;
-  }
-  State.view = 'voice';
-  const flagship = !!(p.features && p.features.voice);
-  const micOK = !!(flagship && EA && EA.isVoiceAvailable());
-  openSheet(
-    '<h2>Trail assistant</h2>' +
-    '<div id="vstatus" class="tiny" style="margin:4px 0 2px"></div>' +
-    '<div id="fspanel" class="fspanel"></div>' +
-    (micOK
-      ? '<button class="ptt" id="ptt" aria-label="Push to talk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>' +
-        '<span class="ptt-label" id="pttLabel">Tap &amp; speak</span>'
-      : '') +
-    '<label for="vq">' + (micOK ? 'Or type a command' : 'Type a command') + '</label>' +
-    '<div class="row tight" style="margin-top:2px">' +
-      '<input id="vq" placeholder="e.g. drop a cairn called lunch spot" autocomplete="off" style="flex:3;min-width:0">' +
-      '<button class="btn" id="vgo" style="flex:1">Run</button>' +
-    '</div>' +
-    '<div class="vlog" id="vlog"></div>' +
-    (TTS.supported
-      ? '<details class="vset" id="vset"><summary>Voice &amp; read-back</summary>' +
-        '<label class="vrow"><input type="checkbox" id="ttsOn"> <span>Speak results back</span></label>' +
-        '<label class="vrow"><span>Voice</span><select id="ttsVoice"></select></label>' +
-        '<label class="vrow"><span>Speed</span><input type="range" id="ttsRate" min="0.6" max="1.4" step="0.1"></label>' +
-        '<button class="btn ghost" id="ttsTest" type="button">Test voice</button>' +
-        '</details>'
-      : '') +
-    '<div class="callout" id="vhonest"></div>'
-  );
-  // navigating to another sheet view must also cut the mic (closeSheet isn't
-  // on that path — openSheet runs the registered cleanups instead)
-  onViewCleanup(() => { try { if (window.EdgeAI) window.EdgeAI.cancelListen(); } catch {} });
-
-  const honest = document.getElementById('vhonest');
-  if (flagship) {
-    honest.innerHTML = '<b>How this works.</b> Speech → Chrome’s <b>on-device</b> built-in model (Gemini Nano) → OpenCairn tool calls. The model runs in your browser; utterances are not sent to any OpenCairn server. The mic capture itself uses the browser’s speech service.' + (micOK ? '' : ' <b>No mic API on this browser</b> — typed commands still run on-device.');
-  } else {
-    honest.innerHTML = '<b>Degraded on this browser — honestly.</b> No on-device model is available here, so commands are parsed by deterministic rules (typed only, fully offline). The full push-to-talk assistant lights up on flagship Chrome and in the native Android app.';
-  }
-
-  const status = document.getElementById('vstatus');
-  const setStatus = (html) => { if (document.getElementById('vstatus')) document.getElementById('vstatus').innerHTML = html; };
-  const tierChip = '<span class="tierchip on">' + esc(p.tier) + ' tier</span>';
-  setStatus(tierChip + '<span class="tierchip">interpreter: …</span>');
-  if (EA) {
-    EA.getStatus().then((s) => {
-      let chip = s.interpreter;
-      if (s.nano === 'downloading') chip = 'gemini-nano · downloading' + (s.nanoDownloadProgress != null ? ' ' + Math.round(s.nanoDownloadProgress * 100) + '%' : '…');
-      else if (s.nano === 'downloadable' && flagship) chip = 'gemini-nano · first use downloads the model';
-      setStatus(tierChip + '<span class="tierchip' + (s.nano === 'available' ? ' on' : '') + '">' + esc(chip) + '</span>');
-    }).catch(() => {});
-    if (flagship && p.features.chromeNano) { try { EA.warmUp(); } catch {} }
-  } else {
-    setStatus(tierChip + '<span class="tierchip">assistant module unavailable</span>');
-  }
-
-  // ── Feedseed on-device (WebGPU): the app's OWN model, downloaded once from
-  // this URL, then run in the browser — no store, no cloud. Flagship + real
-  // WebGPU adapter only; everything else never sees this panel.
-  renderFeedseedPanel(flagship, setStatus, tierChip);
-
-  // Voice & read-back settings (TTS): populate the voice list, restore + persist
-  // the user's choices. Voices load async on some browsers -> refill on change.
-  if (TTS.supported) {
-    const onEl = document.getElementById('ttsOn');
-    const vsel = document.getElementById('ttsVoice');
-    const rate = document.getElementById('ttsRate');
-    const fillVoices = () => {
-      if (!document.getElementById('ttsVoice')) return;
-      const cur = LS.get('ttsVoice', '');
-      const vs = ttsLoadVoices();
-      vsel.innerHTML = '<option value="">System default</option>' +
-        vs.map((v) => '<option value="' + esc(v.voiceURI) + '"' + (v.voiceURI === cur ? ' selected' : '') + '>' +
-          esc(v.name) + ' · ' + esc(v.lang) + (v.localService ? '' : ' (online)') + '</option>').join('');
-    };
-    if (onEl) { onEl.checked = LS.get('ttsEnabled', true); onEl.onchange = () => LS.set('ttsEnabled', onEl.checked); }
-    if (rate) { rate.value = LS.get('ttsRate', 1); rate.oninput = () => LS.set('ttsRate', Number(rate.value)); }
-    if (vsel) vsel.onchange = () => { LS.set('ttsVoice', vsel.value); ttsSpeak('This is the OpenCairn voice.'); };
-    fillVoices();
-    const test = document.getElementById('ttsTest');
-    if (test) test.onclick = () => { LS.set('ttsEnabled', true); if (onEl) onEl.checked = true; ttsSpeak('OpenCairn voice ready. Dropped a cairn at your location.'); };
-    let _vc = fillVoices;
-    try { window.speechSynthesis.addEventListener('voiceschanged', _vc); } catch {}
-    onViewCleanup(() => { try { window.speechSynthesis.removeEventListener('voiceschanged', _vc); window.speechSynthesis.cancel(); } catch {} });
-  }
-
-  const log = (transcript, calls, backend, failReason) => {
-    const el = document.getElementById('vlog'); if (!el) return;
-    const results = failReason ? [] : executeCalls(calls || []);
-    const div = document.createElement('div'); div.className = 'vturn';
-    div.innerHTML =
-      (transcript ? '<div class="vt-you">' + esc(transcript) + '</div>' : '') +
-      (failReason
-        ? '<div class="vt-call">' + esc(failReason) + '</div>'
-        : (results.length
-            ? results.map((x) => '<div class="vt-call"><code>' + esc(x.name) + '</code><span>' + x.html + '</span></div>').join('')
-            : '<div class="vt-call">No matching trail command — try “where am I”, “drop a cairn” or “how far to the trailhead”.</div>')) +
-      (backend ? '<div class="vt-backend">interpreted by ' + esc(backend) + '</div>' : '');
-    el.prepend(div);
-    // Read the outcome back, hands-free (guarded + user-toggled).
-    const spoken = failReason ? failReason
-      : (results.length ? results.map((x) => ttsStrip(x.html)).join('. ') : '');
-    if (spoken) ttsSpeak(spoken);
-  };
-
-  const runTyped = async () => {
-    const inp = document.getElementById('vq');
-    const text = inp.value.trim(); if (!text) return;
-    inp.value = '';
-    if (!EA) { log(text, [], null, 'Assistant module failed to load — refresh to retry.'); return; }
-    try {
-      const out = await EA.interpret(text);
-      const s = await EA.getStatus().catch(() => null);
-      log(text, out && out.calls, s ? s.interpreter : 'rules');
-    } catch { log(text, [], null, 'Could not interpret that.'); }
-  };
-  document.getElementById('vgo').onclick = runTyped;
-  document.getElementById('vq').addEventListener('keydown', (e) => { if (e.key === 'Enter') runTyped(); });
-
-  if (micOK) {
-    const ptt = document.getElementById('ptt');
-    const lbl = document.getElementById('pttLabel');
-    let busy = false;
-    ptt.onclick = async () => {
-      if (busy) return;
-      busy = true; ptt.classList.add('listening'); lbl.textContent = 'Listening…';
-      try {
-        const res = await EA.startVoiceTurn({ timeoutMs: 9000 });
-        if (res.ok) log(res.transcript, res.calls, res.backend);
-        else log('', [], null, res.reason === 'voice unavailable on this browser' ? res.reason : 'Didn’t catch that (' + res.reason + ') — try again or type below.');
-      } catch { log('', [], null, 'Voice turn failed — type below instead.'); }
-      ptt.classList.remove('listening'); lbl.innerHTML = 'Tap &amp; speak';
-      busy = false;
-    };
-  }
-}
-
-/* Feedseed-on-WebGPU opt-in panel. Renders inside #fspanel. Flagship + real
- * WebGPU adapter only. One button → downloads OUR ~90MB model once (cached
- * forever), then the browser voice runs Feedseed on-device. Honest at every
- * step: size up front, progress during, "offline, our model" when ready,
- * plain error if the assets aren't hosted yet. Never throws. */
-function renderFeedseedPanel(flagship, setStatus, tierChip) {
-  const el = document.getElementById('fspanel');
-  const FB = (typeof window !== 'undefined') ? window.FeedseedBackend : null;
-  if (!el) return;
-  if (!FB || !FB.webgpuSupported() || !(flagship && State.profile.features && State.profile.features.webgpuAI)) {
-    el.hidden = true; return;                      // silent: this tier can't run it
-  }
-  el.hidden = false;
-  const mb = Math.round((FB.getState().approxBytes || 0) / (1024 * 1024));
-
-  const paint = (st) => {
-    if (!document.getElementById('fspanel')) return;
-    if (st.state === 'ready') {
-      el.innerHTML =
-        '<div class="fs-ready"><b>✓ Feedseed is running on-device.</b> ' +
-        'OpenCairn’s own fine-tuned model (Gemma3-270M · ' + esc(st.dtype) + ') — downloaded once, now WebGPU, fully offline. ' +
-        'No store, no cloud, no data-center.' +
-        (st.grammar ? ' <b>Grammar-locked</b>: it can only emit a valid command with a <b>real</b> trail name — no malformed calls, no invented trails.' : '') +
-        '</div>';
-      try { setStatus(tierChip + '<span class="tierchip on">feedseed · on-device' + (st.grammar ? ' · grammar-locked' : '') + '</span>'); } catch {}
-      return;
-    }
-    if (st.state === 'downloading') {
-      const pct = Math.round((st.progress || 0) * 100);
-      el.innerHTML =
-        '<div class="fs-dl"><b>Downloading Feedseed…</b> ' + pct + '%' +
-        '<div class="fs-bar"><i style="width:' + pct + '%"></i></div>' +
-        '<div class="tiny">Once only — it’s cached in your browser and runs offline after this.</div></div>';
-      return;
-    }
-    if (st.state === 'error') {
-      el.innerHTML =
-        '<div class="fs-err"><b>Couldn’t load the on-device model.</b> ' +
-        esc(st.error || 'model assets not reachable') + '. ' +
-        'The assistant still runs — falling back to the built-in AI / offline rules below.</div>';
-      return;
-    }
-    // idle / not downloaded yet
-    el.innerHTML =
-      '<div class="fs-offer"><b>Run OpenCairn’s own model on your phone.</b> ' +
-      'Download <b>Feedseed</b> once (~' + mb + ' MB) and the voice assistant runs <b>our fine-tuned model</b> ' +
-      'on WebGPU — no app store, no cloud, offline forever after. ' +
-      '<button class="btn" id="fsdl">Download offline AI · ~' + mb + ' MB</button>' +
-      '<div class="tiny">Best on Wi-Fi. Grounded to real trail names so it can’t invent a trail.</div></div>';
-    const btn = document.getElementById('fsdl');
-    if (btn) btn.onclick = async () => {
-      paint(Object.assign(FB.getState(), { state: 'downloading', progress: 0 }));
-      await FB.download((p) => paint(FB.getState()));
-      paint(FB.getState());
-    };
-  };
-
-  // Reflect an already-cached model as ready-to-reattach without re-downloading.
-  FB.isDownloaded().then((cached) => {
-    const st = FB.getState();
-    if (cached && st.state !== 'ready') {
-      // Reattach the pipeline from cache (fast, no network) in the background.
-      paint(Object.assign(FB.getState(), { state: 'downloading', progress: 1 }));
-      FB.download(() => {}).then(() => paint(FB.getState()));
-    } else {
-      paint(st);
-    }
-  }).catch(() => paint(FB.getState()));
-}
-
-/* Execute validated tool calls against the real app. Pure honest wiring:
- * what works offline works; what needs native says so. Never throws. */
-function executeCalls(calls) {
-  const out = [];
-  for (const call of calls) {
-    let html = '';
-    try { html = execOne(call); } catch { html = 'That action failed.'; }
-    out.push({ name: call.name, html });
-  }
-  return out;
-}
-function execOne(call) {
-  const args = call.arguments || {};
-  const sel = State.byId.get(State.selectedId);
-  switch (call.name) {
-    case 'get_location': {
-      if (State.userPos) {
-        return 'You’re at <b>' + State.userPos[1].toFixed(5) + ', ' + State.userPos[0].toFixed(5) + '</b> (±' + Math.round(State.userAcc || 0) + ' m).';
-      }
-      try { window._geo.trigger(); } catch {}
-      return 'No GPS fix yet — requesting one now (allow location access).';
-    }
-    case 'drop_cairn': {
-      if (!State.userPos) { try { window._geo.trigger(); } catch {} return 'Need a GPS fix to drop a cairn — requesting one; try again in a moment.'; }
-      const label = (args.label == null ? '' : String(args.label)).trim();
-      const c = { id: 'c' + Date.now(), label: label || 'Cairn', coord: State.userPos.slice(), at: Date.now() };
-      const all = savedCairns(); all.push(c); LS.set('cairns', all);
-      addCairnMarker(c);
-      return 'Dropped <b>' + esc(c.label) + '</b> at ' + c.coord[1].toFixed(5) + ', ' + c.coord[0].toFixed(5) + ' — saved on this device.';
-    }
-    case 'list_waypoints': {
-      const mine = savedCairns();
-      const parts = [];
-      if (sel) parts.push('On <b>' + esc(sel.name) + '</b>: ' + waypointsFor(sel).map((w) => esc(w.name)).join(', ') + '.');
-      if (mine.length) parts.push('Your dropped cairns: ' + mine.map((c) => esc(c.label)).join(', ') + '.');
-      if (!parts.length) return 'No waypoints yet — open a trail (they’re derived from the track) or say “drop a cairn”.';
-      return parts.join(' ');
-    }
-    case 'query_waypoint': {
-      const q = String(args.name || '').toLowerCase();
-      if (!q) return 'Which waypoint?';
-      if (sel) {
-        const w = waypointsFor(sel).find((x) => x.name.toLowerCase().includes(q));
-        if (w) return '<b>' + esc(w.name) + '</b> — ' + esc(w.description) + ' (' + w.coord[1].toFixed(4) + ', ' + w.coord[0].toFixed(4) + ')';
-      }
-      const mine = savedCairns().find((c) => (c.label || '').toLowerCase().includes(q));
-      if (mine) return '<b>' + esc(mine.label) + '</b> — a cairn you dropped at ' + mine.coord[1].toFixed(4) + ', ' + mine.coord[0].toFixed(4) + '.';
-      const tr = State.routes.find((r) => r.name.toLowerCase().includes(q));
-      if (tr) { location.hash = '#/route/' + tr.id; return 'Opening trail <b>' + esc(tr.name) + '</b>…'; }
-      return 'No waypoint or trail named “' + esc(args.name) + '” here.';
-    }
-    case 'distance_to_waypoint': {
-      const q = String(args.name || '').toLowerCase();
-      if (!State.userPos) { try { window._geo.trigger(); } catch {} return 'Need a GPS fix first — requesting one.'; }
-      let target = null, label = null;
-      if (sel) { const w = waypointsFor(sel).find((x) => x.name.toLowerCase().includes(q)); if (w) { target = w.coord; label = w.name; } }
-      if (!target) { const c = savedCairns().find((x) => (x.label || '').toLowerCase().includes(q)); if (c) { target = c.coord; label = c.label; } }
-      if (!target) { const tr = State.routes.find((r) => r.name.toLowerCase().includes(q)); if (tr) { target = tr.start; label = tr.name + ' trailhead'; } }
-      if (!target) return 'Nothing named “' + esc(args.name) + '” to measure to.';
-      return '<b>' + fmtDist(haversine(State.userPos, target)) + '</b> line-of-sight to ' + esc(label) + '.';
-    }
-    case 'check_off_route': {
-      if (!sel) return 'No trail selected — open one first, then I can check.';
-      if (!State.userPos) { try { window._geo.trigger(); } catch {} return 'Need a GPS fix first — requesting one.'; }
-      const d = nearestOnTrack(State.userPos, sel.coords);
-      if (d <= 60) return 'You’re <b>on route</b> — within ' + fmtDist(d) + ' of ' + esc(sel.name) + '.';
-      if (d <= 200) return 'Slightly off — about ' + fmtDist(d) + ' from the ' + esc(sel.name) + ' track.';
-      return '<b>Off route</b>: ' + fmtDist(d) + ' from ' + esc(sel.name) + '. Head back toward the line on the map.';
-    }
-    case 'control_music':
-      return 'Music control (' + esc(args.action || '?') + ') is wired to the system player in the <b>native app</b> — this web demo has no playback to control. No fake buttons.';
-    case 'dial_emergency':
-      return '<b>Emergency:</b> <a href="tel:911">tap to call 911</a>. (The web demo can only open the dialer — auto-dial &amp; offline SOS are native-app features.)';
-    default:
-      return 'Unknown tool.';
-  }
 }
 
 /* ================================================================
@@ -1312,191 +928,6 @@ function homeView() {
   timer = setInterval(render, 1000);
 }
 
-/* ================================================================
- *  DISCOVER  (#/discover — discover.js natural-language trail search)
- *  Works on EVERY tier via the offline rules backend; the Gemini Nano
- *  refinement only runs when webProfile granted features.chromeNano
- *  (forceRules otherwise — discovery must never trigger the download).
- * ================================================================ */
-function discoverView() {
-  State.view = 'discover';
-  const TD = window.TrailDiscover;
-  const nanoOK = !!(State.profile && State.profile.features && State.profile.features.chromeNano);
-  openSheet(
-    '<h2>Discover trails</h2>' +
-    '<p class="muted">Describe the hike you want in plain words — matching runs entirely <b>on this device</b>, against the offline seed.</p>' +
-    '<div class="row tight" style="margin-top:8px">' +
-      '<input id="dq" placeholder="e.g. a 5-mile loop near Issaquah with a lake" autocomplete="off" style="flex:3;min-width:0" aria-label="Describe a hike">' +
-      '<button class="btn" id="dgo" style="flex:1">Find</button>' +
-    '</div>' +
-    '<div class="tiny" id="dBackend" style="margin:7px 0 0">' +
-      (nanoOK ? 'interpreter: on-device AI (Gemini Nano) refined by offline rules'
-              : 'interpreter: offline rules — no on-device AI on this profile, nothing downloads') +
-    '</div>' +
-    '<div id="dNotes"></div>' +
-    '<div class="list" id="dRes"></div>' +
-    (TD ? '' : '<div class="callout"><b>Module unavailable.</b> discover.js failed to load — refresh to retry.</div>')
-  );
-  if (!TD) return;
-  const run = async () => {
-    const q = document.getElementById('dq').value.trim(); if (!q) return;
-    const res = document.getElementById('dRes');
-    res.innerHTML = '<p class="muted"><span class="spin"></span>Matching…</p>';
-    let out;
-    try { out = await TD.discover(q, State.routes, { limit: 12, forceRules: !nanoOK }); }
-    catch { out = { ok: false, notes: ['discovery failed — try again'], results: [], backend: 'rules' }; }
-    if (State.view !== 'discover') return; // navigated away mid-await
-    const notes = document.getElementById('dNotes');
-    if (notes) notes.innerHTML = (out.notes || []).map((n) => '<div class="callout">' + esc(n) + '</div>').join('');
-    const bk = document.getElementById('dBackend');
-    if (bk) bk.textContent = 'interpreted by ' + (out.backend === 'prompt-api' ? 'gemini-nano (on-device)' : 'offline rules');
-    if (!out.ok || !out.results.length) {
-      res.innerHTML = '<div class="emptynote">No matches.<br><span class="tiny">Try naming a length, region or feature (lake, falls, ridge…).</span></div>';
-      return;
-    }
-    res.innerHTML = out.results.map((r) =>
-      '<button class="listitem" data-id="' + r.id + '">' +
-        '<span class="dot" style="background:' + regionColor(r.region) + '"></span>' +
-        '<span class="li-main"><span class="li-name">' + esc(r.name) + '</span>' +
-        '<span class="li-sub">' + esc(r.reason) + '</span></span>' +
-        '<span class="li-meta">' + r.lengthMi.toFixed(1) + ' mi<br>' + (r.isLoop ? 'loop' : 'out &amp; back') + '</span>' +
-      '</button>').join('');
-    res.querySelectorAll('.listitem').forEach((b) => b.onclick = () => { location.hash = '#/route/' + b.dataset.id; });
-  };
-  document.getElementById('dgo').onclick = run;
-  document.getElementById('dq').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
-}
-
-/* ================================================================
- *  GROUP  (#/group — comms.js: Meshtastic LoRa over Web Bluetooth)
- *  Gated twice: MeshComms.isCommsAvailable() (Chrome-only API) AND the
- *  webProfile tier (lite never gets the BLE panel). Hidden, not broken.
- * ================================================================ */
-const Mesh = { log: [], peerMarkers: new Map(), status: 'idle', device: null, wired: false };
-function meshAllowed() {
-  return !!(window.MeshComms && window.MeshComms.isCommsAvailable() &&
-    State.profile && State.profile.tier !== 'lite');
-}
-function setupGroupBtn() {
-  const btn = document.getElementById('groupBtn');
-  if (!btn) return;
-  const ok = meshAllowed();
-  btn.hidden = !ok;
-  if (ok) btn.onclick = () => { location.hash = '#/group'; };
-}
-function setupMesh() {
-  if (Mesh.wired || !window.MeshComms || !window.MeshComms.isCommsAvailable()) return;
-  Mesh.wired = true;
-  const MC = window.MeshComms;
-  MC.onStatus((s) => {
-    Mesh.status = s.state;
-    if (s.detail && s.detail.deviceName) Mesh.device = s.detail.deviceName;
-    if (s.state === 'disconnected') toast('Mesh radio disconnected');
-    if (State.view === 'group') groupView(); // re-render reflects connect state
-  });
-  MC.onMessage((m) => {
-    Mesh.log.push({ who: m.fromName || 'mesh', text: String(m.text), me: false, at: Date.now() });
-    if (Mesh.log.length > 200) Mesh.log.shift();
-    if (State.view === 'group') renderMeshLog();
-    else toast('Mesh · ' + (m.fromName || 'peer') + ': ' + String(m.text).slice(0, 60)); // toast uses textContent — safe
-  });
-  MC.onPosition((p) => {
-    if (!map || p.lat == null || p.lon == null) return; // map dead → chat still works, just no pins
-    let mk = Mesh.peerMarkers.get(p.num);
-    if (mk) { mk.setLngLat([p.lon, p.lat]); return; }
-    const el = document.createElement('div'); el.className = 'pin'; el.style.background = 'var(--water)';
-    el.innerHTML = '<span>◈</span>';
-    const pop = new maplibregl.Popup({ offset: 16, closeButton: false }).setHTML(
-      '<div class="pop-t">' + esc(p.name || 'peer') + '</div><div class="pop-type">mesh peer (LoRa)</div>');
-    mk = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lon, p.lat]).setPopup(pop).addTo(map);
-    Mesh.peerMarkers.set(p.num, mk);
-  });
-}
-function groupView() {
-  State.view = 'group';
-  const MC = window.MeshComms;
-  if (!meshAllowed()) {
-    openSheet('<h2>Group (off-grid)</h2>' +
-      '<div class="callout"><b>Not on this ' + (MC && MC.isCommsAvailable() ? 'profile' : 'browser') + '.</b> ' +
-      (MC && MC.isCommsAvailable()
-        ? 'This device self-reported a low-resource profile, so the Bluetooth mesh panel is switched off rather than shipped broken.'
-        : 'Off-grid group chat needs <b>Web Bluetooth</b> (Chrome/Edge on desktop or Android) plus a Meshtastic LoRa radio. This browser has no Web Bluetooth — no fake buttons.') +
-      '</div>');
-    return;
-  }
-  const conn = MC.isConnected();
-  const peers = conn ? MC.getPeers() : [];
-  const voiceOK = !!(window.EdgeAI && window.EdgeAI.isVoiceAvailable && window.EdgeAI.isVoiceAvailable());
-  openSheet(
-    '<h2>Group (off-grid)</h2>' +
-    '<p class="muted">Text your hiking group with <b>zero cell signal</b>: this page talks over Bluetooth to a <b>Meshtastic LoRa radio</b>, which relays through the mesh for miles.</p>' +
-    '<div style="margin:4px 0 2px">' +
-      '<span class="tierchip' + (conn ? ' on' : '') + '">' + (conn ? 'connected · ' + esc(Mesh.device || 'radio') : 'not connected') + '</span>' +
-      (conn ? '<span class="tierchip' + (Mesh.status === 'ready' ? ' on' : '') + '">' + esc(Mesh.status) + '</span>' : '') +
-    '</div>' +
-    (conn
-      ? (peers.length
-          ? '<div>' + peers.map((p) => '<span class="meshpeer">' + esc(p.name) + '</span>').join('') + '</div>'
-          : '<p class="tiny">No peers heard yet — they appear as their radios beacon in.</p>') +
-        '<div class="meshlog" id="meshLog"></div>' +
-        '<div class="row tight" style="margin-top:8px">' +
-          '<input id="meshText" placeholder="Message the group…" maxlength="200" autocomplete="off" style="flex:3;min-width:0" aria-label="Mesh message">' +
-          '<button class="btn" id="meshSend" style="flex:1">Send</button>' +
-        '</div>' +
-        '<div class="row tight">' +
-          (voiceOK ? '<button class="btn ghost" id="meshVoice">🎙 Speak to group</button>' : '') +
-          '<button class="btn ghost" id="meshSpeak" aria-pressed="' + MC.getVoiceMode() + '">' + (MC.getVoiceMode() ? '🔊 Read aloud: on' : '🔇 Read aloud: off') + '</button>' +
-          '<button class="btn ghost" id="meshDisc">Disconnect</button>' +
-        '</div>'
-      : '<div class="row"><button class="btn" id="meshConnect" style="flex:1">Connect radio (Bluetooth)</button></div>') +
-    '<div class="callout"><b>Honest note.</b> Chrome-only (Web Bluetooth) and needs a Meshtastic node in range. The protobuf codec inside is a minimal hand-rolled subset — text + positions only, encrypted-only packets skipped — not the official Meshtastic stack.</div>'
-  );
-  if (!conn) {
-    document.getElementById('meshConnect').onclick = async (e) => {
-      e.target.disabled = true; e.target.textContent = 'Connecting…';
-      const r = await MC.connectMesh(); // must run inside this user gesture
-      if (!r.ok) { toast(r.reason); if (State.view === 'group') groupView(); }
-      // success path re-renders via the onStatus('connected') subscription
-    };
-    return;
-  }
-  renderMeshLog();
-  const send = async () => {
-    const inp = document.getElementById('meshText');
-    const v = inp.value.trim(); if (!v) return;
-    const r = await MC.sendText(v);
-    if (r.ok) { inp.value = ''; Mesh.log.push({ who: 'you', text: r.sent, me: true, at: Date.now() }); renderMeshLog(); }
-    else toast(r.reason);
-  };
-  document.getElementById('meshSend').onclick = send;
-  document.getElementById('meshText').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
-  const mv = document.getElementById('meshVoice');
-  if (mv) mv.onclick = async () => {
-    mv.disabled = true; mv.textContent = 'Listening…';
-    const r = await MC.sendVoice(); // closeSheet()/navigation cancels the mic via EdgeAI.cancelListen()
-    mv.disabled = false; mv.textContent = '🎙 Speak to group';
-    if (r.ok) {
-      Mesh.log.push({ who: 'you', text: r.transcript, me: true, at: Date.now() });
-      renderMeshLog();
-      const sp = document.getElementById('meshSpeak'); // sendVoice() switched read-aloud on
-      if (sp) { sp.textContent = '🔊 Read aloud: on'; sp.setAttribute('aria-pressed', 'true'); }
-    } else toast(r.reason);
-  };
-  document.getElementById('meshSpeak').onclick = (e) => {
-    const on = MC.setVoiceMode(!MC.getVoiceMode());
-    e.target.textContent = on ? '🔊 Read aloud: on' : '🔇 Read aloud: off';
-    e.target.setAttribute('aria-pressed', String(on));
-  };
-  document.getElementById('meshDisc').onclick = () => { MC.disconnectMesh(); };
-}
-function renderMeshLog() {
-  const el = document.getElementById('meshLog'); if (!el) return;
-  el.innerHTML = Mesh.log.length
-    ? Mesh.log.map((m) => '<div class="meshmsg' + (m.me ? ' me' : '') + '"><b>' + esc(m.who) + '</b>' + esc(m.text) + '</div>').join('')
-    : '<p class="tiny" style="padding:6px 0">No messages yet.</p>';
-  el.scrollTop = el.scrollHeight;
-}
-
 /* ---- #/settings ---- */
 function settingsView() {
   State.view = 'settings';
@@ -1504,10 +935,6 @@ function settingsView() {
   const p = State.profile;
   openSheet(
     '<h2>Settings</h2>' +
-    '<button id="emBtn" type="button" style="width:100%;background:#c62828;color:#fff;border:2px solid #ff5a5a;' +
-      'border-radius:14px;padding:16px;font-weight:900;font-size:1.15rem;cursor:pointer;margin:2px 0 16px;text-align:left;' +
-      'animation:em-glow 2.4s infinite">🆘 Emergency &amp; SOS' +
-      '<div style="font-weight:600;font-size:.78rem;opacity:.92;margin-top:4px">Screen-free 911 · say any number · call-first contact · GPS auto-country</div></button>' +
     '<label>Distance unit</label>' +
     '<div class="seg" id="unitSeg"><button data-u="mi"' + (unitPref() === 'mi' ? ' class="on"' : '') + '>Miles</button>' +
       '<button data-u="km"' + (unitPref() === 'km' ? ' class="on"' : '') + '>Kilometres</button></div>' +
@@ -1526,21 +953,15 @@ function settingsView() {
     '<label>This device (self-detected)</label>' +
     '<div class="callout" id="tierInfo">' +
       (p ? '<span class="tierchip on">' + esc(p.tier) + ' tier</span>' +
-           '<span class="tierchip' + (p.features.voice ? ' on' : '') + '">voice ' + (p.features.voice ? 'on' : 'off') + '</span>' +
-           '<span class="tierchip' + (p.features.chromeNano ? ' on' : '') + '">built-in AI ' + (p.features.chromeNano ? 'yes' : 'no') + '</span>' +
            '<span class="tierchip' + (p.features.animations ? ' on' : '') + '">motion ' + (p.features.animations ? 'on' : 'reduced') + '</span>' +
            '<div class="tiny" style="margin-top:7px">' + p.reasons.map(esc).join('<br>') + '</div>'
          : 'Profile unavailable — running standard defaults.') +
     '</div>' +
-    '<label>Voice assistant</label>' +
-    '<div class="callout">' + voiceSettingsCopy(p) + '</div>' +
     '<div class="row"><button class="btn ghost" id="aboutLink">About &amp; honesty →</button></div>'
   );
   document.querySelectorAll('#unitSeg button').forEach((b) => b.onclick = () => { LS.set('unit', b.dataset.u); settingsView(); });
   document.querySelectorAll('#themeSeg button').forEach((b) => b.onclick = () => { LS.set('theme', b.dataset.t); applyTheme(); settingsView(); });
   document.getElementById('aboutLink').onclick = () => { location.hash = '#/about'; };
-  const emB = document.getElementById('emBtn');
-  if (emB) emB.onclick = () => { try { if (window.EmergencyUI) window.EmergencyUI.open(); } catch (_e) {} };
   const ib = document.getElementById('installBtn');
   ib.onclick = doInstall;
   document.getElementById('installHint').innerHTML = installHintText();
@@ -1549,11 +970,6 @@ function settingsView() {
     if ('caches' in window) { for (const k of await caches.keys()) if (k.includes('tiles')) await caches.delete(k); }
     toast('Tile cache cleared'); updateCacheInfo();
   };
-}
-function voiceSettingsCopy(p) {
-  if (!p || p.tier === 'lite') return '<b>Off on this device.</b> The device self-reported a low-resource profile, so the assistant is disabled instead of shipped broken. The offline push-to-talk assistant with the on-device model is the native Android app.';
-  if (p.features.voice) return '<b>On — flagship tier.</b> Push-to-talk runs against Chrome’s built-in on-device model (Gemini Nano). Open it with the mic button on the map. The always-offline version with background GPS is the native Android app.';
-  return '<b>Typed fallback.</b> No on-device model on this browser, so the assistant accepts typed commands parsed by offline rules — no fake mic. Flagship Chrome gets true push-to-talk; the native Android app gets the full offline voice brain.';
 }
 async function updateCacheInfo() {
   const el = document.getElementById('cacheInfo'); if (!el) return;
@@ -1582,22 +998,17 @@ function aboutView() {
   const p = State.profile;
   openSheet(
     '<h2>About OpenCairn</h2>' +
-    '<p class="muted">A no-signup, offline-first preview of <b>OpenCairn</b> — a free, open-source trail planner. Built for Seattle Tech Week: opens from a QR, works with no signal, installs to the home screen, no account for the interesting parts.</p>' +
+    '<p class="muted">A no-signup, offline-first preview of <b>OpenCairn</b> — a free, open-source trail planner. Opens from a QR or a link, works with no signal, installs to the home screen, no account for the interesting parts.</p>' +
     '<h3>What this PWA does well</h3>' +
     '<ul class="linklist">' +
       '<li>Instant QR open — no install / login friction</li>' +
-      '<li>' + State.routes.length.toLocaleString() + ' Seattle-area trails, all offline in the seed</li>' +
+      '<li>' + State.routes.length.toLocaleString() + ' trails, all offline in the seed</li>' +
       '<li>Honest live GPS + a real accuracy circle</li>' +
       '<li>Self-hosted map engine, fonts &amp; cached tiles — a trail panned once works on the trail</li>' +
       '<li>Fully serverless hike planning (QR / link / .ics / peer RSVP)</li>' +
       '<li>Breadcrumb home — records your walked path and points you back along it; pure GPS, zero signal, every device</li>' +
-      '<li>“Describe a hike” discovery — natural-language trail matching via offline rules (AI-refined on flagship Chrome)</li>' +
-      '<li>Trail pulse — freshness-decayed condition reports, stored on this device</li>' +
-      '<li>Off-grid group chat via a Meshtastic LoRa radio (Chrome + Web Bluetooth only — hidden elsewhere)</li>' +
       '<li>Self-tiering: the app probes this device and enables exactly what it can carry' + (p ? ' (this one: <b>' + esc(p.tier) + '</b>)' : '') + '</li>' +
     '</ul>' +
-    '<h3>Voice, tier by tier — honestly</h3>' +
-    '<div class="callout"><b>Flagship browsers</b> (Chrome with built-in AI + real headroom): push-to-talk runs Gemini Nano <b>on-device</b> — utterances never reach an OpenCairn server. <b>Other browsers</b>: typed commands via offline rules, no fake mic. <b>Low-resource devices</b>: hidden entirely. The always-offline voice brain with background GPS is the <b>native Android app</b>.</div>' +
     '<h3>What only native can do</h3>' +
     '<div class="callout"><b>Background GPS</b> — a PWA only tracks while foregrounded; it can’t log a hike screen-off.</div>' +
     '<div class="callout"><b>Real sync &amp; writes</b> — no auth server here. Favorites &amp; rosters are device-local; hike coordination is peer-relayed through the link itself. Create/edit routes, GPX upload, votes &amp; comments need the write API + native files.</div>' +
@@ -1748,10 +1159,7 @@ function route() {
     case 'accuracy': accuracyView(); break;
     case 'place': placeSearch(); break;
     case 'plan': planForm(new URLSearchParams(h.split('?')[1] || '').get('t')); break;
-    case 'voice': voiceView(); break;
     case 'home': homeView(); break;
-    case 'discover': discoverView(); break;
-    case 'group': groupView(); break;
     case 'settings': settingsView(); break;
     case 'about': aboutView(); break;
     default: closeSheet(false);
@@ -1907,49 +1315,9 @@ async function boot() {
   try { if (profileP) State.profile = await profileP; } catch {}
   if (!State.profile) {
     State.profile = { tier: 'standard',
-      features: { fullGeometry: true, vectorTiles: true, voice: false, webgpuAI: false, chromeNano: false, animations: !reducedMotion() },
+      features: { fullGeometry: true, vectorTiles: true, animations: !reducedMotion() },
       reasons: ['webProfile.js unavailable — standard defaults'], probes: {} };
   }
-  setupVoiceFab();
-
-  // Data-Saver / lite guard: the Nano path can trigger a ~GB model download,
-  // so edgeAI is told the profile's verdict before any interpret() runs.
-  try {
-    if (window.EdgeAI && typeof window.EdgeAI.setNanoEnabled === 'function') {
-      window.EdgeAI.setNanoEnabled(!!(State.profile.features && State.profile.features.chromeNano));
-    }
-  } catch {}
-
-  // MoM grounding: teach edgeAI the real trail names (+ live GPS for proximity
-  // tie-breaks) so EVERY interpreter tier resolves a spoken/typed trail name to
-  // a real canonical trail instead of a hallucinated one. Lazy + cached; a no-op
-  // until the routes are loaded (they are, by here). userPos is [lon,lat];
-  // retrieval wants [lat,lon].
-  try {
-    if (window.EdgeAI && typeof window.EdgeAI.configureGrounding === 'function') {
-      window.EdgeAI.configureGrounding({
-        getNames: () => State.routes.map((r) => ({
-          name: r.name, region: r.region,
-          lat: r.start ? r.start[1] : null,
-          lon: r.start ? r.start[0] : null,
-        })),
-        getGps: () => (State.userPos ? [State.userPos[1], State.userPos[0]] : null),
-      });
-    }
-  } catch {}
-
-  // Feedseed on-device (WebGPU) tier: only enable on flagship + a real WebGPU
-  // adapter, and mirror the Data-Saver veto. Nothing downloads here — the user
-  // opts in from the voice sheet; this just arms the backend.
-  try {
-    if (window.FeedseedBackend && typeof window.FeedseedBackend.setEnabled === 'function') {
-      window.FeedseedBackend.setEnabled(!!(State.profile.features && State.profile.features.webgpuAI));
-    }
-  } catch {}
-
-  // Off-grid group panel: Web Bluetooth + non-lite tier only (hidden elsewhere).
-  setupGroupBtn();
-  setupMesh();
 
   // The map engine is self-hosted, but if it still failed to parse/load,
   // say so visibly instead of throwing into the void.

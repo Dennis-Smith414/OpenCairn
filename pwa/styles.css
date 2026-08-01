@@ -96,34 +96,6 @@ a{color:var(--accent)}
 .statuspill.info{background:var(--accent);color:var(--accent-ink)}
 .statuspill.tappable{pointer-events:auto;cursor:pointer;min-height:44px;display:flex;align-items:center}
 
-/* ---------- voice assistant FAB ---------- */
-.voicefab{position:absolute;right:9px;bottom:calc(var(--safe-bottom) + 160px);z-index:5;
-  width:52px;height:52px;border-radius:50%;border:1px solid var(--line);cursor:pointer;
-  background:var(--surface);color:var(--accent);display:grid;place-items:center;box-shadow:var(--shadow)}
-.voicefab svg{width:24px;height:24px}
-.voicefab.degraded{color:var(--ink-soft)}
-.voicefab:active{transform:scale(.94)}
-
-/* push-to-talk button inside the voice sheet */
-.ptt{width:96px;height:96px;border-radius:50%;border:2px solid var(--accent);margin:14px auto 4px;
-  display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 12%,var(--surface));
-  color:var(--accent);cursor:pointer;transition:transform .15s}
-.ptt svg{width:38px;height:38px}
-.ptt:active{transform:scale(.95)}
-.ptt.listening{animation:pulse 1.1s ease-in-out infinite;background:var(--accent);color:var(--accent-ink)}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}
-  50%{box-shadow:0 0 0 16px transparent}}
-.ptt-label{display:block;text-align:center;font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
-.vlog{margin-top:12px}
-.vturn{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--bg)}
-.vturn .vt-you{font-family:var(--serif);font-size:1rem;margin-bottom:6px}
-.vturn .vt-you::before{content:"“ ";color:var(--accent)}
-.vturn .vt-you::after{content:" ”";color:var(--accent)}
-.vturn .vt-call{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-top:1px dashed var(--line);font-size:.85rem}
-.vturn .vt-call code{font-family:var(--mono);font-size:.72rem;color:var(--accent);white-space:nowrap}
-.vturn .vt-backend{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-soft);margin-top:7px}
 .tierchip{display:inline-block;font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;
   border:1px solid var(--line);border-radius:999px;padding:.22rem .6rem;color:var(--ink-soft);margin:2px 4px 2px 0}
 .tierchip.on{border-color:var(--accent);color:var(--accent)}
@@ -284,70 +256,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .homedist{font-family:var(--serif);font-size:2.1rem;font-weight:700;text-align:center;line-height:1.1}
 .homedist small{display:block;font-family:var(--sans);font-size:.78rem;font-weight:400;color:var(--ink-soft);margin-top:3px}
 
-/* ---------- trail pulse (conditions badge + report rows) ---------- */
-.pulse-badge{display:flex;align-items:center;gap:9px;flex-wrap:wrap;border:1px solid var(--line);
-  border-left:3px solid var(--line-strong);border-radius:8px;padding:9px 11px;margin:10px 0 4px;
-  background:var(--bg);font-size:.82rem;line-height:1.4;color:var(--ink)}
-.pulse-badge .pulse-dot{width:10px;height:10px;border-radius:50%;background:var(--line-strong);flex:none}
-.pulse-badge .pulse-line{flex:1;min-width:55%}
-.pulse-badge .pulse-meta{width:100%;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;font-size:.6rem}
-.pulse-good{border-left-color:var(--nav)}   .pulse-good .pulse-dot{background:var(--nav)}
-.pulse-info{border-left-color:var(--water)} .pulse-info .pulse-dot{background:var(--water)}
-.pulse-warn{border-left-color:var(--hazard)}.pulse-warn .pulse-dot{background:var(--hazard)}
-.pulse-bad{border-left-color:var(--hazard)} .pulse-bad .pulse-dot{background:var(--hazard)}
-.pulse-reps{margin:2px 0 8px}
-.pulse-rep{display:flex;gap:8px;align-items:baseline;padding:6px 2px;border-bottom:1px dashed var(--line);font-size:.8rem}
-.pulse-rep .pulse-glyph{width:18px;text-align:center;flex:none}
-.pulse-rep-warn .pulse-glyph,.pulse-rep-bad .pulse-glyph{color:var(--hazard)}
-.pulse-rep-good .pulse-glyph{color:var(--nav)}
-.pulse-rep .pulse-word{font-weight:600;white-space:nowrap}
-.pulse-rep .pulse-note{color:var(--ink-soft);flex:1;min-width:0;overflow-wrap:anywhere}
-.pulse-rep .pulse-when{margin-left:auto;white-space:nowrap}
-
-/* ---------- off-grid group (mesh) panel ---------- */
-.meshlog{margin:10px 0;max-height:34vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px;
-  padding:4px 12px;background:var(--bg)}
-.meshmsg{padding:7px 0;border-bottom:1px dashed var(--line);font-size:.86rem;line-height:1.45;overflow-wrap:anywhere}
-.meshmsg:last-child{border-bottom:none}
-.meshmsg b{color:var(--accent);font-family:var(--mono);font-size:.7rem;margin-right:7px;text-transform:uppercase}
-.meshmsg.me b{color:var(--ink-soft)}
-.meshpeer{display:inline-block;font-family:var(--mono);font-size:.68rem;border:1px solid var(--line);
-  border-radius:999px;padding:.2rem .55rem;margin:2px 4px 2px 0;color:var(--ink-soft)}
-
 /* ---------- reduced motion: kill transitions/animations, keep function ---------- */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001s!important;animation-iteration-count:1!important;
     transition-duration:.001s!important}
-  .ptt.listening{animation:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 45%,transparent)}
   .spin{animation:none}
 }
-
-/* ── Feedseed on-device (WebGPU) opt-in panel — voice sheet ──────────── */
-.fspanel{margin:8px 0 4px}
-.fspanel[hidden]{display:none}
-.fspanel>div{border:1px solid var(--line);border-radius:12px;padding:11px 12px;
-  background:color-mix(in srgb,var(--accent) 7%,var(--surface));font-size:.9rem;line-height:1.4}
-.fspanel .tiny{color:var(--ink-soft);margin-top:6px}
-.fspanel .btn{display:inline-block;margin-top:9px}
-.fs-ready{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))!important;
-  background:color-mix(in srgb,var(--accent) 12%,var(--surface))!important}
-.fs-err{border-color:var(--line-strong)!important;
-  background:color-mix(in srgb,var(--ink) 5%,var(--surface))!important}
-.fs-bar{height:7px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:8px 0 2px}
-.fs-bar>i{display:block;height:100%;background:var(--accent);border-radius:999px;
-  transition:width .25s ease}
-
-/* ── Voice & read-back settings (voice picker) ─────────────────────── */
-.vset{margin:8px 0 2px;border:1px solid var(--line);border-radius:12px;padding:2px 13px;background:var(--surface)}
-.vset summary{cursor:pointer;font-family:var(--sans);font-weight:600;font-size:.9rem;padding:9px 0;color:var(--ink);list-style:none}
-.vset summary::-webkit-details-marker{display:none}
-.vset summary::before{content:"▸ ";color:var(--accent)}
-.vset[open] summary::before{content:"▾ "}
-.vset[open] summary{border-bottom:1px solid var(--line);margin-bottom:4px}
-.vrow{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:.9rem}
-.vrow>span{min-width:50px;color:var(--ink-soft)}
-.vrow select{flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid var(--line-strong);
-  background:var(--bg);color:var(--ink);font-size:.88rem}
-.vrow input[type=range]{flex:1;accent-color:var(--accent)}
-.vrow input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
-.vset .btn{margin:4px 0 8px}

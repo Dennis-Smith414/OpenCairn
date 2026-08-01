@@ -1,4 +1,0 @@
-# The ONNX weights are large binary assets — hosted, not committed.
-# They are served same-origin with the PWA (see feedseed-web/README.md).
-*.onnx
-*.onnx_data

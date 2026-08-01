@@ -35,9 +35,6 @@
   <button class="btn ghost icon" id="routesBtn" aria-label="Browse trails" title="Browse trails">☰</button>
   <button class="btn ghost icon" id="searchBtn" aria-label="Find a place" title="Find a place">🔍&#xFE0E;</button>
   <button class="btn ghost icon" id="gpsBtn" aria-label="GPS accuracy" title="GPS accuracy">◎</button>
-  <!-- Off-grid group chat (Meshtastic over Web Bluetooth) — unhidden by app.js
-       only when webProfile tier allows it AND the browser has Web Bluetooth -->
-  <button class="btn ghost icon" id="groupBtn" hidden aria-label="Off-grid group chat" title="Off-grid group (LoRa mesh)">⌁</button>
   <button class="btn ghost icon" id="settingsBtn" aria-label="Settings" title="Settings">
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.4v2.2M10 15.4v2.2M2.4 10h2.2M15.4 10h2.2M4.6 4.6l1.6 1.6M13.8 13.8l1.6 1.6M15.4 4.6l-1.6 1.6M6.2 13.8l-1.6 1.6"/></svg>
   </button>
@@ -63,13 +60,6 @@
   <button class="crumbbtn home" id="crumbHome">⌂ <span>Guide me home</span></button>
 </div>
 
-<!-- Voice assistant (tiered: hidden on lite, typed fallback off-flagship) -->
-<button class="voicefab" id="voiceBtn" hidden aria-label="Voice assistant">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-    <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>
-  </svg>
-</button>
-
 <!-- Bottom sheet (all detail/forms render here) -->
 <section class="sheet" id="sheet" role="dialog" aria-modal="false" aria-label="Detail panel" tabindex="-1">
   <div class="grip" id="grip" aria-hidden="true"></div>
@@ -87,23 +77,8 @@
 <script src="./vendor/maplibre-gl.js" defer></script>
 <script src="./vendor/qrcode-generator.js" defer></script>
 <script src="./webProfile.js" defer></script>
-<!-- feature modules — classic scripts (globals: Breadcrumb, TrailPulse, TrailDiscover) -->
+<!-- feature module — classic script (global: Breadcrumb) -->
 <script src="./breadcrumb.js" defer></script>
-<script src="./pulse.js" defer></script>
-<script src="./discover.js" defer></script>
-<!-- ES modules (globals: EdgeAI, MeshComms); modules defer by default and run
-     in document order relative to the deferred classic scripts, so app.js
-     (last) always sees every module global that loaded successfully -->
-<script type="module" src="./edgeAI.js"></script>
-<!-- Tier-2 edge AI: OUR Feedseed model on WebGPU (transformers.js). Dormant
-     until the user opts in from the voice sheet; safe to load everywhere. -->
-<script type="module" src="./feedseedBackend.js"></script>
-<script type="module" src="./comms.js"></script>
-<!-- Deterministic emergency layer (no model, no network): screen-free dial,
-     spoken numbers, volume-rocker patterns. Self-contained + inline-styled. -->
-<script type="module" src="./emergency.mjs"></script>
-<script type="module" src="./emergencyTrigger.mjs"></script>
-<script src="./emergencyUI.js" defer></script>
 <script src="./app.js" defer></script>
 </body>
 </html>
