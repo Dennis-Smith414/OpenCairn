@@ -32,6 +32,7 @@ import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
 import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
 import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
+  bindToRouteFactor,
   distanceToSegmentsMeters,
   nearestPointOnSegments,
   offRouteColor,
@@ -238,11 +239,13 @@ const MapLibreMap: React.FC<Props> = ({
       const remainingParts: number[][][] = [];
       if (prog) {
         const cut = [prog.point[1], prog.point[0]]; // [lat,lng] -> [lng,lat]
-        // Fall back to route-start if seed fields are missing (e.g. a
-        // Fast-Refresh-preserved ProgressPoint from before these fields
-        // existed) — never let a stale object crash the map render.
-        const seedSeg = prog.seedSeg ?? 0;
-        const seedPointSrc = prog.seedPoint ?? flatLatLng[0];
+        // Fall back to "no grey yet" (seed == current) if seed fields are
+        // missing (e.g. a Fast-Refresh-preserved ProgressPoint from before
+        // these fields existed) — never let a stale object crash the map
+        // render, and never let the fallback itself recreate the old
+        // retroactive-grey-from-start bug this was written to fix.
+        const seedSeg = prog.seedSeg ?? prog.seg;
+        const seedPointSrc = prog.seedPoint ?? prog.point;
         const seedCut = [seedPointSrc[1], seedPointSrc[0]];
         hikedCoords = [seedCut, ...flatGeo.slice(seedSeg + 1, prog.seg + 1), cut];
         const preSeed = [...flatGeo.slice(0, seedSeg + 1), seedCut];
@@ -453,19 +456,21 @@ const MapLibreMap: React.FC<Props> = ({
     return out.filter((s) => s.length >= 2);
   }, [tracks]);
 
-  // Binds the dot to the route line, but ONLY as far as the fix already reads
-  // as on-route — blend fades to 0 using the SAME distance/accuracy ramp as
-  // the off-route colour (offRouteFactor), so it releases exactly where the
-  // dot would start turning amber. An always-on snap would hide from a lost
-  // user that they've left the trail; see offRoute.ts's file header. Identity
-  // is stable enough for useSmoothedLocation's ref (recreated only when the
-  // loaded routes change, not per fix/frame).
+  // Binds the dot to the route line, but ONLY as far as the fix reads as
+  // genuinely on-route — blend fades to 0 using bindToRouteFactor, a MUCH
+  // tighter ramp than the off-route colour's (offRouteFactor is deliberately
+  // lenient under poor accuracy so it doesn't falsely flag amber; reusing
+  // that same lenience for binding was a bug — it bound the dot onto the
+  // line even tens of meters off-trail). An always-on/too-generous snap
+  // would hide from a lost user that they've left the trail; see offRoute.ts's
+  // file header. Identity is stable enough for useSmoothedLocation's ref
+  // (recreated only when the loaded routes change, not per fix/frame).
   const snapToRoute = useCallback(
     (lat: number, lng: number, accuracy: number | null | undefined) => {
       if (routeSegments.length === 0) return { lat, lng, blend: 0 };
       const nearest = nearestPointOnSegments({ lat, lng }, routeSegments);
       if (!nearest) return { lat, lng, blend: 0 };
-      const factor = offRouteFactor(nearest.distanceM, accuracy);
+      const factor = bindToRouteFactor(nearest.distanceM, accuracy);
       return { lat: nearest.point.lat, lng: nearest.point.lng, blend: 1 - factor };
     },
     [routeSegments],

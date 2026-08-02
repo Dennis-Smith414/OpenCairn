@@ -105,6 +105,19 @@ export function nearestPointOnSegments(
   return best;
 }
 
+function easedFactor(distanceM: number, near: number, far: number): number {
+  if (!Number.isFinite(distanceM)) return 0;
+  const t = (distanceM - near) / (far - near);
+  const tc = t < 0 ? 0 : t > 1 ? 1 : t;
+  return tc * tc * (3 - 2 * tc); // smoothstep
+}
+
+function resolveAccuracy(accuracyM?: number | null): number {
+  return typeof accuracyM === "number" && Number.isFinite(accuracyM) && accuracyM > 0
+    ? accuracyM
+    : ASSUMED_ACCURACY_M;
+}
+
 /**
  * How far toward the off-route colour the dot should sit, in [0,1].
  *
@@ -118,19 +131,39 @@ export function offRouteFactor(
   accuracyM?: number | null,
 ): number {
   if (!Number.isFinite(distanceM)) return 0;
-
-  const acc =
-    typeof accuracyM === "number" && Number.isFinite(accuracyM) && accuracyM > 0
-      ? accuracyM
-      : ASSUMED_ACCURACY_M;
-
+  const acc = resolveAccuracy(accuracyM);
   const near = Math.max(NEAR_FLOOR_M, acc);
   // near + 1 guards the ramp against collapsing to zero width on a wild accuracy.
   const far = Math.max(FAR_FLOOR_M, acc * FAR_ACCURACY_MULT, near + 1);
+  return easedFactor(distanceM, near, far);
+}
 
-  const t = (distanceM - near) / (far - near);
-  const tc = t < 0 ? 0 : t > 1 ? 1 : t;
-  return tc * tc * (3 - 2 * tc); // smoothstep
+// Deliberately much tighter than offRouteFactor's ramp above. That ramp exists
+// to AVOID a false amber warning under poor accuracy, so it's generous on
+// purpose (stays "on route" out to 45-90+ m with typical 15-30 m hiking GPS
+// accuracy). Reusing it to decide whether to visually BIND the dot's POSITION
+// to the line was a bug: it bound the dot onto the trail even when the user
+// was clearly standing well off it. Binding is the opposite kind of mistake —
+// it must err toward NOT hiding a real offset — so this scales much less with
+// accuracy and stays tight in absolute terms.
+const BIND_NEAR_FLOOR_M = 4; // full bind only this close, regardless of accuracy
+const BIND_FAR_FLOOR_M = 10; // fully released by here even with a great fix
+const BIND_ACCURACY_NEAR_MULT = 0.3;
+const BIND_ACCURACY_FAR_MULT = 1;
+
+/**
+ * How far toward BOUND-TO-THE-LINE the dot should sit, in [0,1]. See
+ * useSmoothedLocation.ts's SnapToRoute: this is the weight for pulling the
+ * displayed position onto the route, not a colour — must go to 0 well before
+ * offRouteFactor would call the same offset "off-route", so binding never
+ * outlasts the point where a lost user needs to see their real position.
+ */
+export function bindToRouteFactor(distanceM: number, accuracyM?: number | null): number {
+  if (!Number.isFinite(distanceM)) return 0;
+  const acc = resolveAccuracy(accuracyM);
+  const near = Math.max(BIND_NEAR_FLOOR_M, acc * BIND_ACCURACY_NEAR_MULT);
+  const far = Math.max(BIND_FAR_FLOOR_M, acc * BIND_ACCURACY_FAR_MULT, near + 1);
+  return easedFactor(distanceM, near, far);
 }
 
 function parseHex(hex: string): [number, number, number] {
