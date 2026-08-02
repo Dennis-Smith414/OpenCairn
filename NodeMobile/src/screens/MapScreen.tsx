@@ -302,12 +302,27 @@ const MapScreen: React.FC = () => {
       const forward =
         !cur || best.seg > cur.seg || (best.seg === cur.seg && best.t >= cur.t);
 
+      // Where the user joined the route: recorded once (from `cur` if it
+      // already exists), then carried forward unchanged. Everything before
+      // this stays "remaining" even after seg/t advance past it — see
+      // ProgressPoint's comment in MapLibreMap.tsx.
+      const seedSeg = cur ? cur.seedSeg : best.seg;
+      const seedT = cur ? cur.seedT : best.t;
+      const seedPoint = cur ? cur.seedPoint : best.point;
+
       if (best.dist <= ON_ROUTE_M && forward) {
-        next[track.id] = { seg: best.seg, t: best.t, point: best.point };
+        next[track.id] = { seg: best.seg, t: best.t, point: best.point, seedSeg, seedT, seedPoint };
       } else if (cur) {
         next[track.id] = cur; // off-route or would rewind: hold position
       } else {
-        next[track.id] = { seg: startSeg, t: 0, point: flat[startSeg] };
+        next[track.id] = {
+          seg: startSeg,
+          t: 0,
+          point: flat[startSeg],
+          seedSeg: startSeg,
+          seedT: 0,
+          seedPoint: flat[startSeg],
+        };
       }
     });
 

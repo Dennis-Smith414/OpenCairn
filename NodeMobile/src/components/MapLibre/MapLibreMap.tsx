@@ -74,10 +74,22 @@ export interface Track {
 
 // How far along a route the user has walked: the last fully-passed segment index
 // plus the exact [lat,lng] point on it where the grey "hiked" line is cut.
+//
+// seedSeg/seedT/seedPoint record where the user was first detected ON this
+// route (set once, then carried forward unchanged) — NOT where the route
+// starts. Grey only covers seedPoint -> point (what was actually walked this
+// session); the stretch before seedPoint stays blue like "remaining", since
+// merely joining the route somewhere along its length doesn't mean the
+// earlier portion was hiked. Without this, standing anywhere within
+// ON_ROUTE_M of a point partway down a trail immediately greyed out
+// everything from the trailhead to there.
 export interface ProgressPoint {
   seg: number;
   t: number;
   point: LatLng;
+  seedSeg: number;
+  seedT: number;
+  seedPoint: LatLng;
 }
 
 interface Props {
@@ -211,14 +223,24 @@ const MapLibreMap: React.FC<Props> = ({
       const color = t.color || '#0a84ff';
       const weight = t.weight ?? 3;
 
-      // Cut the line at the projected point [lng,lat] on segment `seg`, so the
-      // grey edge slides continuously instead of snapping to a vertex.
+      // Cut the line at the projected points [lng,lat] for both the seed
+      // (where the user joined the route) and the current position, so both
+      // edges slide continuously instead of snapping to a vertex. Grey only
+      // covers seed -> current; everything before the seed is "remaining"
+      // too, since joining mid-route doesn't mean the earlier stretch was
+      // walked (see ProgressPoint's comment).
       let hikedCoords: number[][] | null = null;
-      let remainingCoords: number[][] = flatGeo;
+      const remainingParts: number[][][] = [];
       if (prog) {
         const cut = [prog.point[1], prog.point[0]]; // [lat,lng] -> [lng,lat]
-        hikedCoords = [...flatGeo.slice(0, prog.seg + 1), cut];
-        remainingCoords = [cut, ...flatGeo.slice(prog.seg + 1)];
+        const seedCut = [prog.seedPoint[1], prog.seedPoint[0]];
+        hikedCoords = [seedCut, ...flatGeo.slice(prog.seedSeg + 1, prog.seg + 1), cut];
+        const preSeed = [...flatGeo.slice(0, prog.seedSeg + 1), seedCut];
+        const postCurrent = [cut, ...flatGeo.slice(prog.seg + 1)];
+        if (preSeed.length >= 2) remainingParts.push(preSeed);
+        if (postCurrent.length >= 2) remainingParts.push(postCurrent);
+      } else {
+        remainingParts.push(flatGeo);
       }
 
       return {
@@ -232,7 +254,10 @@ const MapLibreMap: React.FC<Props> = ({
         } : null,
         remainingFeature: {
           type: 'Feature' as const,
-          geometry: { type: 'LineString' as const, coordinates: remainingCoords },
+          geometry:
+            remainingParts.length === 1
+              ? { type: 'LineString' as const, coordinates: remainingParts[0] }
+              : { type: 'MultiLineString' as const, coordinates: remainingParts },
           properties: { color, weight },
         },
       };
