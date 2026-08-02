@@ -85,14 +85,17 @@ const VEL_SMOOTH = 0.5; // blend new velocity with previous (0..1); damps GPS no
 const STILL_EPS = 1e-5;
 
 /**
- * The default LocationEstimator: measures velocity between consecutive fixes
- * (damped, with a stillness deadband) and aims `leadMs` ahead of the raw fix.
- * Ignores `accuracy` entirely — unlike kalmanLocation.ts's estimator, every
- * fix is trusted equally. Heading is passed through unchanged (including
- * null/undefined); useSmoothedLocation.ts's caller handles carrying the prior
- * heading forward when a fix lacks a course.
+ * Measures velocity directly from consecutive raw fixes — damped (VEL_SMOOTH)
+ * and deadbanded (STILL_EPS) so GPS noise doesn't register as motion. This
+ * converges to real velocity within ~1 fix, unlike a Kalman filter's gain-
+ * based estimate which takes several fixes to build confidence. Shared by
+ * createDeadReckoningEstimator() below AND kalmanLocation.ts's estimator —
+ * Kalman uses its own accuracy-weighted POSITION as the anchor (that's its
+ * actual advantage: robust to outliers/degraded GPS) but borrows this same
+ * proven, fast-responding velocity for the lead projection, rather than its
+ * own slow-converging internal velocity state.
  */
-export function createDeadReckoningEstimator(): LocationEstimator {
+export function createRawVelocityTracker() {
   let prevFix: LatLngPoint & { ts: number } | null = null;
   let vel: Velocity = { vlat: 0, vlng: 0 };
 
@@ -101,14 +104,7 @@ export function createDeadReckoningEstimator(): LocationEstimator {
     vel = { vlat: 0, vlng: 0 };
   }
 
-  function onFix(
-    lat: number,
-    lng: number,
-    heading: number | null | undefined,
-    _accuracy: number | null | undefined,
-    ts: number,
-    leadMs: number,
-  ): EstimatorResult {
+  function update(lat: number, lng: number, ts: number): Velocity {
     if (prevFix) {
       const moved = Math.hypot(lat - prevFix.lat, lng - prevFix.lng);
       const raw = moved < STILL_EPS ? { vlat: 0, vlng: 0 } : velocity(prevFix, prevFix.ts, { lat, lng }, ts);
@@ -118,10 +114,34 @@ export function createDeadReckoningEstimator(): LocationEstimator {
       };
     }
     prevFix = { lat, lng, ts };
+    return vel;
+  }
 
+  return { update, reset };
+}
+
+/**
+ * The default LocationEstimator: aims `leadMs` ahead of the raw fix along the
+ * raw-velocity tracker's estimate. Ignores `accuracy` entirely — unlike
+ * kalmanLocation.ts's estimator, every fix is trusted equally. Heading is
+ * passed through unchanged (including null/undefined); useSmoothedLocation.ts's
+ * caller handles carrying the prior heading forward when a fix lacks a course.
+ */
+export function createDeadReckoningEstimator(): LocationEstimator {
+  const tracker = createRawVelocityTracker();
+
+  function onFix(
+    lat: number,
+    lng: number,
+    heading: number | null | undefined,
+    _accuracy: number | null | undefined,
+    ts: number,
+    leadMs: number,
+  ): EstimatorResult {
+    const vel = tracker.update(lat, lng, ts);
     const target = extrapolate({ lat, lng }, vel, leadMs);
     return { lat: target.lat, lng: target.lng, heading: heading ?? null };
   }
 
-  return { onFix, reset };
+  return { onFix, reset: tracker.reset };
 }

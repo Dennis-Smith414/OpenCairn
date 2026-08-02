@@ -221,7 +221,11 @@ const MapLibreMap: React.FC<Props> = ({
       const flatGeo = flatLatLng.map(([lat, lon]) => [lon, lat]);
       const prog = progressMap[t.id];
       const color = t.color || '#0a84ff';
-      const weight = t.weight ?? 3;
+      // Thicker than the old default of 3: at typical hiking GPS accuracy the
+      // dot rarely sits exactly on the line even when you're on the trail —
+      // a wider line reads as "on the trail" over a bigger margin instead of
+      // visibly missing it.
+      const weight = t.weight ?? 6;
 
       // Cut the line at the projected points [lng,lat] for both the seed
       // (where the user joined the route) and the current position, so both
@@ -617,6 +621,8 @@ const MapLibreMap: React.FC<Props> = ({
                   lineColor: ["get", "color"],
                   lineWidth: ["get", "weight"],
                   lineOpacity: 0.95,
+                  lineCap: "round",
+                  lineJoin: "round",
                 }}
               />
             </ShapeSource>
@@ -628,6 +634,8 @@ const MapLibreMap: React.FC<Props> = ({
                     lineColor: "#888888",
                     lineWidth: ["get", "weight"],
                     lineOpacity: 0.7,
+                    lineCap: "round",
+                    lineJoin: "round",
                   }}
                 />
               </ShapeSource>
