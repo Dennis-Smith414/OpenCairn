@@ -233,9 +233,14 @@ const MapLibreMap: React.FC<Props> = ({
       const remainingParts: number[][][] = [];
       if (prog) {
         const cut = [prog.point[1], prog.point[0]]; // [lat,lng] -> [lng,lat]
-        const seedCut = [prog.seedPoint[1], prog.seedPoint[0]];
-        hikedCoords = [seedCut, ...flatGeo.slice(prog.seedSeg + 1, prog.seg + 1), cut];
-        const preSeed = [...flatGeo.slice(0, prog.seedSeg + 1), seedCut];
+        // Fall back to route-start if seed fields are missing (e.g. a
+        // Fast-Refresh-preserved ProgressPoint from before these fields
+        // existed) — never let a stale object crash the map render.
+        const seedSeg = prog.seedSeg ?? 0;
+        const seedPointSrc = prog.seedPoint ?? flatLatLng[0];
+        const seedCut = [seedPointSrc[1], seedPointSrc[0]];
+        hikedCoords = [seedCut, ...flatGeo.slice(seedSeg + 1, prog.seg + 1), cut];
+        const preSeed = [...flatGeo.slice(0, seedSeg + 1), seedCut];
         const postCurrent = [cut, ...flatGeo.slice(prog.seg + 1)];
         if (preSeed.length >= 2) remainingParts.push(preSeed);
         if (postCurrent.length >= 2) remainingParts.push(postCurrent);
