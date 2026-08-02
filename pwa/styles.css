@@ -59,7 +59,7 @@ a{color:var(--accent)}
 /* ---------- accessibility: visible focus everywhere ---------- */
 :where(button,a,[tabindex],input,select,textarea):focus-visible{
   outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
-.btn:focus-visible,.pill:focus-visible,.installchip:focus-visible{border-radius:999px}
+.btn:focus-visible,.pill:focus-visible{border-radius:999px}
 
 /* ---------- top bar ---------- */
 .topbar{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:.4rem;
@@ -227,11 +227,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .verdict.ok{background:color-mix(in srgb,var(--road) 16%,var(--bg));border:1px solid var(--road)}
 .verdict.bad{background:color-mix(in srgb,var(--hazard) 16%,var(--bg));border:1px solid var(--hazard)}
 .verdict small{display:block;font-weight:400;font-size:.8rem;margin-top:3px;color:var(--ink-soft)}
-
-/* install chip */
-.installchip{position:absolute;right:12px;bottom:calc(var(--safe-bottom) + 96px);z-index:5;
-  background:var(--accent);color:var(--accent-ink);border:none;border-radius:999px;padding:.6rem 1rem;
-  font-weight:600;font-size:.82rem;box-shadow:var(--shadow);cursor:pointer;font-family:inherit;min-height:44px}
 
 /* toast */
 .toast{position:absolute;left:50%;top:calc(var(--safe-top) + 64px);transform:translateX(-50%);z-index:9;

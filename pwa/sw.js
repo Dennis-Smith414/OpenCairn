@@ -30,7 +30,7 @@
  * than tampering: precaching proceeds unverified, with a console warning —
  * see verifyRelease() below for the exact reasoning.
  */
-const VERSION = 'v18';
+const VERSION = 'v19';
 const SHELL_CACHE = 'opencairn-shell-' + VERSION;
 const TILE_CACHE = 'opencairn-tiles-' + VERSION;   // runtime raster tiles (LRU-capped)
 const DATA_CACHE = 'opencairn-runtime-' + VERSION; // geocode / forecast responses
