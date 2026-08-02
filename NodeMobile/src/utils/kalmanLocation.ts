@@ -38,9 +38,29 @@ const ACCURACY_CEIL_M = 100;
 // constant this codebase already picked for "fix with no reported accuracy."
 const ASSUMED_ACCURACY_M = 15;
 
-// Arbitrary but reasonable starting uncertainty for velocity (m/s)^2 — we
-// know nothing about initial speed at the very first fix.
-const INITIAL_VEL_VARIANCE = 100;
+// Starting uncertainty for velocity (m/s)^2 at the very first fix. Scoped to
+// hiking speeds (~2 m/s std dev), not "no idea" (a vehicle-speed variance like
+// 100 was tried first and was a bug: it makes kVel — the update's velocity
+// gain — large for the first several fixes, so a single few-meter GPS jitter
+// gets read as a genuine ~1 m/s velocity. See MIN/MAX_LEAD_SPEED_MPS below for
+// how that phantom velocity used to reach the screen.
+const INITIAL_VEL_VARIANCE = 4;
+
+// Guards on the velocity used to lead-project the DISPLAY position (never the
+// internal filter state) — applied to the FILTERED estimate, unlike dead-
+// reckoning's STILL_EPS which gates on raw fix-to-fix displacement.
+//   MIN: below this estimated speed, treat as stationary and lead-project
+//        nothing. Standing still still yields a nonzero (if small) velocity
+//        estimate from ordinary GPS jitter; leading THAT forward by up to
+//        ~1.3s (see LEAD_FACTOR in useSmoothedLocation.ts) is what made the
+//        dot visibly creep/jitter — and once, overshoot far enough to look
+//        like the trail had already been walked — while standing still.
+//   MAX: hard cap on lead speed regardless of tuning elsewhere, so no single
+//        bad velocity estimate can throw the display position arbitrarily
+//        far down the trail. 3 m/s is a brisk hike; at the max lead window
+//        that's under a 4m forward projection, not a false "already passed it".
+const MIN_LEAD_SPEED_MPS = 0.3;
+const MAX_LEAD_SPEED_MPS = 3.0;
 
 export function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
@@ -178,9 +198,20 @@ export function createKalmanEstimator(): LocationEstimator {
     // (non-lead-projected) estimate, so the next fix's predict starts from
     // the true filtered state, same discipline as the dead-reckoning path
     // keeping prevFixRef/velRef based on raw fixes, not the glide target.
+    // Speed-gated: below MIN_LEAD_SPEED_MPS skip the projection entirely
+    // (display exactly the filtered position); above MAX_LEAD_SPEED_MPS,
+    // clamp the velocity used so the projection can't run away. Either way
+    // this only affects the display copy — x/y (the real filter state) are
+    // never touched here.
     const leadSec = Math.max(0, leadMs) / 1000;
-    const dispX = predict1d(x, leadSec);
-    const dispY = predict1d(y, leadSec);
+    const speed = Math.hypot(x.vel, y.vel);
+    let dispX = x;
+    let dispY = y;
+    if (speed >= MIN_LEAD_SPEED_MPS) {
+      const scale = speed > MAX_LEAD_SPEED_MPS ? MAX_LEAD_SPEED_MPS / speed : 1;
+      dispX = predict1d({ ...x, vel: x.vel * scale }, leadSec);
+      dispY = predict1d({ ...y, vel: y.vel * scale }, leadSec);
+    }
     const { lat: outLat, lng: outLng } = fromLocalMeters(dispX.pos, dispY.pos, refLat, refLng);
 
     return { lat: outLat, lng: outLng, heading: lastHeading };

@@ -47,7 +47,7 @@ import {
 // Flip this constant to A/B the two on a real walk; see the plan doc for the
 // synthetic comparison tests this was validated against before field testing.
 type DotMode = "native" | "dead-reckon" | "kalman";
-const DOT_MODE: DotMode = "dead-reckon";
+const DOT_MODE: DotMode = "kalman";
 
 export type LatLng = [number, number];
 
