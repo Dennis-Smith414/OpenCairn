@@ -30,17 +30,24 @@ import {
 } from "../../offline/basemaps";
 import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
 import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
+import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
   distanceToSegmentsMeters,
   offRouteColor,
   offRouteFactor,
 } from "../../utils/offRoute";
 
-// KILL SWITCH for the smoothed (gliding) location dot. Flip to false to fall
-// straight back to the native MapLibre puck if the custom dot misbehaves on a
-// device — the native path is the known-good fallback the code comment warns
-// about. This ONLY changes what's DRAWN; recorded tracks are unaffected.
-const SMOOTH_DOT = true;
+// DOT MODE — which estimator draws the gliding location dot, or "native" to
+// fall straight back to the plain MapLibre puck (the known-good fallback)
+// with no custom smoothing at all. This ONLY changes what's DRAWN; recorded
+// tracks are unaffected either way.
+//   "dead-reckon" — the original, tested, tuned glide (locationSmoothing.ts).
+//   "kalman"      — prototype: weighs each fix by its reported GPS accuracy
+//                   instead of treating every fix identically (kalmanLocation.ts).
+// Flip this constant to A/B the two on a real walk; see the plan doc for the
+// synthetic comparison tests this was validated against before field testing.
+type DotMode = "native" | "dead-reckon" | "kalman";
+const DOT_MODE: DotMode = "dead-reckon";
 
 export type LatLng = [number, number];
 
@@ -397,7 +404,12 @@ const MapLibreMap: React.FC<Props> = ({
   // snap, and sources fixes from its own LocationManager — which would cost us
   // both the shortest-arc heading glide and the `accuracy` value the off-route
   // colour needs. useSmoothedLocation does all three off one raw stream.
-  const { smoothed, pushFix } = useSmoothedLocation(SMOOTH_DOT);
+  //
+  // Created once regardless of DOT_MODE (cheap — a closure with no internal
+  // state until onFix runs) so flipping the constant doesn't need a remount.
+  const kalmanEstimatorRef = useRef(createKalmanEstimator());
+  const activeEstimator = DOT_MODE === "kalman" ? kalmanEstimatorRef.current : null;
+  const { smoothed, pushFix } = useSmoothedLocation(DOT_MODE !== "native", activeEstimator);
 
   // Whether the platform has EVER given us a course. Until it has, the heading
   // arrow stays hidden rather than confidently pointing north — displaying a
@@ -407,13 +419,15 @@ const MapLibreMap: React.FC<Props> = ({
   const [hasHeading, setHasHeading] = useState(false);
 
   useEffect(() => {
-    if (SMOOTH_DOT && userLocation) {
+    if (DOT_MODE !== "native" && userLocation) {
       // userLocation is [lat, lng]. A null heading means "platform has no course
-      // right now" and the smoother carries the previous one forward.
-      pushFix(userLocation[0], userLocation[1], userHeading);
+      // right now" and the smoother carries the previous one forward. accuracy
+      // is only consumed by the kalman estimator; the dead-reckoning path
+      // ignores the extra argument.
+      pushFix(userLocation[0], userLocation[1], userHeading, userAccuracy);
       if (userHeading != null) setHasHeading(true);
     }
-  }, [userLocation, userHeading, pushFix]);
+  }, [userLocation, userHeading, userAccuracy, pushFix]);
 
   // Every polyline of every LOADED route, kept as separate segments. Sub-segments
   // are not concatenated: joining disjoint GPX tracks would invent a straight
@@ -666,12 +680,12 @@ const MapLibreMap: React.FC<Props> = ({
           </ShapeSource>
         )}
 
-        {/* User location. When SMOOTH_DOT is on, the native puck is HIDDEN but
-            kept mounted so its onUpdate keeps feeding fixes to the smoother; the
-            gliding dot below is drawn instead. Flip SMOOTH_DOT to false to show
-            the native puck again (the known-good fallback). */}
+        {/* User location. When DOT_MODE is "dead-reckon" or "kalman", the native
+            puck is HIDDEN but kept mounted so its onUpdate keeps feeding fixes to
+            the smoother; the gliding dot below is drawn instead. Set DOT_MODE to
+            "native" to show the native puck again (the known-good fallback). */}
         <UserLocation
-          visible={!SMOOTH_DOT}
+          visible={DOT_MODE === "native"}
           renderMode="native"
           androidRenderMode="compass"
           showsUserHeadingIndicator={true}
@@ -683,7 +697,7 @@ const MapLibreMap: React.FC<Props> = ({
             consecutive raw fixes so the dot glides, never relocated onto a route.
             A dot pulled onto the line would hide from a lost user that they are
             off it, so the only thing the loaded route changes here is `dotColor`. */}
-        {SMOOTH_DOT && smoothed && (
+        {DOT_MODE !== "native" && smoothed && (
           <ShapeSource
             id="smooth-user-dot"
             shape={{

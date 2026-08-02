@@ -1,11 +1,16 @@
 // Drives a location dot that GLIDES between GPS fixes instead of snapping, and
 // leads slightly so it tracks you in real time instead of trailing.
 //
-// Feed it raw fixes via pushFix(); read `smoothed` for the value to draw. Each
-// fix, it measures your velocity and aims the glide at where you're ABOUT to be
-// (dead reckoning), then linearly interpolates from the currently-displayed
-// position to that predicted point over the measured fix gap, on a
-// requestAnimationFrame loop. It stops the loop once caught up (no idle drain).
+// Feed it raw fixes via pushFix(); read `smoothed` for the value to draw. By
+// default (no estimator passed), each fix measures your velocity and aims the
+// glide at where you're ABOUT to be (dead reckoning) — see locationSmoothing.ts.
+// Pass a `LocationEstimator` (e.g. createKalmanEstimator() from
+// kalmanLocation.ts) to swap in a different target-position estimator without
+// touching this file's RAF/glide loop at all; the two are prototyped
+// side-by-side via MapLibreMap.tsx's DOT_MODE switch. Either way, the result
+// glides from wherever it's currently displayed to the estimated target,
+// linearly, over the measured fix gap, on a requestAnimationFrame loop. It
+// stops the loop once caught up (no idle drain).
 //
 // DISPLAY ONLY. Callers must still record the raw fixes separately — nothing
 // recorded should come from here.
@@ -20,10 +25,9 @@ import {
   lerpHeading,
   lerpPoint,
   progress,
-  velocity,
-  extrapolate,
-  Velocity,
+  createDeadReckoningEstimator,
 } from "../utils/locationSmoothing";
+import { LocationEstimator } from "../utils/kalmanLocation";
 
 export interface SmoothedLocation {
   lat: number;
@@ -43,21 +47,17 @@ const MAX_MS = 1500;
 const DEFAULT_MS = 1000;
 
 // Plain interpolation glides toward where you WERE at the last fix, so it always
-// trails by ~one fix interval (the "rubber-band lag"). Instead we dead-reckon:
-// measure velocity from consecutive fixes and aim the glide at where you're
-// ABOUT to be. LEAD_FACTOR is how far ahead, as a fraction of the fix gap.
+// trails by ~one fix interval (the "rubber-band lag"). Instead we lead: aim the
+// glide at where the active estimator thinks you're ABOUT to be. LEAD_FACTOR is
+// how far ahead, as a fraction of the fix gap.
 //   1.0 → target where you'll be a full gap from now (kills lag, but overshoots
 //         a step when you suddenly stop).
 //   0.0 → no lead (the old trailing behaviour).
-// 0.85 tracks tight while keeping stop-overshoot small; velocity smoothing and
-// the stillness deadband below tame the rest.
+// 0.85 tracks tight while keeping stop-overshoot small; each estimator's own
+// velocity smoothing tames the rest (see locationSmoothing.ts / kalmanLocation.ts).
 const LEAD_FACTOR = 0.85;
-const VEL_SMOOTH = 0.5; // blend new velocity with previous (0..1); damps GPS noise
-// Below this per-fix displacement (~1.1m in degrees) we treat you as stationary
-// and drop the lead to zero, so the dot doesn't drift while you stand still.
-const STILL_EPS = 1e-5;
 
-export function useSmoothedLocation(enabled: boolean) {
+export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstimator | null) {
   const [smoothed, setSmoothed] = useState<SmoothedLocation | null>(null);
   const currentRef = useRef<SmoothedLocation | null>(null); // latest displayed value
   const fromRef = useRef<Endpoint | null>(null);
@@ -65,8 +65,12 @@ export function useSmoothedLocation(enabled: boolean) {
   const rafRef = useRef<number | null>(null);
   const lastFixWallRef = useRef<number>(0);
   const enabledRef = useRef<boolean>(enabled);
-  const prevFixRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
-  const velRef = useRef<Velocity>({ vlat: 0, vlng: 0 });
+  // Fallback used whenever no `estimator` prop is passed — same dead-reckoning
+  // behavior this hook always had, just expressed as a LocationEstimator so it
+  // can be swapped for kalmanLocation.ts's estimator without branching here.
+  const defaultEstimatorRef = useRef<LocationEstimator>(createDeadReckoningEstimator());
+  // Ref, not the raw prop — pushFix must stay identity-stable (see file header).
+  const estimatorRef = useRef<LocationEstimator | null | undefined>(estimator);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -75,6 +79,10 @@ export function useSmoothedLocation(enabled: boolean) {
       rafRef.current = null;
     }
   }, [enabled]);
+
+  useEffect(() => {
+    estimatorRef.current = estimator;
+  }, [estimator]);
 
   // Stable: reads only refs.
   const tick = useCallback(() => {
@@ -103,34 +111,28 @@ export function useSmoothedLocation(enabled: boolean) {
 
   // Stable: tick is stable and everything else is a ref.
   const pushFix = useCallback(
-    (lat: number, lng: number, heading: number | null | undefined) => {
+    (
+      lat: number,
+      lng: number,
+      heading: number | null | undefined,
+      accuracy?: number | null,
+    ) => {
       if (!enabledRef.current) return;
       const now = Date.now();
       // Glide over the measured gap since the last fix, clamped.
       const gap = lastFixWallRef.current ? now - lastFixWallRef.current : DEFAULT_MS;
       lastFixWallRef.current = now;
       const dur = Math.min(MAX_MS, Math.max(MIN_MS, gap));
+      const leadMs = dur * LEAD_FACTOR;
 
-      // Estimate velocity from the previous fix, damped and with a stillness
-      // deadband so standing still (or GPS jitter) doesn't push the dot around.
-      const prev = prevFixRef.current;
-      if (prev) {
-        const moved = Math.hypot(lat - prev.lat, lng - prev.lng);
-        const raw =
-          moved < STILL_EPS
-            ? { vlat: 0, vlng: 0 }
-            : velocity(prev, prev.ts, { lat, lng }, now);
-        velRef.current = {
-          vlat: VEL_SMOOTH * raw.vlat + (1 - VEL_SMOOTH) * velRef.current.vlat,
-          vlng: VEL_SMOOTH * raw.vlng + (1 - VEL_SMOOTH) * velRef.current.vlng,
-        };
-      }
-      prevFixRef.current = { lat, lng, ts: now };
-
-      // Aim the glide AHEAD of the raw fix: where you'll be ~LEAD_FACTOR*gap from
-      // now. The dot arrives there just as the next fix lands, so it tracks you
-      // in real time instead of trailing by a fix interval.
-      const target = extrapolate({ lat, lng }, velRef.current, dur * LEAD_FACTOR);
+      // Either the passed-in estimator (e.g. Kalman) or the default
+      // dead-reckoning one — both do their own velocity tracking and their
+      // own lead-projection using that estimate; this file's RAF/glide loop
+      // is untouched either way.
+      const activeEstimator = estimatorRef.current ?? defaultEstimatorRef.current;
+      const result = activeEstimator.onFix(lat, lng, heading, accuracy, now, leadMs);
+      const target = { lat: result.lat, lng: result.lng };
+      const rawHeading = result.heading;
 
       // Start the new leg from wherever the dot is right now, so no teleport.
       const startPoint: SmoothedLocation =
@@ -138,9 +140,9 @@ export function useSmoothedLocation(enabled: boolean) {
 
       // Missing/invalid course (GPS reports none when stationary): keep prior heading.
       const newHeading =
-        heading === null || heading === undefined || Number.isNaN(heading)
+        rawHeading === null || rawHeading === undefined || Number.isNaN(rawHeading)
           ? startPoint.heading
-          : ((heading % 360) + 360) % 360;
+          : ((rawHeading % 360) + 360) % 360;
 
       fromRef.current = { ...startPoint, ts: now };
       toRef.current = { lat: target.lat, lng: target.lng, heading: newHeading, ts: now + dur };

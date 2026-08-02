@@ -4,6 +4,12 @@
 // the raw fixes elsewhere and must never pass through here — see MapScreen /
 // TripTracker. This is an animation problem, so it's plain linear interpolation,
 // deliberately NOT a Kalman filter or any predictive model.
+//
+// createDeadReckoningEstimator() below is the default LocationEstimator
+// consumed by useSmoothedLocation.ts when no alternate estimator (e.g.
+// kalmanLocation.ts's createKalmanEstimator()) is passed in. Type-only import
+// to avoid coupling this file to the Kalman module at runtime.
+import type { LocationEstimator, EstimatorResult } from "./kalmanLocation";
 
 /** Linear interpolate a scalar. t is clamped to [0,1]. */
 export function lerp(a: number, b: number, t: number): number {
@@ -71,4 +77,51 @@ export function velocity(
 /** Project a point forward along a velocity over `leadMs` (dead reckoning). */
 export function extrapolate(p: LatLngPoint, v: Velocity, leadMs: number): LatLngPoint {
   return { lat: p.lat + v.vlat * leadMs, lng: p.lng + v.vlng * leadMs };
+}
+
+const VEL_SMOOTH = 0.5; // blend new velocity with previous (0..1); damps GPS noise
+// Below this per-fix displacement (~1.1m in degrees) we treat you as stationary
+// and drop velocity to zero, so the dot doesn't drift while you stand still.
+const STILL_EPS = 1e-5;
+
+/**
+ * The default LocationEstimator: measures velocity between consecutive fixes
+ * (damped, with a stillness deadband) and aims `leadMs` ahead of the raw fix.
+ * Ignores `accuracy` entirely — unlike kalmanLocation.ts's estimator, every
+ * fix is trusted equally. Heading is passed through unchanged (including
+ * null/undefined); useSmoothedLocation.ts's caller handles carrying the prior
+ * heading forward when a fix lacks a course.
+ */
+export function createDeadReckoningEstimator(): LocationEstimator {
+  let prevFix: LatLngPoint & { ts: number } | null = null;
+  let vel: Velocity = { vlat: 0, vlng: 0 };
+
+  function reset() {
+    prevFix = null;
+    vel = { vlat: 0, vlng: 0 };
+  }
+
+  function onFix(
+    lat: number,
+    lng: number,
+    heading: number | null | undefined,
+    _accuracy: number | null | undefined,
+    ts: number,
+    leadMs: number,
+  ): EstimatorResult {
+    if (prevFix) {
+      const moved = Math.hypot(lat - prevFix.lat, lng - prevFix.lng);
+      const raw = moved < STILL_EPS ? { vlat: 0, vlng: 0 } : velocity(prevFix, prevFix.ts, { lat, lng }, ts);
+      vel = {
+        vlat: VEL_SMOOTH * raw.vlat + (1 - VEL_SMOOTH) * vel.vlat,
+        vlng: VEL_SMOOTH * raw.vlng + (1 - VEL_SMOOTH) * vel.vlng,
+      };
+    }
+    prevFix = { lat, lng, ts };
+
+    const target = extrapolate({ lat, lng }, vel, leadMs);
+    return { lat: target.lat, lng: target.lng, heading: heading ?? null };
+  }
+
+  return { onFix, reset };
 }
