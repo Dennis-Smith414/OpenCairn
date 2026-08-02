@@ -1204,11 +1204,13 @@ function route() {
  *  INSTALL / OFFLINE / THEME plumbing
  * ================================================================ */
 let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; document.getElementById('installChip').hidden = false; });
-window.addEventListener('appinstalled', () => { document.getElementById('installChip').hidden = true; toast('Installed — find OpenCairn on your home screen'); });
-document.getElementById('installChip').onclick = doInstall;
+// Captured silently — no auto-popup chip. Install stays opt-in via the
+// "Add to Home Screen" button in Settings (installBtn), not something that
+// pops up unprompted over the map.
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+window.addEventListener('appinstalled', () => { toast('Installed — find OpenCairn on your home screen'); });
 async function doInstall() {
-  if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch {} deferredPrompt = null; document.getElementById('installChip').hidden = true; }
+  if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch {} deferredPrompt = null; }
   else { const hint = document.getElementById('installHint'); toast(isIOS() ? 'iOS: Share → Add to Home Screen' : 'Use your browser menu → Install app'); if (hint) hint.innerHTML = installHintText(); }
 }
 function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
