@@ -92,13 +92,15 @@ a{color:var(--accent)}
 /* ---------- legend / regions ---------- */
 /* raised above the breadcrumb dock (bottom-center) so they never overlap */
 .legend{position:absolute;left:10px;bottom:calc(var(--safe-bottom) + 72px);z-index:4;
-  background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:10px;
-  padding:8px 11px;font-size:.7rem;line-height:1.7;pointer-events:none;backdrop-filter:blur(6px);max-width:52vw}
-.legend-title{font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-size:.6rem;
-  opacity:.7;margin-bottom:3px}
-.legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
-.legend-hint{margin-top:5px;padding-top:5px;border-top:1px solid var(--line);opacity:.7;font-family:var(--mono);font-size:.6rem}
-@media (max-width:560px){ .legend{font-size:.64rem;padding:6px 9px} }
+  background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:9px;
+  padding:6px 8px;font-size:.62rem;line-height:1.35;pointer-events:none;backdrop-filter:blur(6px);max-width:46vw}
+.legend-title{font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;font-size:.52rem;
+  opacity:.7;margin-bottom:2px}
+#legendRows{display:grid;grid-template-columns:1fr 1fr;column-gap:7px;row-gap:0}
+#legendRows>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend b{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;vertical-align:middle;flex:none}
+.legend-hint{margin-top:4px;padding-top:4px;border-top:1px solid var(--line);opacity:.7;font-family:var(--mono);font-size:.52rem}
+@media (max-width:560px){ .legend{font-size:.58rem;padding:5px 7px;max-width:50vw} }
 
 /* ---------- status / offline / update pill ---------- */
 .statuspill{position:absolute;top:calc(var(--safe-top) + 64px);left:50%;transform:translateX(-50%);z-index:7;
