@@ -29,6 +29,7 @@
 // GPS robustness in the anchor) without inheriting its slow-converging
 // velocity state's lag in the lead.
 import { createRawVelocityTracker, extrapolate } from "./locationSmoothing";
+import type { Velocity } from "./locationSmoothing";
 
 const EARTH_RADIUS_M = 6371000;
 
@@ -126,6 +127,11 @@ export interface EstimatorResult {
   lat: number;
   lng: number;
   heading: number | null;
+  // Degrees/ms, the same estimate used for this result's own lead projection.
+  // useSmoothedLocation.ts uses this to keep gliding BETWEEN fixes (coasting
+  // forward at this velocity) instead of freezing once it reaches the lead
+  // target — see that file's tick() for why.
+  velocity: Velocity;
 }
 
 /** Shape both the dead-reckoning smoother and this Kalman filter satisfy, so
@@ -185,8 +191,8 @@ export function createKalmanEstimator(): LocationEstimator {
       x = { pos: 0, vel: 0, varPos: measurementVar, varVel: INITIAL_VEL_VARIANCE, covPosVel: 0 };
       y = { pos: 0, vel: 0, varPos: measurementVar, varVel: INITIAL_VEL_VARIANCE, covPosVel: 0 };
       lastTs = ts;
-      leadTracker.update(lat, lng, ts);
-      return { lat, lng, heading: lastHeading };
+      const initialVel = leadTracker.update(lat, lng, ts);
+      return { lat, lng, heading: lastHeading, velocity: initialVel };
     }
 
     const dt = Math.max(0, (ts - lastTs) / 1000); // seconds
@@ -204,7 +210,7 @@ export function createKalmanEstimator(): LocationEstimator {
     const leadVel = leadTracker.update(lat, lng, ts);
     const { lat: outLat, lng: outLng } = extrapolate(anchor, leadVel, leadMs);
 
-    return { lat: outLat, lng: outLng, heading: lastHeading };
+    return { lat: outLat, lng: outLng, heading: lastHeading, velocity: leadVel };
   }
 
   return { onFix, reset };

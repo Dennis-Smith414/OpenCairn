@@ -80,6 +80,32 @@ export function distanceToSegmentsMeters(p: LL, segments: LatLng[][]): number {
 }
 
 /**
+ * The nearest point to `p` across all of several polylines, plus its distance.
+ * Same segment-not-vertex projection and same "keep polylines separate" logic
+ * as distanceToSegmentsMeters, but also returns WHERE that nearest point is —
+ * for callers that want to move something there (unlike this file's other
+ * exports, which deliberately return only distance/colour; see the file
+ * header). Returns null for no segments at all.
+ */
+export function nearestPointOnSegments(
+  p: LL,
+  segments: LatLng[][],
+): { point: LL; distanceM: number } | null {
+  let best: { point: LL; distanceM: number } | null = null;
+  for (const seg of segments) {
+    if (seg.length < 2) continue;
+    for (let i = 0; i < seg.length - 1; i++) {
+      const a: LL = { lat: seg[i][0], lng: seg[i][1] };
+      const b: LL = { lat: seg[i + 1][0], lng: seg[i + 1][1] };
+      const { point } = projectOntoSegment(p, a, b);
+      const d = metersBetween(p, point);
+      if (!best || d < best.distanceM) best = { point, distanceM: d };
+    }
+  }
+  return best;
+}
+
+/**
  * How far toward the off-route colour the dot should sit, in [0,1].
  *
  * `accuracyM` is the fix's own reported accuracy radius in metres. A larger

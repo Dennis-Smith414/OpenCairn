@@ -140,7 +140,7 @@ export function createDeadReckoningEstimator(): LocationEstimator {
   ): EstimatorResult {
     const vel = tracker.update(lat, lng, ts);
     const target = extrapolate({ lat, lng }, vel, leadMs);
-    return { lat: target.lat, lng: target.lng, heading: heading ?? null };
+    return { lat: target.lat, lng: target.lng, heading: heading ?? null, velocity: vel };
   }
 
   return { onFix, reset: tracker.reset };

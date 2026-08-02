@@ -33,6 +33,7 @@ import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
 import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
   distanceToSegmentsMeters,
+  nearestPointOnSegments,
   offRouteColor,
   offRouteFactor,
 } from "../../utils/offRoute";
@@ -439,11 +440,46 @@ const MapLibreMap: React.FC<Props> = ({
   // both the shortest-arc heading glide and the `accuracy` value the off-route
   // colour needs. useSmoothedLocation does all three off one raw stream.
   //
+  // Every polyline of every LOADED route, kept as separate segments. Sub-segments
+  // are not concatenated: joining disjoint GPX tracks would invent a straight
+  // bridge across country that the user could appear to be walking along.
+  // Computed above the estimator/hook wiring below since snapToRoute closes over it.
+  const routeSegments = useMemo<LatLng[][]>(() => {
+    const out: LatLng[][] = [];
+    for (const t of tracks) {
+      if (Array.isArray(t.coords[0])) out.push(...(t.coords as LatLng[][]));
+      else out.push(t.coords as LatLng[]);
+    }
+    return out.filter((s) => s.length >= 2);
+  }, [tracks]);
+
+  // Binds the dot to the route line, but ONLY as far as the fix already reads
+  // as on-route — blend fades to 0 using the SAME distance/accuracy ramp as
+  // the off-route colour (offRouteFactor), so it releases exactly where the
+  // dot would start turning amber. An always-on snap would hide from a lost
+  // user that they've left the trail; see offRoute.ts's file header. Identity
+  // is stable enough for useSmoothedLocation's ref (recreated only when the
+  // loaded routes change, not per fix/frame).
+  const snapToRoute = useCallback(
+    (lat: number, lng: number, accuracy: number | null | undefined) => {
+      if (routeSegments.length === 0) return { lat, lng, blend: 0 };
+      const nearest = nearestPointOnSegments({ lat, lng }, routeSegments);
+      if (!nearest) return { lat, lng, blend: 0 };
+      const factor = offRouteFactor(nearest.distanceM, accuracy);
+      return { lat: nearest.point.lat, lng: nearest.point.lng, blend: 1 - factor };
+    },
+    [routeSegments],
+  );
+
   // Created once regardless of DOT_MODE (cheap — a closure with no internal
   // state until onFix runs) so flipping the constant doesn't need a remount.
   const kalmanEstimatorRef = useRef(createKalmanEstimator());
   const activeEstimator = DOT_MODE === "kalman" ? kalmanEstimatorRef.current : null;
-  const { smoothed, pushFix } = useSmoothedLocation(DOT_MODE !== "native", activeEstimator);
+  const { smoothed, pushFix } = useSmoothedLocation(
+    DOT_MODE !== "native",
+    activeEstimator,
+    snapToRoute,
+  );
 
   // Whether the platform has EVER given us a course. Until it has, the heading
   // arrow stays hidden rather than confidently pointing north — displaying a
@@ -462,18 +498,6 @@ const MapLibreMap: React.FC<Props> = ({
       if (userHeading != null) setHasHeading(true);
     }
   }, [userLocation, userHeading, userAccuracy, pushFix]);
-
-  // Every polyline of every LOADED route, kept as separate segments. Sub-segments
-  // are not concatenated: joining disjoint GPX tracks would invent a straight
-  // bridge across country that the user could appear to be walking along.
-  const routeSegments = useMemo<LatLng[][]>(() => {
-    const out: LatLng[][] = [];
-    for (const t of tracks) {
-      if (Array.isArray(t.coords[0])) out.push(...(t.coords as LatLng[][]));
-      else out.push(t.coords as LatLng[]);
-    }
-    return out.filter((s) => s.length >= 2);
-  }, [tracks]);
 
   // Off-route colour feedback, in [0,1]. `tracks` IS the explicit opt-in — the
   // user loaded these routes on purpose — so with nothing loaded there is no

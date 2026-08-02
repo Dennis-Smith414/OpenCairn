@@ -9,8 +9,15 @@
 // touching this file's RAF/glide loop at all; the two are prototyped
 // side-by-side via MapLibreMap.tsx's DOT_MODE switch. Either way, the result
 // glides from wherever it's currently displayed to the estimated target,
-// linearly, over the measured fix gap, on a requestAnimationFrame loop. It
-// stops the loop once caught up (no idle drain).
+// linearly, over the measured fix gap, on a requestAnimationFrame loop.
+//
+// Once caught up to that target, the loop does NOT go idle and wait for the
+// next fix — freezing there reads as "stalled" between GPS updates, which is
+// most of the time at typical fix rates. Instead it keeps COASTING forward at
+// the estimator's last known velocity (see EstimatorResult.velocity), capped
+// at MAX_COAST_MS so a GPS outage can't march the dot off indefinitely on
+// stale speed. The loop only truly goes idle once that velocity is ~zero
+// (STILL_EPS-gated in the estimators) — no idle drain while actually stopped.
 //
 // DISPLAY ONLY. Callers must still record the raw fixes separately — nothing
 // recorded should come from here.
@@ -25,7 +32,10 @@ import {
   lerpHeading,
   lerpPoint,
   progress,
+  extrapolate,
   createDeadReckoningEstimator,
+  LatLngPoint,
+  Velocity,
 } from "../utils/locationSmoothing";
 import { LocationEstimator } from "../utils/kalmanLocation";
 
@@ -57,7 +67,32 @@ const DEFAULT_MS = 1000;
 // velocity smoothing tames the rest (see locationSmoothing.ts / kalmanLocation.ts).
 const LEAD_FACTOR = 0.85;
 
-export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstimator | null) {
+// How long to keep coasting forward, past the lead target, at the last known
+// velocity before freezing in place absent a new fix. Bounds how far a GPS
+// outage (or an unusually long fix gap) can march the dot on stale speed.
+const MAX_COAST_MS = 4000;
+// Below this speed (degrees/ms, ~0.1 m/s) treat coasting as stopped and go
+// idle rather than keep scheduling frames that would draw the same point —
+// preserves the "no idle drain" property while actually standing still.
+const MIN_COAST_SPEED = 9e-10;
+
+// Snap the display point onto the route line when the raw fix is already
+// close enough that the offset is fully explained by GPS error. `blend` is
+// how far to pull toward `point` (usually 1 - offRouteFactor from offRoute.ts,
+// so it fades to 0 exactly as the dot would start turning amber) — this MUST
+// go to 0 once genuinely off-route. Snapping unconditionally would hide from
+// a lost user that they've left the trail; see offRoute.ts's file header.
+export type SnapToRoute = (
+  lat: number,
+  lng: number,
+  accuracy: number | null | undefined,
+) => { lat: number; lng: number; blend: number };
+
+export function useSmoothedLocation(
+  enabled: boolean,
+  estimator?: LocationEstimator | null,
+  snapToRoute?: SnapToRoute | null,
+) {
   const [smoothed, setSmoothed] = useState<SmoothedLocation | null>(null);
   const currentRef = useRef<SmoothedLocation | null>(null); // latest displayed value
   const fromRef = useRef<Endpoint | null>(null);
@@ -65,12 +100,16 @@ export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstima
   const rafRef = useRef<number | null>(null);
   const lastFixWallRef = useRef<number>(0);
   const enabledRef = useRef<boolean>(enabled);
+  // Last known velocity (degrees/ms) from the active estimator's result, used
+  // to keep coasting past the lead target between fixes — see file header.
+  const velRef = useRef<Velocity>({ vlat: 0, vlng: 0 });
   // Fallback used whenever no `estimator` prop is passed — same dead-reckoning
   // behavior this hook always had, just expressed as a LocationEstimator so it
   // can be swapped for kalmanLocation.ts's estimator without branching here.
   const defaultEstimatorRef = useRef<LocationEstimator>(createDeadReckoningEstimator());
-  // Ref, not the raw prop — pushFix must stay identity-stable (see file header).
+  // Refs, not the raw props — pushFix must stay identity-stable (see file header).
   const estimatorRef = useRef<LocationEstimator | null | undefined>(estimator);
+  const snapRef = useRef<SnapToRoute | null | undefined>(snapToRoute);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -84,6 +123,10 @@ export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstima
     estimatorRef.current = estimator;
   }, [estimator]);
 
+  useEffect(() => {
+    snapRef.current = snapToRoute;
+  }, [snapToRoute]);
+
   // Stable: reads only refs.
   const tick = useCallback(() => {
     const from = fromRef.current;
@@ -94,18 +137,34 @@ export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstima
     }
     const now = Date.now();
     const t = progress(from.ts, to.ts, now);
-    const p = lerpPoint(from, to, t);
-    const next: SmoothedLocation = {
-      lat: p.lat,
-      lng: p.lng,
-      heading: lerpHeading(from.heading, to.heading, t),
-    };
+
+    let point: LatLngPoint;
+    let heading: number;
+    let keepAnimating: boolean;
+
+    if (t < 1) {
+      point = lerpPoint(from, to, t);
+      heading = lerpHeading(from.heading, to.heading, t);
+      keepAnimating = true;
+    } else {
+      // Caught up to the lead target — coast forward at the last known
+      // velocity instead of freezing until the next fix (see file header).
+      const overMs = Math.min(now - to.ts, MAX_COAST_MS);
+      const vel = velRef.current;
+      const moving = Math.hypot(vel.vlat, vel.vlng) > MIN_COAST_SPEED;
+      point = moving ? extrapolate(to, vel, overMs) : to;
+      heading = to.heading;
+      keepAnimating = moving && now - to.ts < MAX_COAST_MS;
+    }
+
+    const next: SmoothedLocation = { lat: point.lat, lng: point.lng, heading };
     currentRef.current = next;
     setSmoothed(next);
-    if (t < 1) {
+
+    if (keepAnimating) {
       rafRef.current = requestAnimationFrame(tick);
     } else {
-      rafRef.current = null; // caught up; idle until the next fix
+      rafRef.current = null; // truly stopped; idle until the next fix
     }
   }, []);
 
@@ -131,8 +190,23 @@ export function useSmoothedLocation(enabled: boolean, estimator?: LocationEstima
       // is untouched either way.
       const activeEstimator = estimatorRef.current ?? defaultEstimatorRef.current;
       const result = activeEstimator.onFix(lat, lng, heading, accuracy, now, leadMs);
-      const target = { lat: result.lat, lng: result.lng };
+      velRef.current = result.velocity;
+      let target = { lat: result.lat, lng: result.lng };
       const rawHeading = result.heading;
+
+      // Bind to the route line ONLY as far as the fix already reads as
+      // on-route (blend fades to 0 exactly where the dot would start amber),
+      // so an actually-off-route position is never hidden — see SnapToRoute.
+      const snap = snapRef.current;
+      if (snap) {
+        const snapped = snap(target.lat, target.lng, accuracy);
+        if (snapped.blend > 0) {
+          target = {
+            lat: target.lat + (snapped.lat - target.lat) * snapped.blend,
+            lng: target.lng + (snapped.lng - target.lng) * snapped.blend,
+          };
+        }
+      }
 
       // Start the new leg from wherever the dot is right now, so no teleport.
       const startPoint: SmoothedLocation =
