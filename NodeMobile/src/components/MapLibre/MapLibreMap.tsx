@@ -33,7 +33,6 @@ import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
 import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
   createRouteBindTracker,
-  distanceToSegmentsMeters,
   nearestPointOnSegments,
   offRouteColor,
   offRouteFactor,
@@ -94,6 +93,102 @@ export interface ProgressPoint {
   seedPoint: LatLng;
 }
 
+export interface SplitRouteFeature {
+  id: string;
+  color: string;
+  weight: number;
+  hikedFeature: {
+    type: "Feature";
+    geometry: { type: "LineString"; coordinates: number[][] };
+    properties: { weight: number };
+  } | null;
+  remainingFeature: {
+    type: "Feature";
+    geometry:
+      | { type: "LineString"; coordinates: number[][] }
+      | { type: "MultiLineString"; coordinates: number[][][] };
+    properties: { color: string; weight: number };
+  };
+}
+
+// Style objects that never depend on per-render values, hoisted to module
+// scope so they're the SAME reference across every render, not just
+// deep-equal. Without this, RouteLayers/WaypointLayers below would still
+// re-render on every 60fps `smoothed` update: @maplibre/maplibre-react-native's
+// ShapeSource/CircleLayer/etc. do their own internal memoization, but it's
+// keyed on prop identity, and a fresh `style={{...}}` object literal every
+// render defeats it just as surely as not wrapping the JSX in React.memo at
+// all would. See the dot's own DOT_*_BASE_STYLE constants below for the one
+// place this legitimately needs a live per-render value mixed in.
+const REMAINING_LINE_STYLE = {
+  lineColor: ["get", "color"],
+  lineWidth: ["get", "weight"],
+  lineOpacity: 0.95,
+  lineCap: "round",
+  lineJoin: "round",
+} as const;
+const HIKED_LINE_STYLE = {
+  lineColor: "#888888",
+  lineWidth: ["get", "weight"],
+  lineOpacity: 0.7,
+  lineCap: "round",
+  lineJoin: "round",
+} as const;
+const WP_CLUSTER_STYLE = {
+  circleRadius: ["interpolate", ["linear"], ["get", "point_count"], 5, 10, 50, 24],
+  circleColor: "rgba(0,0,0,0.25)",
+  circleOpacity: 0.4,
+  circleStrokeColor: "#ffffff",
+  circleStrokeWidth: 1.2,
+} as const;
+const WP_POINT_STYLE = {
+  iconImage: ["coalesce", ["get", "type"], "generic"],
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  iconSize: 0.8,
+} as const;
+const MARKED_LOCATION_STYLE = {
+  iconImage: "generic",
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  iconSize: 0.9,
+} as const;
+// Static halves of the smoothed dot's 3 layer styles — the other half
+// (circleColor/iconRotate/iconOpacity) genuinely changes every animation
+// frame and stays a real per-render useMemo inside the component.
+const DOT_HALO_BASE_STYLE = { circleRadius: 16, circleOpacity: 0.18 } as const;
+const DOT_CORE_BASE_STYLE = {
+  circleRadius: 7,
+  circleStrokeColor: "#FFFFFF",
+  circleStrokeWidth: 2.5,
+} as const;
+const DOT_HEADING_BASE_STYLE = {
+  iconImage: "user-heading",
+  iconRotationAlignment: "map",
+  iconPitchAlignment: "map",
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  iconSize: 0.5,
+} as const;
+
+// Icon assets for <Images>. Hoisted so this is the SAME object reference on
+// every render — the library's own internal icon-resolution memo (keyed on
+// this prop) was previously defeated by a fresh object literal every render,
+// which reads (and likely resolves + re-sends over the native bridge) all
+// ~10 icons on every 60fps `smoothed` update despite them never changing.
+const ICON_MAP = {
+  generic: require("../../assets/icons/waypoints/generic.png"),
+  water: require("../../assets/icons/waypoints/water.png"),
+  campsite: require("../../assets/icons/waypoints/campsite.png"),
+  "road-access-point": require("../../assets/icons/waypoints/road-access-point.png"),
+  intersection: require("../../assets/icons/waypoints/intersection.png"),
+  navigation: require("../../assets/icons/waypoints/navigation.png"),
+  hazard: require("../../assets/icons/waypoints/hazard.png"),
+  landmark: require("../../assets/icons/waypoints/landmark.png"),
+  "parking-trailhead": require("../../assets/icons/waypoints/parking-trailhead.png"),
+  "user-heading": require("../../assets/icons/user-heading.png"),
+} as const;
+
 interface Props {
   tracks?: Track[];
   center?: LatLng;
@@ -131,6 +226,119 @@ const EMPTY_STYLE: any = {
   ],
 };
 
+
+// Route lines, memoized: `features` is already useMemo'd on [tracks,
+// progressMap] and doesn't depend on `smoothed`, so once wrapped in
+// React.memo this subtree only re-renders on real route/progress changes
+// (~1Hz at most), never on the 60fps dot-animation updates that used to
+// re-render (and JSON.stringify) the whole route every displayed frame.
+const RouteLayers = React.memo(function RouteLayers({
+  features,
+}: {
+  features: SplitRouteFeature[];
+}) {
+  return (
+    <>
+      {features.map(({ id, hikedFeature, remainingFeature }) => (
+        <React.Fragment key={id}>
+          <ShapeSource id={`${id}-remaining`} shape={remainingFeature}>
+            <LineLayer id={`${id}-remaining-line`} style={REMAINING_LINE_STYLE} />
+          </ShapeSource>
+          {hikedFeature && (
+            <ShapeSource id={`${id}-hiked`} shape={hikedFeature}>
+              <LineLayer id={`${id}-hiked-line`} style={HIKED_LINE_STYLE} />
+            </ShapeSource>
+          )}
+        </React.Fragment>
+      ))}
+    </>
+  );
+});
+
+// Waypoints + the long-press "marked location" pin, memoized for the same
+// reason as RouteLayers — neither depends on `smoothed`.
+const WaypointLayers = React.memo(function WaypointLayers({
+  waypointFC,
+  onPress,
+  markedLocation,
+}: {
+  waypointFC: { type: "FeatureCollection"; features: any[] };
+  onPress: (e: any) => void;
+  markedLocation: { lat: number; lon: number } | null;
+}) {
+  return (
+    <>
+      <ShapeSource
+        id="waypoints"
+        shape={waypointFC}
+        cluster
+        clusterRadius={40}
+        onPress={onPress}
+      >
+        <CircleLayer id="wp-cluster" filter={["has", "point_count"]} style={WP_CLUSTER_STYLE} />
+        <SymbolLayer id="wp-point" filter={["!", ["has", "point_count"]]} style={WP_POINT_STYLE} />
+      </ShapeSource>
+      {markedLocation && (
+        <ShapeSource
+          id="marked-location"
+          shape={{
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: {
+                  type: "Point",
+                  coordinates: [markedLocation.lon, markedLocation.lat],
+                },
+                properties: { type: "generic" },
+              },
+            ],
+          }}
+        >
+          <SymbolLayer id="marked-location-icon" style={MARKED_LOCATION_STYLE} />
+        </ShapeSource>
+      )}
+    </>
+  );
+});
+
+// Icons + basemap sources, memoized: none of this depends on `smoothed`
+// either, and <Images> in particular was found to likely re-resolve and
+// re-send all ~10 icons across the native bridge on every animation frame
+// without this (see ICON_MAP's comment).
+const StaticMapLayers = React.memo(function StaticMapLayers({
+  isOfflineMode,
+  offlineVectorTileUrlTemplates,
+  activeBasemapMinZoom,
+  activeBasemapMaxZoom,
+}: {
+  isOfflineMode: boolean;
+  offlineVectorTileUrlTemplates: string[] | null;
+  activeBasemapMinZoom: number;
+  activeBasemapMaxZoom: number;
+}) {
+  return (
+    <>
+      <Images images={ICON_MAP} />
+      {!isOfflineMode && (
+        <RasterSource
+          id="osm"
+          tileUrlTemplates={["https://tile.openstreetmap.org/{z}/{x}/{y}.png"]}
+          tileSize={256}
+        >
+          <RasterLayer id="osm-layer" />
+        </RasterSource>
+      )}
+      {isOfflineMode && offlineVectorTileUrlTemplates && (
+        <OfflineBasemapLayers
+          tileUrlTemplates={offlineVectorTileUrlTemplates}
+          minZoom={activeBasemapMinZoom}
+          maxZoom={activeBasemapMaxZoom}
+        />
+      )}
+    </>
+  );
+});
 
 const MapLibreMap: React.FC<Props> = ({
   tracks = [],
@@ -214,7 +422,7 @@ const MapLibreMap: React.FC<Props> = ({
   );
 
   // Convert tracks → split hiked (gray) + remaining (blue) features
-  const splitRouteFeatures = useMemo(() => {
+  const splitRouteFeatures = useMemo<SplitRouteFeature[]>(() => {
     return tracks.map((t) => {
       const flatLatLng: LatLng[] = Array.isArray(t.coords[0])
         ? (t.coords as LatLng[][]).flat()
@@ -467,22 +675,35 @@ const MapLibreMap: React.FC<Props> = ({
   // (createRouteBindTracker) so ordinary noise near the ramp's edge doesn't
   // flip it on/off fix to fix — each flip would discontinuously retarget the
   // glide, which read as both "breaks its binding" and janky/stalled motion.
+  //
+  // nearestOnRoute below is a SINGLE per-fix nearest-point-on-route scan,
+  // shared by both this and the off-route colour — nearestPointOnSegments
+  // already computes the distance distanceToSegmentsMeters would otherwise
+  // recompute separately, so this halves the O(route-vertices) work done
+  // per fix. Keyed on the RAW fix, never on `smoothed`, for two reasons:
+  // the scan is O(vertices) and `smoothed` changes every animation frame,
+  // which would run it at 60 Hz instead of ~1 Hz; and it's the honest thing
+  // to do for the colour — it reflects where the user actually is, not
+  // where the dot is gliding. snapToRoute reusing this raw-fix-based result
+  // instead of the lead-projected point it's technically passed is a no-op
+  // difference in practice — sub-meter at hiking speed/fix-rate, well under
+  // GPS accuracy.
+  const nearestOnRoute = useMemo(() => {
+    if (routeSegments.length === 0 || !userLocation) return null;
+    return nearestPointOnSegments({ lat: userLocation[0], lng: userLocation[1] }, routeSegments);
+  }, [routeSegments, userLocation]);
+
   const bindTrackerRef = useRef(createRouteBindTracker());
   const snapToRoute = useCallback(
     (lat: number, lng: number, accuracy: number | null | undefined) => {
-      if (routeSegments.length === 0) {
+      if (!nearestOnRoute) {
         bindTrackerRef.current.reset();
         return { lat, lng, blend: 0 };
       }
-      const nearest = nearestPointOnSegments({ lat, lng }, routeSegments);
-      if (!nearest) {
-        bindTrackerRef.current.reset();
-        return { lat, lng, blend: 0 };
-      }
-      const blend = bindTrackerRef.current.update(nearest.distanceM, accuracy);
-      return { lat: nearest.point.lat, lng: nearest.point.lng, blend };
+      const blend = bindTrackerRef.current.update(nearestOnRoute.distanceM, accuracy);
+      return { lat: nearestOnRoute.point.lat, lng: nearestOnRoute.point.lng, blend };
     },
-    [routeSegments],
+    [nearestOnRoute],
   );
 
   // Created once regardless of DOT_MODE (cheap — a closure with no internal
@@ -517,21 +738,34 @@ const MapLibreMap: React.FC<Props> = ({
   // user loaded these routes on purpose — so with nothing loaded there is no
   // route to be off and the factor stays 0 (normal colour, no logic running).
   // Basemap trails are never consulted.
-  //
-  // Keyed on the RAW fix, never on `smoothed`: the polyline scan is O(vertices)
-  // and `smoothed` changes every animation frame, which would run it at 60 Hz
-  // instead of ~1 Hz. Measuring from the raw fix is also the honest thing to do —
-  // the colour reflects where the user actually is, not where the dot is gliding.
   const offRoute = useMemo(() => {
-    if (routeSegments.length === 0 || !userLocation) return 0;
-    const dist = distanceToSegmentsMeters(
-      { lat: userLocation[0], lng: userLocation[1] },
-      routeSegments,
-    );
-    return offRouteFactor(dist, userAccuracy);
-  }, [routeSegments, userLocation, userAccuracy]);
+    if (!nearestOnRoute) return 0;
+    return offRouteFactor(nearestOnRoute.distanceM, userAccuracy);
+  }, [nearestOnRoute, userAccuracy]);
 
   const dotColor = useMemo(() => offRouteColor(offRoute), [offRoute]);
+
+  // The dot's 3 layer styles, split static/dynamic (DOT_*_BASE_STYLE above
+  // hold the static half). These DO legitimately need to recompute every
+  // animation frame — dotColor and heading change continuously while
+  // moving — so unlike everything in RouteLayers/WaypointLayers/
+  // StaticMapLayers, real per-render useMemos are correct here, not a bug.
+  const dotHaloStyle = useMemo(
+    () => ({ ...DOT_HALO_BASE_STYLE, circleColor: dotColor }),
+    [dotColor],
+  );
+  const dotCoreStyle = useMemo(
+    () => ({ ...DOT_CORE_BASE_STYLE, circleColor: dotColor }),
+    [dotColor],
+  );
+  const dotHeadingStyle = useMemo(
+    () => ({
+      ...DOT_HEADING_BASE_STYLE,
+      iconOpacity: hasHeading ? 1 : 0,
+      iconRotate: smoothed?.heading ?? 0,
+    }),
+    [hasHeading, smoothed?.heading],
+  );
 
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
@@ -603,42 +837,15 @@ const MapLibreMap: React.FC<Props> = ({
         onDidFinishLoadingStyle={onStyleLoaded}
         mapStyle={EMPTY_STYLE}
       >
-        <Images
-          images={{
-            generic: require("../../assets/icons/waypoints/generic.png"),
-            water: require("../../assets/icons/waypoints/water.png"),
-            campsite: require("../../assets/icons/waypoints/campsite.png"),
-            "road-access-point": require("../../assets/icons/waypoints/road-access-point.png"),
-            intersection: require("../../assets/icons/waypoints/intersection.png"),
-            navigation: require("../../assets/icons/waypoints/navigation.png"),
-            hazard: require("../../assets/icons/waypoints/hazard.png"),
-            landmark: require("../../assets/icons/waypoints/landmark.png"),
-            "parking-trailhead": require("../../assets/icons/waypoints/parking-trailhead.png"),
-            "user-heading": require("../../assets/icons/user-heading.png"),
-          }}
+        {/* Icons + basemap sources — memoized (StaticMapLayers), so this
+            doesn't re-render (and re-resolve/re-send all icons over the
+            native bridge) on every 60fps dot-animation update. */}
+        <StaticMapLayers
+          isOfflineMode={isOfflineMode}
+          offlineVectorTileUrlTemplates={offlineVectorTileUrlTemplates}
+          activeBasemapMinZoom={activeBasemap?.min_zoom ?? 0}
+          activeBasemapMaxZoom={activeBasemap?.max_zoom ?? 14}
         />
-
-        {/* Online basemap: OSM raster tiles */}
-        {!isOfflineMode && (
-          <RasterSource
-            id="osm"
-            tileUrlTemplates={[
-              "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            ]}
-            tileSize={256}
-          >
-            <RasterLayer id="osm-layer" />
-          </RasterSource>
-        )}
-
-        {/* Offline basemap: Vector PMTiles (if available) */}
-        {isOfflineMode && offlineVectorTileUrlTemplates && (
-          <OfflineBasemapLayers
-            tileUrlTemplates={offlineVectorTileUrlTemplates}
-            minZoom={activeBasemap?.min_zoom ?? 0}
-            maxZoom={activeBasemap?.max_zoom ?? 14}
-          />
-        )}
 
         {/* Camera */}
         <Camera
@@ -649,112 +856,18 @@ const MapLibreMap: React.FC<Props> = ({
           }}
         />
 
-        {/* Routes — split into hiked (gray) and remaining (blue) */}
-        {splitRouteFeatures.map(({ id, hikedFeature, remainingFeature }) => (
-          <React.Fragment key={id}>
-            <ShapeSource id={`${id}-remaining`} shape={remainingFeature}>
-              <LineLayer
-                id={`${id}-remaining-line`}
-                style={{
-                  lineColor: ["get", "color"],
-                  lineWidth: ["get", "weight"],
-                  lineOpacity: 0.95,
-                  lineCap: "round",
-                  lineJoin: "round",
-                }}
-              />
-            </ShapeSource>
-            {hikedFeature && (
-              <ShapeSource id={`${id}-hiked`} shape={hikedFeature}>
-                <LineLayer
-                  id={`${id}-hiked-line`}
-                  style={{
-                    lineColor: "#888888",
-                    lineWidth: ["get", "weight"],
-                    lineOpacity: 0.7,
-                    lineCap: "round",
-                    lineJoin: "round",
-                  }}
-                />
-              </ShapeSource>
-            )}
-          </React.Fragment>
-        ))}
+        {/* Routes — split into hiked (gray) and remaining (blue). Memoized
+            (RouteLayers): splitRouteFeatures doesn't depend on `smoothed`,
+            so this only re-renders on real route/progress changes. */}
+        <RouteLayers features={splitRouteFeatures} />
 
-        {/* Waypoints (clustered) */}
-        <ShapeSource
-          id="waypoints"
-          shape={waypointFC}
-          cluster
-          clusterRadius={40}
+        {/* Waypoints (clustered) + marked location from long-press.
+            Memoized (WaypointLayers) for the same reason as RouteLayers. */}
+        <WaypointLayers
+          waypointFC={waypointFC}
           onPress={onWaypointPressInternal}
-        >
-          <CircleLayer
-            id="wp-cluster"
-            filter={["has", "point_count"]}
-            style={{
-              circleRadius: [
-                "interpolate",
-                ["linear"],
-                ["get", "point_count"],
-                5,
-                10,
-                50,
-                24,
-              ],
-              circleColor: "rgba(0,0,0,0.25)",
-              circleOpacity: 0.4,
-              circleStrokeColor: "#ffffff",
-              circleStrokeWidth: 1.2,
-            }}
-          />
-          <SymbolLayer
-            id="wp-point"
-            filter={["!", ["has", "point_count"]]}
-            style={{
-              iconImage: [
-                "coalesce",
-                ["get", "type"], // "water", "campsite", etc.
-                "generic",
-              ],
-              iconAllowOverlap: true,
-              iconIgnorePlacement: true,
-              iconSize: 0.8,
-            }}
-          />
-        </ShapeSource>
-
-        {/* Marked location from long-press */}
-        {markedLocation && (
-          <ShapeSource
-            id="marked-location"
-            shape={{
-              type: "FeatureCollection",
-              features: [
-                {
-                  type: "Feature",
-                  geometry: {
-                    type: "Point",
-                    coordinates: [markedLocation.lon, markedLocation.lat],
-                  },
-                  properties: {
-                    type: "generic",
-                  },
-                },
-              ],
-            }}
-          >
-            <SymbolLayer
-              id="marked-location-icon"
-              style={{
-                iconImage: "generic",
-                iconAllowOverlap: true,
-                iconIgnorePlacement: true,
-                iconSize: 0.9,
-              }}
-            />
-          </ShapeSource>
-        )}
+          markedLocation={markedLocation}
+        />
 
         {/* User location. When DOT_MODE is "dead-reckon" or "kalman", the native
             puck is HIDDEN but kept mounted so its onUpdate keeps feeding fixes to
@@ -786,42 +899,15 @@ const MapLibreMap: React.FC<Props> = ({
             }}
           >
             {/* soft accuracy-ish halo */}
-            <CircleLayer
-              id="smooth-user-dot-halo"
-              style={{
-                circleRadius: 16,
-                circleColor: dotColor,
-                circleOpacity: 0.18,
-              }}
-            />
+            <CircleLayer id="smooth-user-dot-halo" style={dotHaloStyle} />
             {/* Heading arrow, drawn under the core so the core overlaps its base.
                 iconRotate takes the smoothed heading, which lerps along the
                 shortest arc — 359° to 1° sweeps 2° through north, not 358° back.
                 iconRotationAlignment "map" keeps it pinned to compass bearing
                 rather than to the screen. */}
-            <SymbolLayer
-              id="smooth-user-dot-heading"
-              style={{
-                iconOpacity: hasHeading ? 1 : 0,
-                iconImage: "user-heading",
-                iconRotate: smoothed.heading,
-                iconRotationAlignment: "map",
-                iconPitchAlignment: "map",
-                iconAllowOverlap: true,
-                iconIgnorePlacement: true,
-                iconSize: 0.5,
-              }}
-            />
+            <SymbolLayer id="smooth-user-dot-heading" style={dotHeadingStyle} />
             {/* solid core with white ring */}
-            <CircleLayer
-              id="smooth-user-dot-core"
-              style={{
-                circleRadius: 7,
-                circleColor: dotColor,
-                circleStrokeColor: "#FFFFFF",
-                circleStrokeWidth: 2.5,
-              }}
-            />
+            <CircleLayer id="smooth-user-dot-core" style={dotCoreStyle} />
           </ShapeSource>
         )}
       </MapView>
