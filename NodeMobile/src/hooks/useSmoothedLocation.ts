@@ -51,9 +51,13 @@ interface Endpoint extends SmoothedLocation {
 
 // The dot glides across the measured gap between fixes, so motion is continuous
 // (no pause-then-jump). Clamped: a GPS stall shouldn't cause a multi-second
-// crawl, and a burst shouldn't divide by ~0.
+// crawl, and a burst shouldn't divide by ~0. MAX_MS lower than the ~1000ms
+// fixes normally arrive at (MapScreen.tsx requests interval: 1000) on purpose:
+// each glide leg reaches its lead target with room to spare before the next
+// fix, then coasts the rest of the way — arriving-with-time-to-spare reads as
+// "already moving" rather than "still easing in" when the next fix lands.
 const MIN_MS = 300;
-const MAX_MS = 1500;
+const MAX_MS = 900;
 const DEFAULT_MS = 1000;
 
 // Plain interpolation glides toward where you WERE at the last fix, so it always
@@ -63,9 +67,12 @@ const DEFAULT_MS = 1000;
 //   1.0 → target where you'll be a full gap from now (kills lag, but overshoots
 //         a step when you suddenly stop).
 //   0.0 → no lead (the old trailing behaviour).
-// 0.85 tracks tight while keeping stop-overshoot small; each estimator's own
-// velocity smoothing tames the rest (see locationSmoothing.ts / kalmanLocation.ts).
-const LEAD_FACTOR = 0.85;
+// 0.92 tracks tighter than the original 0.85 for a livelier feel; stop-overshoot
+// stays bounded since each estimator zeroes velocity almost immediately on a
+// real stop (STILL_EPS in locationSmoothing.ts's raw-velocity tracker, shared
+// by both estimators — see kalmanLocation.ts), which caps how large a
+// lead-projected overshoot LEAD_FACTOR can produce independent of its value.
+const LEAD_FACTOR = 0.92;
 
 // How long to keep coasting forward, past the lead target, at the last known
 // velocity before freezing in place absent a new fix. Bounds how far a GPS
