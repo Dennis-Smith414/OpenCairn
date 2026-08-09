@@ -32,7 +32,7 @@ import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
 import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
 import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
-  bindToRouteFactor,
+  createRouteBindTracker,
   distanceToSegmentsMeters,
   nearestPointOnSegments,
   offRouteColor,
@@ -463,15 +463,24 @@ const MapLibreMap: React.FC<Props> = ({
   // that same lenience for binding was a bug — it bound the dot onto the
   // line even tens of meters off-trail). An always-on/too-generous snap
   // would hide from a lost user that they've left the trail; see offRoute.ts's
-  // file header. Identity is stable enough for useSmoothedLocation's ref
-  // (recreated only when the loaded routes change, not per fix/frame).
+  // file header. The blend is additionally smoothed across fixes
+  // (createRouteBindTracker) so ordinary noise near the ramp's edge doesn't
+  // flip it on/off fix to fix — each flip would discontinuously retarget the
+  // glide, which read as both "breaks its binding" and janky/stalled motion.
+  const bindTrackerRef = useRef(createRouteBindTracker());
   const snapToRoute = useCallback(
     (lat: number, lng: number, accuracy: number | null | undefined) => {
-      if (routeSegments.length === 0) return { lat, lng, blend: 0 };
+      if (routeSegments.length === 0) {
+        bindTrackerRef.current.reset();
+        return { lat, lng, blend: 0 };
+      }
       const nearest = nearestPointOnSegments({ lat, lng }, routeSegments);
-      if (!nearest) return { lat, lng, blend: 0 };
-      const factor = bindToRouteFactor(nearest.distanceM, accuracy);
-      return { lat: nearest.point.lat, lng: nearest.point.lng, blend: 1 - factor };
+      if (!nearest) {
+        bindTrackerRef.current.reset();
+        return { lat, lng, blend: 0 };
+      }
+      const blend = bindTrackerRef.current.update(nearest.distanceM, accuracy);
+      return { lat: nearest.point.lat, lng: nearest.point.lng, blend };
     },
     [routeSegments],
   );

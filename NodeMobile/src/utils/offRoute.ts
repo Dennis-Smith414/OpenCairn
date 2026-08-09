@@ -166,6 +166,37 @@ export function bindToRouteFactor(distanceM: number, accuracyM?: number | null):
   return easedFactor(distanceM, near, far);
 }
 
+// How much a single fix's blend can move toward the new target per update
+// (0..1; lower = more resistant to single-fix noise). Same exponential-blend
+// idea as locationSmoothing.ts's velocity smoothing.
+const BIND_BLEND_SMOOTH = 0.35;
+
+/**
+ * Smooths the bind BLEND itself across fixes, not just bindToRouteFactor's
+ * per-fix distance ramp. Without this, ordinary GPS/trail-data noise near the
+ * ramp's edge flips the blend between ~0 and ~1 fix to fix — and because each
+ * flip discontinuously changes what useSmoothedLocation.ts's glide is heading
+ * toward, that read as both "it breaks its binding" (the visible flip) and
+ * "doesn't look like it's moving" (net forward progress eaten by the
+ * resulting back-and-forth). Call update() once per fix with the raw
+ * distance/accuracy; it returns the damped blend to hand to SnapToRoute.
+ */
+export function createRouteBindTracker() {
+  let blend = 0;
+
+  function reset() {
+    blend = 0;
+  }
+
+  function update(distanceM: number, accuracyM: number | null | undefined): number {
+    const target = 1 - bindToRouteFactor(distanceM, accuracyM);
+    blend = blend + (target - blend) * BIND_BLEND_SMOOTH;
+    return blend;
+  }
+
+  return { update, reset };
+}
+
 function parseHex(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [
