@@ -723,7 +723,7 @@ const MapLibreMap: React.FC<Props> = ({
   // which would run it at 60 Hz instead of ~1 Hz; and it's the honest thing
   // to do for the colour — it reflects where the user actually is, not
   // where the dot is gliding. snapToRoute reusing this raw-fix-based result
-  // instead of the lead-projected point it's technically passed is a no-op
+  // instead of the corrected anchor it's technically passed is a no-op
   // difference in practice — sub-meter at hiking speed/fix-rate, well under
   // GPS accuracy.
   const nearestOnRoute = useMemo(() => {

@@ -17,18 +17,19 @@
 // per axis. That's what's implemented below — closed-form 2x2 math, no
 // general matrix inverse needed.
 //
-// The lead projection (aiming `leadMs` ahead for display) does NOT use this
+// The velocity this estimator exposes (for useSmoothedLocation.ts's
+// continuous extrapolation between fixes — see that file) does NOT use this
 // filter's own velocity state. That was tried first and was too slow to feel
 // responsive: the Kalman velocity estimate takes several fixes of gain
 // buildup to trust real motion (that's what made the earlier stationary-
 // jitter fix work), which made the dot visibly lag behind real walking.
 // Instead this reuses locationSmoothing.ts's createRawVelocityTracker() —
-// the same fast, already-proven velocity estimate dead-reckoning uses — for
-// the lead, while still using THIS filter's accuracy-weighted position as
-// the anchor. That split keeps Kalman's actual advantage (outlier/degraded-
-// GPS robustness in the anchor) without inheriting its slow-converging
-// velocity state's lag in the lead.
-import { createRawVelocityTracker, extrapolate } from "./locationSmoothing";
+// the same fast, already-proven velocity estimate dead-reckoning uses —
+// while still using THIS filter's accuracy-weighted position as the anchor.
+// That split keeps Kalman's actual advantage (outlier/degraded-GPS
+// robustness in the anchor) without inheriting its slow-converging velocity
+// state's lag in what's used to predict between fixes.
+import { createRawVelocityTracker } from "./locationSmoothing";
 import type { Velocity } from "./locationSmoothing";
 
 const EARTH_RADIUS_M = 6371000;
@@ -124,22 +125,23 @@ export function fromLocalMeters(x: number, y: number, refLat: number, refLng: nu
 }
 
 export interface EstimatorResult {
+  // The CORRECTED anchor position only — never lead/forward-projected.
+  // useSmoothedLocation.ts owns all forward-projection, extrapolating
+  // continuously from this anchor + `velocity` using real elapsed time every
+  // animation frame, rather than this estimator projecting a one-shot lead
+  // target itself.
   lat: number;
   lng: number;
   heading: number | null;
-  // Degrees/ms, the same estimate used for this result's own lead projection.
-  // useSmoothedLocation.ts uses this to keep gliding BETWEEN fixes (coasting
-  // forward at this velocity) instead of freezing once it reaches the lead
-  // target — see that file's tick() for why.
+  // Degrees/ms. Used for that continuous extrapolation AND as the dot's
+  // live heading (via headingFromVelocity in locationSmoothing.ts) — both
+  // recomputed every frame from this one value, not just at fix time.
   velocity: Velocity;
 }
 
 /** Shape both the dead-reckoning smoother and this Kalman filter satisfy, so
- *  useSmoothedLocation can be fed either one interchangeably. `leadMs` is the
- *  same forward-lead window useSmoothedLocation already computes for the
- *  dead-reckoning path (dur * LEAD_FACTOR) — passed in so this estimator can
- *  apply the same "aim ahead of the raw fix" behavior using its OWN velocity
- *  estimate, without exposing its internal local-meter frame externally. */
+ *  useSmoothedLocation can be fed either one interchangeably without any
+ *  branching on which is active. */
 export interface LocationEstimator {
   onFix(
     lat: number,
@@ -147,7 +149,6 @@ export interface LocationEstimator {
     heading: number | null | undefined,
     accuracy: number | null | undefined,
     ts: number,
-    leadMs: number,
   ): EstimatorResult;
   reset(): void;
 }
@@ -159,7 +160,7 @@ export function createKalmanEstimator(): LocationEstimator {
   let y: Axis1D | null = null;
   let lastTs: number | null = null;
   let lastHeading: number | null = null;
-  const leadTracker = createRawVelocityTracker();
+  const velTracker = createRawVelocityTracker();
 
   function reset() {
     refLat = null;
@@ -168,7 +169,7 @@ export function createKalmanEstimator(): LocationEstimator {
     y = null;
     lastTs = null;
     lastHeading = null;
-    leadTracker.reset();
+    velTracker.reset();
   }
 
   function onFix(
@@ -177,7 +178,6 @@ export function createKalmanEstimator(): LocationEstimator {
     heading: number | null | undefined,
     accuracy: number | null | undefined,
     ts: number,
-    leadMs: number,
   ): EstimatorResult {
     const measurementVar = clamp(accuracy ?? ASSUMED_ACCURACY_M, ACCURACY_FLOOR_M, ACCURACY_CEIL_M) ** 2;
     if (heading !== null && heading !== undefined && !Number.isNaN(heading)) {
@@ -191,7 +191,7 @@ export function createKalmanEstimator(): LocationEstimator {
       x = { pos: 0, vel: 0, varPos: measurementVar, varVel: INITIAL_VEL_VARIANCE, covPosVel: 0 };
       y = { pos: 0, vel: 0, varPos: measurementVar, varVel: INITIAL_VEL_VARIANCE, covPosVel: 0 };
       lastTs = ts;
-      const initialVel = leadTracker.update(lat, lng, ts);
+      const initialVel = velTracker.update(lat, lng, ts);
       return { lat, lng, heading: lastHeading, velocity: initialVel };
     }
 
@@ -202,15 +202,14 @@ export function createKalmanEstimator(): LocationEstimator {
     x = update1d(predict1d(x, dt), meas.x, measurementVar);
     y = update1d(predict1d(y, dt), meas.y, measurementVar);
 
-    // Anchor = this filter's accuracy-weighted position (never lead-projected
-    // itself, so the next fix's predict starts from the true filtered state).
-    // Lead = the fast raw-velocity tracker's estimate, aimed leadMs ahead —
-    // see the file header for why this doesn't use x.vel/y.vel.
+    // Anchor = this filter's accuracy-weighted position, returned AS-IS (no
+    // forward-projection — useSmoothedLocation.ts does that continuously,
+    // every frame). Velocity = the fast raw-velocity tracker's estimate, not
+    // x.vel/y.vel — see the file header for why.
     const anchor = fromLocalMeters(x.pos, y.pos, refLat, refLng);
-    const leadVel = leadTracker.update(lat, lng, ts);
-    const { lat: outLat, lng: outLng } = extrapolate(anchor, leadVel, leadMs);
+    const vel = velTracker.update(lat, lng, ts);
 
-    return { lat: outLat, lng: outLng, heading: lastHeading, velocity: leadVel };
+    return { lat: anchor.lat, lng: anchor.lng, heading: lastHeading, velocity: vel };
   }
 
   return { onFix, reset };
