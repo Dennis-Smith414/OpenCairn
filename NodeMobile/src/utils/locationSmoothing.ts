@@ -79,6 +79,27 @@ export function extrapolate(p: LatLngPoint, v: Velocity, leadMs: number): LatLng
   return { lat: p.lat + v.vlat * leadMs, lng: p.lng + v.vlng * leadMs };
 }
 
+/**
+ * Compass bearing (degrees, [0,360), clockwise from north) implied by a
+ * velocity vector, or null if it's too small to have a meaningful direction.
+ * `atLat` scales the longitude component the same way toLocalMeters-style
+ * math elsewhere in this codebase does (1° longitude narrows away from the
+ * equator) — without it the bearing would skew with latitude.
+ *
+ * Used by useSmoothedLocation.ts's coast phase: between fixes there's no new
+ * platform-reported course to interpolate toward, so rather than freezing
+ * the heading arrow while position keeps moving (the old behavior — it read
+ * as the arrow "stalling"), point it the direction the dot is actually being
+ * extrapolated in.
+ */
+export function headingFromVelocity(v: Velocity, atLat: number): number | null {
+  const east = v.vlng * Math.cos((atLat * Math.PI) / 180);
+  const north = v.vlat;
+  if (Math.hypot(east, north) < 1e-12) return null;
+  const bearing = (Math.atan2(east, north) * 180) / Math.PI;
+  return ((bearing % 360) + 360) % 360;
+}
+
 const VEL_SMOOTH = 0.5; // blend new velocity with previous (0..1); damps GPS noise
 // Below this per-fix displacement (~1.1m in degrees) we treat you as stationary
 // and drop velocity to zero, so the dot doesn't drift while you stand still.

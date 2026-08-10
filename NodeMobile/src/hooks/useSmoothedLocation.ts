@@ -33,6 +33,7 @@ import {
   lerpPoint,
   progress,
   extrapolate,
+  headingFromVelocity,
   createDeadReckoningEstimator,
   LatLngPoint,
   Velocity,
@@ -51,13 +52,22 @@ interface Endpoint extends SmoothedLocation {
 
 // The dot glides across the measured gap between fixes, so motion is continuous
 // (no pause-then-jump). Clamped: a GPS stall shouldn't cause a multi-second
-// crawl, and a burst shouldn't divide by ~0. MAX_MS lower than the ~1000ms
-// fixes normally arrive at (MapScreen.tsx requests interval: 1000) on purpose:
-// each glide leg reaches its lead target with room to spare before the next
-// fix, then coasts the rest of the way — arriving-with-time-to-spare reads as
-// "already moving" rather than "still easing in" when the next fix lands.
+// crawl, and a burst shouldn't divide by ~0.
+//
+// MAX_MS must comfortably cover typical REAL fix gaps, not an idealized
+// interval. MapScreen.tsx requests `interval: 1000` but also `distanceFilter:
+// 2` — the platform won't fire until you've moved 2m, so at normal walking
+// pace (~1.2-1.5 m/s) real gaps routinely land at 1.4-2s+, past any smaller
+// cap. A previous tuning pass dropped this to 900ms to feel snappier, which
+// backfired: it shrank the well-behaved glide phase (continuous heading
+// interpolation, fresh lead-projected target) and grew the coast phase
+// (weaker: heading only approximates via velocity-bearing, position
+// extrapolates from a single stale velocity sample) to be the COMMON case
+// instead of a rare fallback — read as "slow and lurches forward," since a
+// long coast has to correct a multi-second drift in a short burst once the
+// next fix lands. 2500ms keeps coast the exception again at normal pace.
 const MIN_MS = 300;
-const MAX_MS = 900;
+const MAX_MS = 2500;
 const DEFAULT_MS = 1000;
 
 // Plain interpolation glides toward where you WERE at the last fix, so it always
@@ -73,6 +83,13 @@ const DEFAULT_MS = 1000;
 // by both estimators — see kalmanLocation.ts), which caps how large a
 // lead-projected overshoot LEAD_FACTOR can produce independent of its value.
 const LEAD_FACTOR = 0.92;
+// Lead distance is capped SEPARATELY from the glide duration (MAX_MS) above.
+// MAX_MS needs to be large to cover real fix gaps (comment above), but
+// projecting the lead itself that far ahead (seconds, at MAX_MS=2500) would
+// commit to a much bigger anticipatory jump than "lead" is meant to be —
+// more overshoot risk on a sudden stop or turn. Keep the ANTICIPATION modest
+// even when the glide covering it runs long.
+const MAX_LEAD_MS = 1100;
 
 // How long to keep coasting forward, past the lead target, at the last known
 // velocity before freezing in place absent a new fix. Bounds how far a GPS
@@ -160,7 +177,11 @@ export function useSmoothedLocation(
       const vel = velRef.current;
       const moving = Math.hypot(vel.vlat, vel.vlng) > MIN_COAST_SPEED;
       point = moving ? extrapolate(to, vel, overMs) : to;
-      heading = to.heading;
+      // No new platform-reported course to interpolate toward during coast —
+      // point the arrow the direction actually being extrapolated instead of
+      // freezing it (the old behavior read as the arrow "stalling," since
+      // position kept moving while heading visibly didn't).
+      heading = (moving ? headingFromVelocity(vel, to.lat) : null) ?? to.heading;
       keepAnimating = moving && now - to.ts < MAX_COAST_MS;
     }
 
@@ -189,7 +210,8 @@ export function useSmoothedLocation(
       const gap = lastFixWallRef.current ? now - lastFixWallRef.current : DEFAULT_MS;
       lastFixWallRef.current = now;
       const dur = Math.min(MAX_MS, Math.max(MIN_MS, gap));
-      const leadMs = dur * LEAD_FACTOR;
+      const leadDur = Math.min(MAX_LEAD_MS, Math.max(MIN_MS, gap));
+      const leadMs = leadDur * LEAD_FACTOR;
 
       // Either the passed-in estimator (e.g. Kalman) or the default
       // dead-reckoning one — both do their own velocity tracking and their
