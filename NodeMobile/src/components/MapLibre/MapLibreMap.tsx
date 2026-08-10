@@ -50,6 +50,22 @@ import {
 type DotMode = "native" | "dead-reckon" | "kalman";
 const DOT_MODE: DotMode = "kalman";
 
+// MapLibre RN has no automatic z-ordering — a layer paints above whatever was
+// already registered when IT registers (native addLayer appends to the top).
+// The dot's ShapeSource only mounts once the first fix lands (`smoothed`
+// truthy); the grey "hiked" line only mounts once route-binding resolves
+// (`hikedFeature` truthy) — two independently-timed, conditionally-mounted
+// subtrees with no ordering relationship between them. Relying on JSX/mount
+// order meant whichever happened to finish mounting LATER on a given app
+// launch painted on top — confirmed as the cause of the route line randomly
+// covering the dot. Pinning every route/waypoint layer explicitly below the
+// dot's bottom-most layer fixes this deterministically regardless of mount
+// order (the library queues the insertion safely via belowLayerID even if
+// the target layer doesn't exist yet). Undefined (no pin) when DOT_MODE is
+// "native", since the dot's ShapeSource never mounts in that mode and a
+// belowLayerID referencing a layer that will never exist would wait forever.
+const DOT_BELOW_LAYER_ID = DOT_MODE !== "native" ? "smooth-user-dot-halo" : undefined;
+
 export type LatLng = [number, number];
 
 export interface Waypoint {
@@ -242,11 +258,19 @@ const RouteLayers = React.memo(function RouteLayers({
       {features.map(({ id, hikedFeature, remainingFeature }) => (
         <React.Fragment key={id}>
           <ShapeSource id={`${id}-remaining`} shape={remainingFeature}>
-            <LineLayer id={`${id}-remaining-line`} style={REMAINING_LINE_STYLE} />
+            <LineLayer
+              id={`${id}-remaining-line`}
+              style={REMAINING_LINE_STYLE}
+              belowLayerID={DOT_BELOW_LAYER_ID}
+            />
           </ShapeSource>
           {hikedFeature && (
             <ShapeSource id={`${id}-hiked`} shape={hikedFeature}>
-              <LineLayer id={`${id}-hiked-line`} style={HIKED_LINE_STYLE} />
+              <LineLayer
+                id={`${id}-hiked-line`}
+                style={HIKED_LINE_STYLE}
+                belowLayerID={DOT_BELOW_LAYER_ID}
+              />
             </ShapeSource>
           )}
         </React.Fragment>
@@ -275,8 +299,18 @@ const WaypointLayers = React.memo(function WaypointLayers({
         clusterRadius={40}
         onPress={onPress}
       >
-        <CircleLayer id="wp-cluster" filter={["has", "point_count"]} style={WP_CLUSTER_STYLE} />
-        <SymbolLayer id="wp-point" filter={["!", ["has", "point_count"]]} style={WP_POINT_STYLE} />
+        <CircleLayer
+          id="wp-cluster"
+          filter={["has", "point_count"]}
+          style={WP_CLUSTER_STYLE}
+          belowLayerID={DOT_BELOW_LAYER_ID}
+        />
+        <SymbolLayer
+          id="wp-point"
+          filter={["!", ["has", "point_count"]]}
+          style={WP_POINT_STYLE}
+          belowLayerID={DOT_BELOW_LAYER_ID}
+        />
       </ShapeSource>
       {markedLocation && (
         <ShapeSource
@@ -295,7 +329,11 @@ const WaypointLayers = React.memo(function WaypointLayers({
             ],
           }}
         >
-          <SymbolLayer id="marked-location-icon" style={MARKED_LOCATION_STYLE} />
+          <SymbolLayer
+            id="marked-location-icon"
+            style={MARKED_LOCATION_STYLE}
+            belowLayerID={DOT_BELOW_LAYER_ID}
+          />
         </ShapeSource>
       )}
     </>
