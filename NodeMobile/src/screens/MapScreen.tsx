@@ -359,6 +359,7 @@ const MapScreen: React.FC = () => {
         totalRouteDistance={routeTotalDistance}
         currentPosition={userLocation}
         tracks={tracks}
+        progressMap={progressMap}
         onStatsUpdate={setTripStats}
         hasActiveWaypoint={!!selectedWaypoint && !showWaypointDetail}
         hasWaypointDetail={hasWaypointDetail}

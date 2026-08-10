@@ -260,3 +260,69 @@ export function advanceTrackProgress(
   }
   return { ...state, pendingJump: null, stuckTicks };
 }
+
+// --- Remaining distance along loaded routes --------------------------------
+//
+// TripTracker.tsx used to derive "distance remaining" with its OWN full
+// O(every point of every loaded track) nearest-point scan, independent of
+// (and duplicating) the progress-tracking this file already does for the
+// grey line. That scan ran synchronously on the JS thread roughly once a
+// second — the SAME thread driving useSmoothedLocation.ts's animation loop
+// — and was a confirmed, concrete cause of the dot appearing to freeze then
+// lurch forward. This reuses whatever progress state MapScreen.tsx already
+// computed via advanceTrackProgress instead: O(remaining segments) per
+// track, not O(every point ever recorded).
+//
+// [number, number] tuples here (not the LL {lat,lng} shape the rest of this
+// file uses) to structurally match MapLibreMap.tsx's LatLng/ProgressPoint
+// without importing them — geoProgress.ts is a leaf utility MapLibreMap.tsx
+// already imports FROM; importing back would be circular.
+type Tuple = [number, number]; // [lat, lng]
+
+export interface TrackForRemainingDistance {
+  id: string | number;
+  coords: Tuple[] | Tuple[][];
+}
+
+export interface ProgressForRemainingDistance {
+  seg: number;
+  point: Tuple;
+}
+
+function tupleDistance(a: Tuple, b: Tuple): number {
+  return metersBetween({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] });
+}
+
+/**
+ * Remaining distance (meters) from the user's current progress on each
+ * loaded track to that track's end, summed across all tracks. A track with
+ * no entry in `progressMap` yet (not seeded — never detected near it) counts
+ * as fully remaining, since none of it has been walked.
+ */
+export function remainingDistanceMeters(
+  tracks: TrackForRemainingDistance[],
+  progressMap: Record<string | number, ProgressForRemainingDistance>,
+): number {
+  let total = 0;
+
+  for (const track of tracks) {
+    const flat: Tuple[] = Array.isArray(track.coords[0])
+      ? (track.coords as Tuple[][]).flat()
+      : (track.coords as Tuple[]);
+    if (flat.length < 2) continue;
+
+    const prog = progressMap[track.id];
+    if (!prog) {
+      for (let s = 0; s < flat.length - 1; s++) total += tupleDistance(flat[s], flat[s + 1]);
+      continue;
+    }
+
+    const nextVertex = flat[prog.seg + 1];
+    if (nextVertex) total += tupleDistance(prog.point, nextVertex);
+    for (let s = prog.seg + 1; s < flat.length - 1; s++) {
+      total += tupleDistance(flat[s], flat[s + 1]);
+    }
+  }
+
+  return total;
+}
