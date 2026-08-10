@@ -138,18 +138,28 @@ export function offRouteFactor(
   return easedFactor(distanceM, near, far);
 }
 
-// Deliberately much tighter than offRouteFactor's ramp above. That ramp exists
-// to AVOID a false amber warning under poor accuracy, so it's generous on
+// Deliberately tighter than offRouteFactor's ramp above. That ramp exists to
+// AVOID a false amber warning under poor accuracy, so it's generous on
 // purpose (stays "on route" out to 45-90+ m with typical 15-30 m hiking GPS
 // accuracy). Reusing it to decide whether to visually BIND the dot's POSITION
 // to the line was a bug: it bound the dot onto the trail even when the user
 // was clearly standing well off it. Binding is the opposite kind of mistake —
-// it must err toward NOT hiding a real offset — so this scales much less with
-// accuracy and stays tight in absolute terms.
-const BIND_NEAR_FLOOR_M = 4; // full bind only this close, regardless of accuracy
-const BIND_FAR_FLOOR_M = 10; // fully released by here even with a great fix
-const BIND_ACCURACY_NEAR_MULT = 0.3;
-const BIND_ACCURACY_FAR_MULT = 1;
+// it must err toward NOT hiding a real offset — so this scales less with
+// accuracy and stays tighter in absolute terms than the colour ramp.
+//
+// An earlier version of these constants (near≈4-4.5m, far≈10-15m at typical
+// accuracy) overcorrected the other direction: real hiking GPS scatter
+// routinely reaches 10-20m even while genuinely standing on a well-marked
+// trail (GPS error compounds with the recorded trail geometry's own error),
+// so under realistic accuracy most fixes landed in "no bind" territory even
+// on-trail — reported as "isn't binding to the route" at all. Widened to
+// actually reach a meaningful bind under typical accuracy while remaining
+// clearly tighter than offRouteFactor at the same distance/accuracy (see the
+// regression test asserting that relationship holds).
+const BIND_NEAR_FLOOR_M = 6; // full bind only this close, regardless of accuracy
+const BIND_FAR_FLOOR_M = 20; // fully released by here even with a great fix
+const BIND_ACCURACY_NEAR_MULT = 0.5;
+const BIND_ACCURACY_FAR_MULT = 1.5;
 
 /**
  * How far toward BOUND-TO-THE-LINE the dot should sit, in [0,1]. See
@@ -168,8 +178,14 @@ export function bindToRouteFactor(distanceM: number, accuracyM?: number | null):
 
 // How much a single fix's blend can move toward the new target per update
 // (0..1; lower = more resistant to single-fix noise). Same exponential-blend
-// idea as locationSmoothing.ts's velocity smoothing.
-const BIND_BLEND_SMOOTH = 0.35;
+// idea as locationSmoothing.ts's velocity smoothing. 0.35 took ~10 fixes to
+// converge either direction — at real-world 1.4-2s fix gaps (see
+// useSmoothedLocation.ts's MAX_MS comment) that's 15-20+ seconds before
+// binding became visible at all, compounding the widened-threshold fix
+// above. Raised so sustained on-route fixes visibly bind within a handful
+// of fixes (a few seconds), while still damping enough that a single noisy
+// fix can't flip it outright (see the regression test for that).
+const BIND_BLEND_SMOOTH = 0.55;
 
 /**
  * Smooths the bind BLEND itself across fixes, not just bindToRouteFactor's
