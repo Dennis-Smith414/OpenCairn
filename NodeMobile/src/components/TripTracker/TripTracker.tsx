@@ -5,6 +5,7 @@ import { useThemeStyles } from '../../styles/theme';
 import { createGlobalStyles } from '../../styles/globalStyles';
 import { useDistanceUnit } from '../../context/DistanceUnitContext';
 import { isE2E } from '../../utils/isE2E';
+import { remainingDistanceMeters } from '../../utils/geoProgress';
 
 interface TripStats {
   distanceRemaining: number;          // meters
@@ -21,6 +22,11 @@ interface TripTrackerProps {
   totalRouteDistance: number;        // meters
   currentPosition: [number, number] | null;
   tracks: any[];
+  // Same progress state MapScreen.tsx already maintains via
+  // advanceTrackProgress (geoProgress.ts) for the grey "hiked" line — reused
+  // here instead of independently re-deriving "where is the user on this
+  // route" with a second scan. See calculateRemainingDistance below.
+  progressMap?: Record<string | number, { seg: number; point: [number, number] }>;
   onStatsUpdate?: (stats: TripStats) => void;
   hasActiveWaypoint?: boolean;
   hasWaypointDetail?: boolean;
@@ -31,6 +37,7 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   totalRouteDistance,
   currentPosition,
   tracks,
+  progressMap = {},
   onStatsUpdate,
   hasActiveWaypoint = false,
   hasWaypointDetail = false,
@@ -57,99 +64,21 @@ const TripTracker: React.FC<TripTrackerProps> = ({
   const tripTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(0);
 
-  // Calculate distance between two coordinates (meters)
-  const calculateDistance = useCallback(
-    (coord1: [number, number], coord2: [number, number]): number => {
-      const [lat1, lon1] = coord1;
-      const [lat2, lon2] = coord2;
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) *
-          Math.cos(lat2 * Math.PI / 180) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    },
-    []
-  );
-
-  // Find nearest point on track and calculate remaining distance
+  // Distance remaining to the end of the loaded route(s). Reuses the SAME
+  // progress state MapScreen.tsx already computes (advanceTrackProgress,
+  // geoProgress.ts) for the grey "hiked" line, instead of independently
+  // re-deriving "where is the user on this route" with its own full O(every
+  // point of every track) nearest-point scan — that old scan ran
+  // synchronously on the JS thread roughly once a second (same thread that
+  // drives the animated location dot) and was a confirmed cause of the dot
+  // appearing to freeze then lurch forward. A track not yet in `progressMap`
+  // (not seeded — never detected near it) counts as fully remaining.
   const calculateRemainingDistance = useCallback(
-    (currentPos: [number, number]): number => {
+    (_currentPos: [number, number]): number => {
       if (tracks.length === 0) return totalRouteDistance;
-
-      let minDistance = Infinity;
-      let nearestSegmentIndex = -1;
-      let nearestPointIndex = -1;
-      let nearestTrackIndex = -1;
-
-      tracks.forEach((track, trackIdx) => {
-        const segments = Array.isArray(track.coords[0])
-          ? (track.coords as [number, number][][])
-          : [track.coords as [number, number][]];
-
-        segments.forEach((segment, segIdx) => {
-          segment.forEach((point, pointIdx) => {
-            const distanceToCurrent = calculateDistance(currentPos, point);
-            if (distanceToCurrent < minDistance) {
-              minDistance = distanceToCurrent;
-              nearestTrackIndex = trackIdx;
-              nearestSegmentIndex = segIdx;
-              nearestPointIndex = pointIdx;
-            }
-          });
-        });
-      });
-
-      // If the user is too far from the route, just report full distance
-      if (minDistance > 50) {
-        return totalRouteDistance;
-      }
-
-      let remainingDistance = 0;
-      const nearestTrack = tracks[nearestTrackIndex];
-      const segments = Array.isArray(nearestTrack.coords[0])
-        ? (nearestTrack.coords as [number, number][][])
-        : [nearestTrack.coords as [number, number][]];
-
-      // From nearest point to end of that segment
-      const currentSegment = segments[nearestSegmentIndex];
-      for (let i = nearestPointIndex; i < currentSegment.length - 1; i++) {
-        remainingDistance += calculateDistance(
-          currentSegment[i],
-          currentSegment[i + 1]
-        );
-      }
-
-      // Remaining segments in this track
-      for (let s = nearestSegmentIndex + 1; s < segments.length; s++) {
-        const segment = segments[s];
-        for (let i = 0; i < segment.length - 1; i++) {
-          remainingDistance += calculateDistance(segment[i], segment[i + 1]);
-        }
-      }
-
-      // Remaining tracks
-      for (let t = nearestTrackIndex + 1; t < tracks.length; t++) {
-        const track = tracks[t];
-        const trackSegments = Array.isArray(track.coords[0])
-          ? (track.coords as [number, number][][])
-          : [track.coords as [number, number][]];
-
-        trackSegments.forEach((segment) => {
-          for (let i = 0; i < segment.length - 1; i++) {
-            remainingDistance += calculateDistance(segment[i], segment[i + 1]);
-          }
-        });
-      }
-
-      return remainingDistance;
+      return remainingDistanceMeters(tracks, progressMap);
     },
-    [tracks, totalRouteDistance, calculateDistance]
+    [tracks, totalRouteDistance, progressMap]
   );
 
   // Update trip stats when position changes

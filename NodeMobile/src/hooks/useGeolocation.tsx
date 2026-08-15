@@ -7,6 +7,19 @@ import Geolocation from '@react-native-community/geolocation';
 export interface LocationCoords {
   lat: number;
   lng: number;
+  // Reported horizontal accuracy radius in metres, straight from the platform.
+  // Used to scale off-route colour feedback (a 30 m offset means something very
+  // different with a ±5 m fix than with a ±40 m one). null when unreported.
+  accuracy: number | null;
+  // Course over ground in degrees from true north, straight from the platform.
+  // null when the platform has none — Android reports 0 or -1 while stationary,
+  // and callers must carry the previous heading forward rather than snap north.
+  heading: number | null;
+  // Ground speed (m/s), null when unreported or stationary.
+  speed: number | null;
+  // When the platform COMPUTED this fix (epoch ms), not when JS received it —
+  // easily a few hundred ms apart.
+  ts: number;
 }
 
 export interface GeolocationOptions {
@@ -30,6 +43,61 @@ export interface UseGeolocationReturn {
   stopWatching: (watchId: number) => void;
   requestPermission: () => Promise<boolean>;
 }
+
+// Reads a fix verbatim; derives nothing.
+//
+// Course is undefined at zero speed, but Android reports bearing 0 (due north)
+// rather than "unknown" when stationary — passing that on swings the arrow north
+// every time you stop. So a fix with no usable speed reports heading: null.
+const toLocationCoords = (position: any): LocationCoords => {
+  const c = position?.coords ?? {};
+
+  const accuracy =
+    typeof c.accuracy === "number" && Number.isFinite(c.accuracy) && c.accuracy > 0
+      ? c.accuracy
+      : null;
+
+  const hasCourse =
+    typeof c.speed === "number" && Number.isFinite(c.speed) && c.speed > 0;
+  const heading =
+    hasCourse &&
+    typeof c.heading === "number" &&
+    Number.isFinite(c.heading) &&
+    c.heading >= 0
+      ? ((c.heading % 360) + 360) % 360
+      : null;
+
+  // Epoch ms on both platforms. Falls back to arrival when a provider omits it.
+  const ts =
+    typeof position?.timestamp === "number" && Number.isFinite(position.timestamp)
+      ? position.timestamp
+      : Date.now();
+
+  // Zero speed means stationary-or-unknown and carries no direction.
+  const speed = hasCourse ? c.speed : null;
+
+  // Raw fix logging for offline analysis of a real walk. __DEV__ only.
+  //   adb logcat -s ReactNativeJS:V | grep -o 'OC_FIX .*' > trail.log
+  if (__DEV__) {
+    console.log(
+      "OC_FIX " +
+        JSON.stringify({
+          lat: c.latitude,
+          lng: c.longitude,
+          acc: accuracy,
+          hdg: heading,
+          spd: speed,
+          // Unfiltered: the fields above are nulled when there's no course.
+          rawHdg: typeof c.heading === "number" ? c.heading : null,
+          rawSpd: typeof c.speed === "number" ? c.speed : null,
+          fixTs: ts,
+          rxTs: Date.now(),
+        }),
+    );
+  }
+
+  return { lat: c.latitude, lng: c.longitude, accuracy, heading, speed, ts };
+};
 
 export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocationReturn => {
   // Default options
@@ -100,11 +168,7 @@ export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocation
     return new Promise((resolve) => {
       Geolocation.getCurrentPosition(
         (position) => {
-          const coords: LocationCoords = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setLocation(coords);
+          setLocation(toLocationCoords(position));
           setLoading(false);
           setError(null);
           resolve();
@@ -139,11 +203,7 @@ export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocation
 
     const watchId = Geolocation.watchPosition(
       (position) => {
-        const coords: LocationCoords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        setLocation(coords);
+        setLocation(toLocationCoords(position));
         setError(null);
       },
       (error) => {

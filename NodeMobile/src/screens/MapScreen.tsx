@@ -4,6 +4,7 @@ import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from "rea
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useCompassHeading } from "../hooks/useCompassHeading";
 import { fetchRouteGeo } from "../lib/api";
 import { featureCollectionToSegments } from "../utils/geoUtils";
 import { colors } from "../styles/theme";
@@ -12,7 +13,13 @@ import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
 import TripTracker from '../components/TripTracker/TripTracker';
 // NEW: MapLibre map component (Leaflet-compatible props)
-import MapLibreMap, { LatLng, Track } from "../components/MapLibre/MapLibreMap";
+import MapLibreMap, { LatLng, Track, ProgressPoint } from "../components/MapLibre/MapLibreMap";
+import {
+  advanceTrackProgress,
+  INITIAL_TRACK_PROGRESS_STATE,
+  TrackProgressState,
+  LL,
+} from "../utils/geoProgress";
 
 //43.075678763073164, -87.88565891395142
 
@@ -50,7 +57,7 @@ const MapScreen: React.FC = () => {
   const [tripStats, setTripStats] = useState<any>(null);
   const [routeTotalDistance, setRouteTotalDistance] = useState<number>(0);
   const [showTripTracker, setShowTripTracker] = useState(true);
-  const [progressMap, setProgressMap] = useState<Record<string | number, number>>({});
+  const [progressMap, setProgressMap] = useState<Record<string | number, ProgressPoint>>({});
   const {
     location,
     loading: locationLoading,
@@ -61,8 +68,10 @@ const MapScreen: React.FC = () => {
     stopWatching,
   } = useGeolocation({
     enableHighAccuracy: true,
-    distanceFilter: 5,
-    interval: 3000,
+    // Tighter than before (was 5m / 3s) so the dot updates ~1/sec and the
+    // smoothed dot has fresh, frequent targets to glide toward on a walk.
+    distanceFilter: 2,
+    interval: 1000,
     showPermissionAlert: true,
     showErrorAlert: false,
   });
@@ -232,23 +241,65 @@ const MapScreen: React.FC = () => {
   const showLocationLoading = locationLoading && !initialLocationLoaded;
   const showError = error || (locationError && !initialLocationLoaded);
 
+  // How far along each loaded GPX route the user has walked. The actual
+  // seeding/window/monotonic-forward state machine lives in
+  // advanceTrackProgress (geoProgress.ts) — pure and unit-tested there,
+  // including the loop-trail seeding bug it was written to fix (see that
+  // file's header comment). This effect is just a thin per-track driver:
+  // thread each track's TrackProgressState through advanceTrackProgress every
+  // fix, and adapt the result to the LatLng-tuple ProgressPoint shape
+  // MapLibreMap.tsx expects.
+  const progressStateRef = useRef<Record<string | number, TrackProgressState>>({});
+
+  // Flattened once per track-set, not per fix. The progress effect below runs on
+  // every fix and used to rebuild this each time.
+  const flattenedTracks = useMemo(
+    () =>
+      tracks.map((track) => {
+        const flat: LatLng[] = Array.isArray(track.coords[0])
+          ? (track.coords as LatLng[][]).flat()
+          : (track.coords as LatLng[]);
+        return { track, flatLL: flat.map(([lat, lng]) => ({ lat, lng })) as LL[] };
+      }),
+    [tracks],
+  );
+
+  // See useCompassHeading for why this isn't derived from GPS.
+  const compass = useCompassHeading(true);
+
+  const [correctedFix, setCorrectedFix] = useState<LL | null>(null);
+  const onCorrectedFix = useCallback((lat: number, lng: number) => {
+    setCorrectedFix({ lat, lng });
+  }, []);
+
   useEffect(() => {
-    if (!userLocation || tracks.length === 0) return;
-    const next: Record<string | number, number> = {};
-    tracks.forEach((track) => {
-      const flat: LatLng[] = Array.isArray(track.coords[0])
-        ? (track.coords as LatLng[][]).flat()
-        : (track.coords as LatLng[]);
-      let minDist = Infinity;
-      let nearestIdx = 0;
-      flat.forEach((point, i) => {
-        const d = calculateDistance(userLocation, point);
-        if (d < minDist) { minDist = d; nearestIdx = i; }
-      });
-      next[track.id] = nearestIdx;
+    if (!correctedFix || flattenedTracks.length === 0) return;
+    const up: LL = correctedFix;
+
+    const next: Record<string | number, ProgressPoint> = {};
+
+    flattenedTracks.forEach(({ track, flatLL }) => {
+      if (flatLL.length < 2) return;
+
+      const prevState = progressStateRef.current[track.id] ?? INITIAL_TRACK_PROGRESS_STATE;
+      const state = advanceTrackProgress(up, flatLL, prevState);
+      progressStateRef.current[track.id] = state;
+
+      if (state.progress) {
+        const p = state.progress;
+        next[track.id] = {
+          seg: p.seg,
+          t: p.t,
+          point: [p.point.lat, p.point.lng],
+          seedSeg: p.seedSeg,
+          seedT: p.seedT,
+          seedPoint: [p.seedPoint.lat, p.seedPoint.lng],
+        };
+      }
     });
+
     setProgressMap(next);
-  }, [userLocation, tracks]);
+  }, [correctedFix, flattenedTracks]);
 
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
@@ -287,6 +338,15 @@ const MapScreen: React.FC = () => {
       <MapLibreMap
         tracks={tracks}
         userLocation={userLocation}
+        // Raw fix metadata, passed straight through for display: accuracy scales
+        // the dot's off-route colour ramp, heading aims its arrow. Neither is
+        // derived here and neither feeds the recorded track or the distance math.
+        userAccuracy={location?.accuracy ?? null}
+        userHeading={location?.heading ?? null}
+        userTs={location?.ts ?? null}
+        userSpeed={location?.speed ?? null}
+        onCorrectedFix={onCorrectedFix}
+        compassHeadingDeg={compass?.heading ?? null}
         autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
@@ -321,6 +381,7 @@ const MapScreen: React.FC = () => {
         totalRouteDistance={routeTotalDistance}
         currentPosition={userLocation}
         tracks={tracks}
+        progressMap={progressMap}
         onStatsUpdate={setTripStats}
         hasActiveWaypoint={!!selectedWaypoint && !showWaypointDetail}
         hasWaypointDetail={hasWaypointDetail}
