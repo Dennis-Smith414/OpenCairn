@@ -4,6 +4,7 @@ import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from "rea
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useCompassHeading } from "../hooks/useCompassHeading";
 import { fetchRouteGeo } from "../lib/api";
 import { featureCollectionToSegments } from "../utils/geoUtils";
 import { colors } from "../styles/theme";
@@ -250,18 +251,35 @@ const MapScreen: React.FC = () => {
   // MapLibreMap.tsx expects.
   const progressStateRef = useRef<Record<string | number, TrackProgressState>>({});
 
+  // Flattened once per track-set, not per fix. The progress effect below runs on
+  // every fix and used to rebuild this each time.
+  const flattenedTracks = useMemo(
+    () =>
+      tracks.map((track) => {
+        const flat: LatLng[] = Array.isArray(track.coords[0])
+          ? (track.coords as LatLng[][]).flat()
+          : (track.coords as LatLng[]);
+        return { track, flatLL: flat.map(([lat, lng]) => ({ lat, lng })) as LL[] };
+      }),
+    [tracks],
+  );
+
+  // See useCompassHeading for why this isn't derived from GPS.
+  const compass = useCompassHeading(true);
+
+  const [correctedFix, setCorrectedFix] = useState<LL | null>(null);
+  const onCorrectedFix = useCallback((lat: number, lng: number) => {
+    setCorrectedFix({ lat, lng });
+  }, []);
+
   useEffect(() => {
-    if (!userLocation || tracks.length === 0) return;
-    const up: LL = { lat: userLocation[0], lng: userLocation[1] };
+    if (!correctedFix || flattenedTracks.length === 0) return;
+    const up: LL = correctedFix;
 
     const next: Record<string | number, ProgressPoint> = {};
 
-    tracks.forEach((track) => {
-      const flat: LatLng[] = Array.isArray(track.coords[0])
-        ? (track.coords as LatLng[][]).flat()
-        : (track.coords as LatLng[]);
-      if (flat.length < 2) return;
-      const flatLL: LL[] = flat.map(([lat, lng]) => ({ lat, lng }));
+    flattenedTracks.forEach(({ track, flatLL }) => {
+      if (flatLL.length < 2) return;
 
       const prevState = progressStateRef.current[track.id] ?? INITIAL_TRACK_PROGRESS_STATE;
       const state = advanceTrackProgress(up, flatLL, prevState);
@@ -281,7 +299,7 @@ const MapScreen: React.FC = () => {
     });
 
     setProgressMap(next);
-  }, [userLocation, tracks]);
+  }, [correctedFix, flattenedTracks]);
 
   const handleMapLongPress = (lat: number, lon: number) => {
     console.log("Long press at:", lat, lon);
@@ -325,6 +343,10 @@ const MapScreen: React.FC = () => {
         // derived here and neither feeds the recorded track or the distance math.
         userAccuracy={location?.accuracy ?? null}
         userHeading={location?.heading ?? null}
+        userTs={location?.ts ?? null}
+        userSpeed={location?.speed ?? null}
+        onCorrectedFix={onCorrectedFix}
+        compassHeadingDeg={compass?.heading ?? null}
         autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}

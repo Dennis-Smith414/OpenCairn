@@ -29,7 +29,8 @@ import {
   syncActiveBasemapToNode,
 } from "../../offline/basemaps";
 import { OfflineBasemapLayers } from "./OfflineBasemapLayers";
-import { useSmoothedLocation } from "../../hooks/useSmoothedLocation";
+import SmoothedUserDot from "./SmoothedUserDot";
+import type { OnAnchor } from "../../hooks/useSmoothedLocation";
 import { createKalmanEstimator } from "../../utils/kalmanLocation";
 import {
   createRouteBindTracker,
@@ -134,8 +135,8 @@ export interface SplitRouteFeature {
 // ShapeSource/CircleLayer/etc. do their own internal memoization, but it's
 // keyed on prop identity, and a fresh `style={{...}}` object literal every
 // render defeats it just as surely as not wrapping the JSX in React.memo at
-// all would. See the dot's own DOT_*_BASE_STYLE constants below for the one
-// place this legitimately needs a live per-render value mixed in.
+// all would. The dot's own layer styles live in SmoothedUserDot.tsx, which is
+// the one place that legitimately mixes in a live per-render value.
 const REMAINING_LINE_STYLE = {
   lineColor: ["get", "color"],
   lineWidth: ["get", "weight"],
@@ -169,24 +170,6 @@ const MARKED_LOCATION_STYLE = {
   iconIgnorePlacement: true,
   iconSize: 0.9,
 } as const;
-// Static halves of the smoothed dot's 3 layer styles — the other half
-// (circleColor/iconRotate/iconOpacity) genuinely changes every animation
-// frame and stays a real per-render useMemo inside the component.
-const DOT_HALO_BASE_STYLE = { circleRadius: 16, circleOpacity: 0.18 } as const;
-const DOT_CORE_BASE_STYLE = {
-  circleRadius: 7,
-  circleStrokeColor: "#FFFFFF",
-  circleStrokeWidth: 2.5,
-} as const;
-const DOT_HEADING_BASE_STYLE = {
-  iconImage: "user-heading",
-  iconRotationAlignment: "map",
-  iconPitchAlignment: "map",
-  iconAllowOverlap: true,
-  iconIgnorePlacement: true,
-  iconSize: 0.5,
-} as const;
-
 // Icon assets for <Images>. Hoisted so this is the SAME object reference on
 // every render — the library's own internal icon-resolution memo (keyed on
 // this prop) was previously defeated by a fresh object literal every render,
@@ -216,6 +199,15 @@ interface Props {
   // dot's direction arrow. Both are display-only.
   userAccuracy?: number | null;
   userHeading?: number | null;
+  // When the platform computed this fix (epoch ms), not when JS received it.
+  userTs?: number | null;
+  // Platform ground speed (m/s); lets the dot glide from the very first fix.
+  userSpeed?: number | null;
+  // Once per FIX with the corrected, route-bound position the dot is drawn at.
+  // Anything following the user along a route must use this, not the raw fix.
+  onCorrectedFix?: OnAnchor | null;
+  // Compass bearing for the arrow — see useCompassHeading.
+  compassHeadingDeg?: number | null;
   onMapReady?: () => void;
   onMapLongPress?: (lat: number, lon: number) => void;
   waypoints?: Waypoint[];
@@ -386,6 +378,10 @@ const MapLibreMap: React.FC<Props> = ({
   userLocation = null,
   userAccuracy = null,
   userHeading = null,
+  userTs = null,
+  userSpeed = null,
+  onCorrectedFix = null,
+  compassHeadingDeg = null,
   onMapReady,
   onMapLongPress,
   waypoints = [],
@@ -460,13 +456,22 @@ const MapLibreMap: React.FC<Props> = ({
   );
 
   // Convert tracks → split hiked (gray) + remaining (blue) features
-  const splitRouteFeatures = useMemo<SplitRouteFeature[]>(() => {
-    return tracks.map((t) => {
-      const flatLatLng: LatLng[] = Array.isArray(t.coords[0])
-        ? (t.coords as LatLng[][]).flat()
-        : (t.coords as LatLng[]);
+  // Keyed on `tracks` alone. Kept out of splitRouteFeatures below, which reruns
+  // on every fix: the geometry never changes, only where to cut it.
+  const flatRouteGeo = useMemo(
+    () =>
+      tracks.map((t) => {
+        const flatLatLng: LatLng[] = Array.isArray(t.coords[0])
+          ? (t.coords as LatLng[][]).flat()
+          : (t.coords as LatLng[]);
+        return flatLatLng.map(([lat, lon]) => [lon, lat]);
+      }),
+    [tracks],
+  );
 
-      const flatGeo = flatLatLng.map(([lat, lon]) => [lon, lat]);
+  const splitRouteFeatures = useMemo<SplitRouteFeature[]>(() => {
+    return tracks.map((t, trackIndex) => {
+      const flatGeo = flatRouteGeo[trackIndex];
       const prog = progressMap[t.id];
       const color = t.color || '#0a84ff';
       // Thicker than the old default of 3: at typical hiking GPS accuracy the
@@ -521,7 +526,7 @@ const MapLibreMap: React.FC<Props> = ({
         },
       };
     });
-  }, [tracks, progressMap]);
+  }, [tracks, progressMap, flatRouteGeo]);
 
   // Waypoints as FeatureCollection
   const waypointFC = useMemo(() => {
@@ -748,29 +753,9 @@ const MapLibreMap: React.FC<Props> = ({
   // state until onFix runs) so flipping the constant doesn't need a remount.
   const kalmanEstimatorRef = useRef(createKalmanEstimator());
   const activeEstimator = DOT_MODE === "kalman" ? kalmanEstimatorRef.current : null;
-  const { smoothed, pushFix } = useSmoothedLocation(
-    DOT_MODE !== "native",
-    activeEstimator,
-    snapToRoute,
-  );
 
-  // Whether the platform has EVER given us a course. Until it has, the heading
-  // arrow stays hidden rather than confidently pointing north — displaying a
-  // direction we don't have would be exactly the kind of inference the dot is
-  // supposed to avoid. Once set it stays set, so the arrow doesn't blink out
-  // every time the user stops walking.
-  const [hasHeading, setHasHeading] = useState(false);
-
-  useEffect(() => {
-    if (DOT_MODE !== "native" && userLocation) {
-      // userLocation is [lat, lng]. A null heading means "platform has no course
-      // right now" and the smoother carries the previous one forward. accuracy
-      // is only consumed by the kalman estimator; the dead-reckoning path
-      // ignores the extra argument.
-      pushFix(userLocation[0], userLocation[1], userHeading, userAccuracy);
-      if (userHeading != null) setHasHeading(true);
-    }
-  }, [userLocation, userHeading, userAccuracy, pushFix]);
+  // The dot lives in SmoothedUserDot so its per-frame updates don't re-render
+  // this component.
 
   // Off-route colour feedback, in [0,1]. `tracks` IS the explicit opt-in — the
   // user loaded these routes on purpose — so with nothing loaded there is no
@@ -783,27 +768,7 @@ const MapLibreMap: React.FC<Props> = ({
 
   const dotColor = useMemo(() => offRouteColor(offRoute), [offRoute]);
 
-  // The dot's 3 layer styles, split static/dynamic (DOT_*_BASE_STYLE above
-  // hold the static half). These DO legitimately need to recompute every
-  // animation frame — dotColor and heading change continuously while
-  // moving — so unlike everything in RouteLayers/WaypointLayers/
-  // StaticMapLayers, real per-render useMemos are correct here, not a bug.
-  const dotHaloStyle = useMemo(
-    () => ({ ...DOT_HALO_BASE_STYLE, circleColor: dotColor }),
-    [dotColor],
-  );
-  const dotCoreStyle = useMemo(
-    () => ({ ...DOT_CORE_BASE_STYLE, circleColor: dotColor }),
-    [dotColor],
-  );
-  const dotHeadingStyle = useMemo(
-    () => ({
-      ...DOT_HEADING_BASE_STYLE,
-      iconOpacity: hasHeading ? 1 : 0,
-      iconRotate: smoothed?.heading ?? 0,
-    }),
-    [hasHeading, smoothed?.heading],
-  );
+
 
   const onUserLocUpdate = useCallback((pos: any) => {
     const { coords } = pos || {};
@@ -924,30 +889,19 @@ const MapLibreMap: React.FC<Props> = ({
             consecutive raw fixes so the dot glides, never relocated onto a route.
             A dot pulled onto the line would hide from a lost user that they are
             off it, so the only thing the loaded route changes here is `dotColor`. */}
-        {DOT_MODE !== "native" && smoothed && (
-          <ShapeSource
-            id="smooth-user-dot"
-            shape={{
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Point",
-                coordinates: [smoothed.lng, smoothed.lat],
-              },
-            }}
-          >
-            {/* soft accuracy-ish halo */}
-            <CircleLayer id="smooth-user-dot-halo" style={dotHaloStyle} />
-            {/* Heading arrow, drawn under the core so the core overlaps its base.
-                iconRotate takes the smoothed heading, which lerps along the
-                shortest arc — 359° to 1° sweeps 2° through north, not 358° back.
-                iconRotationAlignment "map" keeps it pinned to compass bearing
-                rather than to the screen. */}
-            <SymbolLayer id="smooth-user-dot-heading" style={dotHeadingStyle} />
-            {/* solid core with white ring */}
-            <CircleLayer id="smooth-user-dot-core" style={dotCoreStyle} />
-          </ShapeSource>
-        )}
+        <SmoothedUserDot
+          enabled={DOT_MODE !== "native"}
+          userLocation={userLocation}
+          userAccuracy={userAccuracy}
+          userHeading={userHeading}
+          userTs={userTs}
+          userSpeed={userSpeed}
+          estimator={activeEstimator}
+          snapToRoute={snapToRoute}
+          dotColor={dotColor}
+          onAnchor={onCorrectedFix ?? null}
+          compassHeadingDeg={compassHeadingDeg}
+        />
       </MapView>
 
       {/* Zoom controls */}

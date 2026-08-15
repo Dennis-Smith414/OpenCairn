@@ -1,44 +1,13 @@
-// Drives a location dot via CONTINUOUS PREDICTION, not discrete lerping
-// between fix-snapshotted targets.
+// Drives the displayed location dot: extrapolates forward from the last
+// corrected fix every animation frame, so the ~1Hz GPS cadence isn't visible.
+// A new fix's discrepancy from where the dot has reached is hidden as a short
+// decaying offset rather than a jump; a large one snaps instead.
 //
-// Feed it raw fixes via pushFix(); read `smoothed` for the value to draw. On
-// every animation frame, the displayed position is extrapolated forward from
-// the last CORRECTED anchor (an estimator's onFix() result — see
-// kalmanLocation.ts / locationSmoothing.ts's createDeadReckoningEstimator)
-// using its velocity and REAL elapsed wall-clock time, uncapped by any
-// fix-gap-derived duration. This is the point of using an estimator at all:
-// predict continuously so the raw GPS update cadence is hidden, rather than
-// reactively smoothing after each fix lands. Heading is likewise
-// `headingFromVelocity(currentVelocity)`, recomputed every frame from the
-// live estimate — never interpolated between two fix-snapshotted course
-// values, so it's exactly as live as position.
+// DISPLAY ONLY — callers record the raw fixes separately.
 //
-// An earlier version of this hook worked the opposite way: lerp toward a
-// lead-projected target over a bounded duration tied to the fix gap, then
-// "coast" as a separate fallback mode once that lerp finished early. Two
-// structurally different modes — each computing heading differently — with
-// a hard boundary between them is exactly the kind of construction that
-// produces a visible discontinuity right at that boundary, which is what
-// got reported as jumping/skipping. This version has ONE motion model,
-// always active, no boundary to jump across.
-//
-// When a new fix arrives, its corrected position will usually differ
-// slightly from wherever the continuous extrapolation currently sits (GPS/
-// estimator noise) — RECONCILE_MS hides that residual as a short, decaying
-// offset layered on top of the (never-interrupted) extrapolation, rather
-// than re-targeting a fresh lerp leg. A LARGE discrepancy (GPS reacquisition
-// after an outage, the first fix after re-enabling) snaps instead: sliding
-// tens of meters over RECONCILE_MS would look like teleporting sideways,
-// which is worse than an honest cut.
-//
-// DISPLAY ONLY. Callers must still record the raw fixes separately — nothing
-// recorded should come from here.
-//
-// IMPORTANT: pushFix and tick are IDENTITY-STABLE (empty/stable deps, all state
-// via refs). An earlier version depended on the `smoothed` state, so pushFix got
-// a new identity every animation frame; a caller wiring pushFix into a useEffect
-// then re-fired ~60x/sec, resetting the glide and melting the UI. Keep them
-// ref-based.
+// pushFix and tick must stay IDENTITY-STABLE (all state via refs). They once
+// depended on `smoothed`, so a caller wiring pushFix into a useEffect re-fired
+// it ~60x/sec and melted the UI.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   progress,
@@ -46,6 +15,9 @@ import {
   headingFromVelocity,
   approxDistanceMeters,
   reconcileDamp,
+  approachBearing,
+  shortestArcDeltaDeg,
+  velocityFromSpeedHeading,
   createDeadReckoningEstimator,
   LatLngPoint,
   Velocity,
@@ -56,74 +28,100 @@ export interface SmoothedLocation {
   lat: number;
   lng: number;
   heading: number; // degrees [0,360); last known when velocity has no direction
+  // Hide the arrow until this is true: `heading` defaults to 0, and drawing that
+  // points a confident arrow due north on no information.
+  headingKnown: boolean;
 }
 
-// The last corrected fix: anchor position + the velocity extrapolated
-// forward from it, continuously, until the next one arrives.
 interface Anchor extends LatLngPoint {
   ts: number; // wall-clock ms this anchor was produced
   vel: Velocity;
 }
 
-// A decaying position offset hiding a fix's discrepancy from the display's
-// current (extrapolated) position. Added on TOP of extrapolation, not a
-// separate motion phase — see file header.
 interface Reconcile {
   errLat: number;
   errLng: number;
   startTs: number;
+  durationMs: number;
 }
 
-// Bounds how far a GPS outage (or an unusually long fix gap) can march the
-// dot on stale velocity before it freezes in place absent a new fix. Applies
-// to ALL extrapolation now — there's no separate "coast phase" to gate it
-// behind, extrapolation is simply always running.
-const MAX_EXTRAPOLATION_MS = 4000;
-// Below this speed (degrees/ms, ~0.1 m/s) treat the dot as stationary and go
-// idle rather than keep scheduling frames that would redraw the same point —
-// preserves "no idle drain" while actually standing still.
+// Full speed for HOLD, then ramp down to a standstill over EASE. A hard cutoff
+// stops the dot dead mid-stride, which reads as a freeze.
+const EXTRAPOLATION_HOLD_MS = 5500;
+const EXTRAPOLATION_EASE_MS = 4000;
+
+/** Integral of the velocity ramp above. Saturates at HOLD + EASE/2. */
+export function effectiveElapsedMs(ms: number): number {
+  const t = ms < 0 ? 0 : ms;
+  if (t <= EXTRAPOLATION_HOLD_MS) return t;
+  const u = Math.min((t - EXTRAPOLATION_HOLD_MS) / EXTRAPOLATION_EASE_MS, 1);
+  // ∫(1 - smoothstep) du = u - u^3 + u^4/2
+  return EXTRAPOLATION_HOLD_MS + EXTRAPOLATION_EASE_MS * (u - u * u * u + (u * u * u * u) / 2);
+}
+
+const MAX_EXTRAPOLATION_MS = EXTRAPOLATION_HOLD_MS + EXTRAPOLATION_EASE_MS;
+
+// The anchor uses the fix's OWN clock, not arrival: they differ by acquisition
+// age plus the native->JS hop, and anchoring at arrival leaves the dot behind.
+// Clamped into a window around arrival since a device clock can't be trusted.
+const MAX_FIX_AGE_MS = 2000;
+// ~0.1 m/s. Below this, stop scheduling frames rather than redraw the same point.
 const MIN_EXTRAPOLATION_SPEED = 9e-10;
 
-// Fixed, deliberately NOT tied to the fix gap — that coupling (glide
-// duration = however long since the last fix) was the old design's core
-// bug: a slow/irregular gap meant a slow/irregular glide. A reconciliation
-// is just hiding estimator noise, not traveling real distance, so it should
-// always take the same short time regardless of how long since the last fix.
-// 200ms is long enough that a several-meter residual blends in without a
-// visible pop, short enough to read as instantaneous against the ~1-2s
-// real-world fix cadence.
-const RECONCILE_MS = 200;
-// Beyond this, a fix's discrepancy from the current display reads as a
-// genuine reacquisition (outage/tunnel recovery, re-enabling, a caller
-// resetting the estimator) rather than ordinary noise — sliding that far in
-// RECONCILE_MS would look like teleporting sideways. Snap instead.
+// Sized by SPEED, not a fixed duration: a flat duration slides a large residual
+// across the screen far faster than the user moves, which reads as a jump.
+const RECONCILE_MAX_SPEED_MPS = 2.0;
+const RECONCILE_MIN_MS = 200;
+const RECONCILE_MAX_MS = 2500;
+
+/** How long to spend hiding a residual of `errM` metres. */
+export function reconcileDurationMs(errM: number): number {
+  const needed = (errM / RECONCILE_MAX_SPEED_MPS) * 1000;
+  return Math.min(Math.max(needed, RECONCILE_MIN_MS), RECONCILE_MAX_MS);
+}
+// Beyond this a discrepancy reads as reacquisition, not noise. Snap instead of
+// sliding, which at that distance looks like teleporting sideways.
 const RECONCILE_SNAP_THRESHOLD_M = 50;
 
-// Snap the display point onto the route line when the raw fix is already
-// close enough that the offset is fully explained by GPS error. `blend` is
-// how far to pull toward `point` (usually 1 - offRouteFactor from offRoute.ts,
-// so it fades to 0 exactly as the dot would start turning amber) — this MUST
-// go to 0 once genuinely off-route. Snapping unconditionally would hide from
-// a lost user that they've left the trail; see offRoute.ts's file header.
+// ~63% of a turn covered in this long, so a 90-degree bend takes about a second.
+const HEADING_SMOOTH_TAU_MS = 400;
+
+// ~30fps. Not a frame budget — the animation loop still runs at display rate.
+// Limits only how often state crosses into React and the native bridge, which at
+// 60Hz bogged down the whole JS thread.
+const MIN_PUBLISH_INTERVAL_MS = 33;
+
+// `blend` MUST fade to 0 once genuinely off-route — snapping unconditionally
+// hides from a lost user that they've left the trail.
 export type SnapToRoute = (
   lat: number,
   lng: number,
   accuracy: number | null | undefined,
 ) => { lat: number; lng: number; blend: number };
 
+/** Once per FIX with the corrected, route-bound position. Anything following the
+ *  user along a route must use this, not the raw fix, or it disagrees with the dot. */
+export type OnAnchor = (lat: number, lng: number) => void;
+
 export function useSmoothedLocation(
   enabled: boolean,
   estimator?: LocationEstimator | null,
   snapToRoute?: SnapToRoute | null,
+  onAnchor?: OnAnchor | null,
+  /** Compass bearing; wins over the GPS-derived course. See useCompassHeading. */
+  compassHeadingDeg?: number | null,
 ) {
   const [smoothed, setSmoothed] = useState<SmoothedLocation | null>(null);
   const currentRef = useRef<SmoothedLocation | null>(null); // latest displayed value
   const anchorRef = useRef<Anchor | null>(null);
   const reconcileRef = useRef<Reconcile | null>(null);
-  // Fallback heading when velocity is too small to imply a direction (near-
-  // stationary) — the last course an estimator actually reported, not
-  // inferred from a near-zero velocity vector.
   const lastKnownHeadingRef = useRef<number>(0);
+  // Sticky, so the arrow holds its bearing instead of blinking out when you stop.
+  const headingEverKnownRef = useRef<boolean>(false);
+  // The eased on-screen bearing, vs lastKnownHeadingRef's raw target.
+  const displayHeadingRef = useRef<number | null>(null);
+  const lastTickTsRef = useRef<number | null>(null);
+  const lastPublishTsRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const enabledRef = useRef<boolean>(enabled);
   // Fallback used whenever no `estimator` prop is passed — same dead-reckoning
@@ -133,12 +131,19 @@ export function useSmoothedLocation(
   // Refs, not the raw props — pushFix must stay identity-stable (see file header).
   const estimatorRef = useRef<LocationEstimator | null | undefined>(estimator);
   const snapRef = useRef<SnapToRoute | null | undefined>(snapToRoute);
+  const onAnchorRef = useRef<OnAnchor | null | undefined>(onAnchor);
+  const compassRef = useRef<number | null | undefined>(compassHeadingDeg);
 
   useEffect(() => {
     enabledRef.current = enabled;
-    if (!enabled && rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+    if (!enabled) {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      // Drop the frame clock so the first frame after re-enabling doesn't ease
+      // the arrow using however long the app happened to be paused.
+      lastTickTsRef.current = null;
     }
   }, [enabled]);
 
@@ -150,6 +155,14 @@ export function useSmoothedLocation(
     snapRef.current = snapToRoute;
   }, [snapToRoute]);
 
+  useEffect(() => {
+    onAnchorRef.current = onAnchor;
+  }, [onAnchor]);
+
+  useEffect(() => {
+    compassRef.current = compassHeadingDeg;
+  }, [compassHeadingDeg]);
+
   // Stable: reads only refs.
   const tick = useCallback(() => {
     const anchor = anchorRef.current;
@@ -158,7 +171,23 @@ export function useSmoothedLocation(
       return;
     }
     const now = Date.now();
-    const elapsedMs = Math.min(now - anchor.ts, MAX_EXTRAPOLATION_MS);
+
+    // Publishing is rate-limited; the animation loop is not. Returns early
+    // without computing or setting state, then reschedules below. Motion is a
+    // pure function of wall-clock time, so a skipped publish changes only how
+    // often the result is sent onward, never where the dot is.
+    const sincePublish =
+      lastPublishTsRef.current === null ? Infinity : now - lastPublishTsRef.current;
+    if (sincePublish < MIN_PUBLISH_INTERVAL_MS) {
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+    // Real elapsed time, so easing behaves the same whether frames stutter or not.
+    const dtMs = lastTickTsRef.current === null ? 0 : Math.max(now - lastTickTsRef.current, 0);
+    lastTickTsRef.current = now;
+    const rawElapsedMs = Math.max(now - anchor.ts, 0);
+    // Eases to a stop rather than stopping dead — see effectiveElapsedMs.
+    const elapsedMs = effectiveElapsedMs(rawElapsedMs);
     const moving = Math.hypot(anchor.vel.vlat, anchor.vel.vlng) > MIN_EXTRAPOLATION_SPEED;
     const predicted: LatLngPoint = moving
       ? extrapolate(anchor, anchor.vel, elapsedMs)
@@ -168,7 +197,7 @@ export function useSmoothedLocation(
     let reconciling = false;
     const rec = reconcileRef.current;
     if (rec) {
-      const t = progress(rec.startTs, rec.startTs + RECONCILE_MS, now);
+      const t = progress(rec.startTs, rec.startTs + rec.durationMs, now);
       if (t >= 1) {
         reconcileRef.current = null;
       } else {
@@ -178,45 +207,95 @@ export function useSmoothedLocation(
       }
     }
 
-    // Live every frame, from the current velocity — not interpolated between
-    // two fix-snapshotted course values. Falls back to the last known
-    // platform-reported course only while too close to stationary to imply
-    // a direction (see file header).
-    const heading = headingFromVelocity(anchor.vel, point.lat) ?? lastKnownHeadingRef.current;
+    const derivedHeading = headingFromVelocity(anchor.vel, point.lat);
+    if (derivedHeading !== null) {
+      lastKnownHeadingRef.current = derivedHeading;
+      headingEverKnownRef.current = true;
+    }
+    // Compass first: it measures pointing direction directly and doesn't degrade
+    // as the walker slows. The GPS-derived value is a course reconstructed from
+    // noisy positions.
+    const compass = compassRef.current;
+    const haveCompass =
+      typeof compass === "number" && Number.isFinite(compass);
+    if (haveCompass) headingEverKnownRef.current = true;
+    const targetHeading = haveCompass
+      ? ((compass as number) % 360 + 360) % 360
+      : derivedHeading ?? lastKnownHeadingRef.current;
+    const displayed = displayHeadingRef.current;
+    const heading =
+      displayed === null
+        ? targetHeading // first frame: adopt it outright, nothing to ease from
+        : approachBearing(displayed, targetHeading, dtMs, HEADING_SMOOTH_TAU_MS);
+    displayHeadingRef.current = heading;
 
-    const next: SmoothedLocation = { lat: point.lat, lng: point.lng, heading };
+    const next: SmoothedLocation = {
+      lat: point.lat,
+      lng: point.lng,
+      heading,
+      headingKnown: headingEverKnownRef.current,
+    };
     currentRef.current = next;
+    lastPublishTsRef.current = now;
     setSmoothed(next);
 
-    const stillExtrapolating = moving && now - anchor.ts < MAX_EXTRAPOLATION_MS;
-    if (reconciling || stillExtrapolating) {
+    const stillExtrapolating = moving && rawElapsedMs < MAX_EXTRAPOLATION_MS;
+    // Keep painting while the arrow turns, or it finishes the turn as a jump.
+    const stillTurning = Math.abs(shortestArcDeltaDeg(heading, targetHeading)) > 0.5;
+    if (reconciling || stillExtrapolating || stillTurning) {
       rafRef.current = requestAnimationFrame(tick);
     } else {
       rafRef.current = null; // truly stopped and settled; idle until the next fix
     }
   }, []);
 
-  // Stable: tick is stable and everything else is a ref.
   const pushFix = useCallback(
     (
       lat: number,
       lng: number,
       heading: number | null | undefined,
       accuracy?: number | null,
+      fixTs?: number | null,
+      speed?: number | null,
     ) => {
       if (!enabledRef.current) return;
       const now = Date.now();
 
-      // The corrected anchor + velocity — never lead-projected by the
-      // estimator itself; this file owns all forward-projection, continuously.
+      const anchorTs =
+        fixTs != null && Number.isFinite(fixTs)
+          ? Math.min(Math.max(fixTs, now - MAX_FIX_AGE_MS), now)
+          : now;
+
+      // Not forced monotonic: out-of-order delivery is handled downstream by
+      // isUsableDt holding the velocity, rather than by faking a timestamp.
+      const fixAge = now - anchorTs;
+
+      // anchorTs rather than `now` so the estimator's dt reflects real GPS
+      // spacing, not React scheduling jitter.
       const activeEstimator = estimatorRef.current ?? defaultEstimatorRef.current;
-      const result = activeEstimator.onFix(lat, lng, heading, accuracy, now);
-      const vel = result.velocity;
+      const result = activeEstimator.onFix(lat, lng, heading, accuracy, anchorTs);
+
+      // Platform speed/course seeds the FIRST fix only, where differencing has
+      // nothing yet. Preferring it on every fix made things worse on a real
+      // trail — a consumer chip's bearing degrades badly at walking pace.
+      const estimatorVel = result.velocity;
+      const estimatorMoving =
+        Math.hypot(estimatorVel.vlat, estimatorVel.vlng) > MIN_EXTRAPOLATION_SPEED;
+      const canSeed =
+        anchorRef.current === null &&
+        !estimatorMoving &&
+        typeof speed === "number" &&
+        Number.isFinite(speed) &&
+        speed > 0 &&
+        heading !== null &&
+        heading !== undefined &&
+        !Number.isNaN(heading);
+      const vel = canSeed
+        ? velocityFromSpeedHeading(speed as number, heading as number, lat)
+        : estimatorVel;
       let anchorPoint: LatLngPoint = { lat: result.lat, lng: result.lng };
 
-      // Bind to the route line ONLY as far as the fix already reads as
-      // on-route (blend fades to 0 exactly where the dot would start amber),
-      // so an actually-off-route position is never hidden — see SnapToRoute.
+      // Only as far as the fix reads on-route — see SnapToRoute.
       const snap = snapRef.current;
       if (snap) {
         const snapped = snap(anchorPoint.lat, anchorPoint.lng, accuracy);
@@ -232,28 +311,36 @@ export function useSmoothedLocation(
       const rawHeading = result.heading;
       if (rawHeading !== null && rawHeading !== undefined && !Number.isNaN(rawHeading)) {
         lastKnownHeadingRef.current = ((rawHeading % 360) + 360) % 360;
+        headingEverKnownRef.current = true;
       }
 
-      // Hide the discrepancy between where the display currently sits
-      // (possibly mid-extrapolation, possibly mid an earlier reconciliation
-      // — currentRef already reflects either) and the new anchor as a short
-      // decaying offset, UNLESS it's large enough to read as a genuine
-      // reacquisition rather than ordinary noise, in which case snap.
       const prevAnchor = anchorRef.current;
       const prevDisplayed: LatLngPoint | null =
         currentRef.current ?? (prevAnchor ? { lat: prevAnchor.lat, lng: prevAnchor.lng } : null);
 
+      // Against the anchor projected forward to NOW: it's timestamped fixAge in
+      // the past, so measuring against it raw counts real travel as error.
       if (prevDisplayed) {
-        const errLat = prevDisplayed.lat - anchorPoint.lat;
-        const errLng = prevDisplayed.lng - anchorPoint.lng;
-        const errM = approxDistanceMeters(errLat, errLng, anchorPoint.lat);
+        const projectedNow =
+          fixAge > 0 && Math.hypot(vel.vlat, vel.vlng) > MIN_EXTRAPOLATION_SPEED
+            ? extrapolate(anchorPoint, vel, fixAge)
+            : anchorPoint;
+
+        const errLat = prevDisplayed.lat - projectedNow.lat;
+        const errLng = prevDisplayed.lng - projectedNow.lng;
+        const errM = approxDistanceMeters(errLat, errLng, projectedNow.lat);
         reconcileRef.current =
-          errM > RECONCILE_SNAP_THRESHOLD_M ? null : { errLat, errLng, startTs: now };
+          errM > RECONCILE_SNAP_THRESHOLD_M
+            ? null
+            : { errLat, errLng, startTs: now, durationMs: reconcileDurationMs(errM) };
       } else {
         reconcileRef.current = null; // first-ever fix — nothing to reconcile from
       }
 
-      anchorRef.current = { lat: anchorPoint.lat, lng: anchorPoint.lng, ts: now, vel };
+      anchorRef.current = { lat: anchorPoint.lat, lng: anchorPoint.lng, ts: anchorTs, vel };
+
+      // Last, so a consumer that throws can't leave the anchor unset.
+      onAnchorRef.current?.(anchorPoint.lat, anchorPoint.lng);
 
       if (rafRef.current == null) {
         rafRef.current = requestAnimationFrame(tick);

@@ -51,9 +51,22 @@ export function velocity(
   b: LatLngPoint,
   bTs: number,
 ): Velocity {
+  if (!isUsableDt(bTs - aTs)) return { vlat: 0, vlng: 0 };
   const dt = bTs - aTs;
-  if (dt <= 0 || dt > 5000) return { vlat: 0, vlng: 0 };
   return { vlat: (b.lat - a.lat) / dt, vlng: (b.lng - a.lng) / dt };
+}
+
+// Longest gap still treated as continuous motion. Past this two fixes say
+// nothing about the speed between them (outage, app resumed from background).
+const MAX_VELOCITY_DT_MS = 5000;
+
+/**
+ * Whether a delta between two fixes can yield a meaningful velocity. Its own
+ * predicate because callers must distinguish "this pair tells us nothing" from
+ * "the user is stationary" — velocity() returns zero for both.
+ */
+export function isUsableDt(dt: number): boolean {
+  return Number.isFinite(dt) && dt > 0 && dt <= MAX_VELOCITY_DT_MS;
 }
 
 /** Project a point forward along a velocity over `ms` — the core of continuous
@@ -85,6 +98,48 @@ export function headingFromVelocity(v: Velocity, atLat: number): number | null {
   return ((bearing % 360) + 360) % 360;
 }
 
+/**
+ * Velocity implied by a platform-reported ground speed and course. Used to seed
+ * the first fix: velocity is normally differenced from two fixes, so without
+ * this the dot sits frozen for a whole fix gap every time tracking starts.
+ */
+export function velocityFromSpeedHeading(
+  speedMps: number,
+  headingDeg: number,
+  atLat: number,
+): Velocity {
+  const rad = (headingDeg * Math.PI) / 180;
+  const north = speedMps * Math.cos(rad); // m/s
+  const east = speedMps * Math.sin(rad); // m/s
+  const kx = Math.cos((atLat * Math.PI) / 180);
+  return {
+    vlat: north / M_PER_DEG_LAT / 1000,
+    // Longitude degrees shrink by cos(lat); without this the dot would drift
+    // east/west at the wrong rate everywhere except the equator.
+    vlng: kx === 0 ? 0 : east / (M_PER_DEG_LAT * kx) / 1000,
+  };
+}
+
+/** Signed shortest turn between two bearings, in (-180, 180]. Bearings wrap, so
+ *  easing from 350 to 10 naively spins the arrow the long way round. */
+export function shortestArcDeltaDeg(fromDeg: number, toDeg: number): number {
+  return (((toDeg - fromDeg) % 360) + 540) % 360 - 180;
+}
+
+/** Ease a bearing toward a target over real elapsed time. Time-based rather than
+ *  a per-frame fraction, so a dropped frame doesn't silently slow the turn. */
+export function approachBearing(
+  currentDeg: number,
+  targetDeg: number,
+  dtMs: number,
+  tauMs: number,
+): number {
+  if (dtMs <= 0 || tauMs <= 0) return currentDeg;
+  const k = 1 - Math.exp(-dtMs / tauMs);
+  const next = currentDeg + shortestArcDeltaDeg(currentDeg, targetDeg) * k;
+  return ((next % 360) + 360) % 360;
+}
+
 const M_PER_DEG_LAT = 111195;
 
 /**
@@ -113,9 +168,14 @@ export function reconcileDamp(t: number): number {
 }
 
 const VEL_SMOOTH = 0.5; // blend new velocity with previous (0..1); damps GPS noise
-// Below this per-fix displacement (~1.1m in degrees) we treat you as stationary
-// and drop velocity to zero, so the dot doesn't drift while you stand still.
-const STILL_EPS = 1e-5;
+// Below this implied ground speed we treat you as stationary, so the dot doesn't
+// drift while you stand still. A SPEED, not a displacement: a fixed distance
+// threshold only makes sense at a fixed fix rate, and with sparse noisy fixes a
+// walker covering real ground can show a tiny displacement by chance and get
+// mistaken for stopped. Sits just above useSmoothedLocation's
+// MIN_EXTRAPOLATION_SPEED so the two agree on what "stopped" means.
+const STILL_SPEED_MPS = 0.15;
+const STILL_SPEED_DEG_PER_MS = STILL_SPEED_MPS / M_PER_DEG_LAT / 1000;
 
 /**
  * Measures velocity directly from consecutive raw fixes — damped (VEL_SMOOTH)
@@ -138,9 +198,19 @@ export function createRawVelocityTracker() {
   }
 
   function update(lat: number, lng: number, ts: number): Velocity {
-    if (prevFix) {
-      const moved = Math.hypot(lat - prevFix.lat, lng - prevFix.lng);
-      const raw = moved < STILL_EPS ? { vlat: 0, vlng: 0 } : velocity(prevFix, prevFix.ts, { lat, lng }, ts);
+    // An unusable dt is not evidence of standing still and must not be blended
+    // in as though it were — at VEL_SMOOTH 0.5 each zero halves the estimate, so
+    // a run of bad deltas quietly walks a correct speed down to nothing.
+    if (prevFix && isUsableDt(ts - prevFix.ts)) {
+      const measured = velocity(prevFix, prevFix.ts, { lat, lng }, ts);
+      // Compare metric speed, not raw degree magnitude: longitude degrees shrink
+      // by cos(lat), so otherwise the deadband varies with latitude.
+      const kx = Math.cos((lat * Math.PI) / 180);
+      const speed = Math.hypot(measured.vlat, measured.vlng * kx);
+      const raw =
+        speed < STILL_SPEED_DEG_PER_MS
+          ? { vlat: 0, vlng: 0 } // genuinely stationary — this zero IS meaningful
+          : measured;
       vel = {
         vlat: VEL_SMOOTH * raw.vlat + (1 - VEL_SMOOTH) * vel.vlat,
         vlng: VEL_SMOOTH * raw.vlng + (1 - VEL_SMOOTH) * vel.vlng,

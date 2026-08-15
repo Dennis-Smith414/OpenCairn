@@ -36,8 +36,12 @@ export const OFF_ROUTE_COLOR = "#F57C00";
 // the dot keeps its normal colour; by `far` metres it is fully amber. Both scale
 // with the fix's reported accuracy, because the same 30 m offset means very
 // different things with a ±5 m fix and a ±40 m fix under canopy.
-const NEAR_FLOOR_M = 10; // never claim certainty tighter than this
-const FAR_FLOOR_M = 35; // with a pristine fix, 35 m off the line is fully amber
+//
+// Matches the dot's binding radius: if "within 25 yards" counts as on the trail
+// (see BIND_NEAR_FLOOR_M) the colour has to agree, or the dot sits on the line
+// while the colour calls it off-route.
+const NEAR_FLOOR_M = 23; // ~25 yards — inside this you are on the trail, full stop
+const FAR_FLOOR_M = 60; // with a pristine fix, 60 m off the line is fully amber
 const FAR_ACCURACY_MULT = 3; // ...and with a poor fix, 3σ before we say the same
 // Used when the platform reports no accuracy at all. Mid-range on purpose:
 // treating unknown accuracy as 0 would make the colour hair-triggered.
@@ -138,26 +142,18 @@ export function offRouteFactor(
   return easedFactor(distanceM, near, far);
 }
 
-// Deliberately tighter than offRouteFactor's ramp above. That ramp exists to
-// AVOID a false amber warning under poor accuracy, so it's generous on
-// purpose (stays "on route" out to 45-90+ m with typical 15-30 m hiking GPS
-// accuracy). Reusing it to decide whether to visually BIND the dot's POSITION
-// to the line was a bug: it bound the dot onto the trail even when the user
-// was clearly standing well off it. Binding is the opposite kind of mistake —
-// it must err toward NOT hiding a real offset — so this scales less with
-// accuracy and stays tighter in absolute terms than the colour ramp.
-//
-// An earlier version of these constants (near≈4-4.5m, far≈10-15m at typical
-// accuracy) overcorrected the other direction: real hiking GPS scatter
-// routinely reaches 10-20m even while genuinely standing on a well-marked
-// trail (GPS error compounds with the recorded trail geometry's own error),
-// so under realistic accuracy most fixes landed in "no bind" territory even
-// on-trail — reported as "isn't binding to the route" at all. Widened to
-// actually reach a meaningful bind under typical accuracy while remaining
-// clearly tighter than offRouteFactor at the same distance/accuracy (see the
-// regression test asserting that relationship holds).
-const BIND_NEAR_FLOOR_M = 6; // full bind only this close, regardless of accuracy
-const BIND_FAR_FLOOR_M = 20; // fully released by here even with a great fix
+// Tighter than offRouteFactor's ramp, and scales less with accuracy. That ramp is
+// generous on purpose so poor accuracy doesn't trigger a false amber warning;
+// reusing it to decide whether to BIND the dot's position bound it onto the trail
+// while the user stood well off it. Binding must err toward not hiding a real
+// offset.
+// Holds the dot on the trail out to ~25 yards: at that distance an offset is GPS
+// error, not a wrong turn, and a dot wandering off the line reads as broken.
+// The tradeoff is deliberate — at 23m it can show you on a parallel trail or the
+// wrong leg of a switchback. Binding still fades rather than cutting, and still
+// releases faster than the colour goes amber.
+const BIND_NEAR_FLOOR_M = 23; // ~25 yards — full bind this close, at any accuracy
+const BIND_FAR_FLOOR_M = 45; // fully released by here even with a great fix
 const BIND_ACCURACY_NEAR_MULT = 0.5;
 const BIND_ACCURACY_FAR_MULT = 1.5;
 

@@ -15,6 +15,11 @@ export interface LocationCoords {
   // null when the platform has none — Android reports 0 or -1 while stationary,
   // and callers must carry the previous heading forward rather than snap north.
   heading: number | null;
+  // Ground speed (m/s), null when unreported or stationary.
+  speed: number | null;
+  // When the platform COMPUTED this fix (epoch ms), not when JS received it —
+  // easily a few hundred ms apart.
+  ts: number;
 }
 
 export interface GeolocationOptions {
@@ -39,14 +44,11 @@ export interface UseGeolocationReturn {
   requestPermission: () => Promise<boolean>;
 }
 
-// Read a fix into LocationCoords without deriving anything: lat/lng verbatim,
-// accuracy verbatim, and heading only where the platform actually has one.
+// Reads a fix verbatim; derives nothing.
 //
-// Course over ground is undefined at zero speed, but Android's provider reports
-// bearing 0 (due north) rather than "unknown" when stationary. Passing that on
-// would swing the heading arrow north every time the user stops, so a fix with
-// no usable speed is reported as heading: null and callers keep the last known
-// heading. Nothing here is written to the recorded track.
+// Course is undefined at zero speed, but Android reports bearing 0 (due north)
+// rather than "unknown" when stationary — passing that on swings the arrow north
+// every time you stop. So a fix with no usable speed reports heading: null.
 const toLocationCoords = (position: any): LocationCoords => {
   const c = position?.coords ?? {};
 
@@ -65,7 +67,36 @@ const toLocationCoords = (position: any): LocationCoords => {
       ? ((c.heading % 360) + 360) % 360
       : null;
 
-  return { lat: c.latitude, lng: c.longitude, accuracy, heading };
+  // Epoch ms on both platforms. Falls back to arrival when a provider omits it.
+  const ts =
+    typeof position?.timestamp === "number" && Number.isFinite(position.timestamp)
+      ? position.timestamp
+      : Date.now();
+
+  // Zero speed means stationary-or-unknown and carries no direction.
+  const speed = hasCourse ? c.speed : null;
+
+  // Raw fix logging for offline analysis of a real walk. __DEV__ only.
+  //   adb logcat -s ReactNativeJS:V | grep -o 'OC_FIX .*' > trail.log
+  if (__DEV__) {
+    console.log(
+      "OC_FIX " +
+        JSON.stringify({
+          lat: c.latitude,
+          lng: c.longitude,
+          acc: accuracy,
+          hdg: heading,
+          spd: speed,
+          // Unfiltered: the fields above are nulled when there's no course.
+          rawHdg: typeof c.heading === "number" ? c.heading : null,
+          rawSpd: typeof c.speed === "number" ? c.speed : null,
+          fixTs: ts,
+          rxTs: Date.now(),
+        }),
+    );
+  }
+
+  return { lat: c.latitude, lng: c.longitude, accuracy, heading, speed, ts };
 };
 
 export const useGeolocation = (options: GeolocationOptions = {}): UseGeolocationReturn => {

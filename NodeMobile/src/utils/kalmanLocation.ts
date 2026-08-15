@@ -38,7 +38,11 @@ const EARTH_RADIUS_M = 6371000;
 // fixes (starts, stops, turns). Raise toward 1.0-1.5 if the filter feels
 // laggy on transitions; lower toward 0.2-0.3 if it jitters during steady
 // walking despite good-accuracy fixes.
-const PROCESS_NOISE_ACCEL = 0.5;
+//
+// 0.8 trusts each new fix a bit more relative to the motion model, so the anchor
+// settles onto real position changes faster. Go past ~1.0 only if it still
+// trails, and watch for jitter while standing still — the sign of going too far.
+const PROCESS_NOISE_ACCEL = 0.8;
 
 // Measurement noise floor/ceiling (meters), applied to reported GPS accuracy.
 // Floor: without it, a rare near-zero accuracy glitch (some Android HAL

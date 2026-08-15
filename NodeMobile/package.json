@@ -31,6 +31,7 @@
     "psql": "^0.0.1",
     "react": "19.1.0",
     "react-native": "^0.81.1",
+    "react-native-compass-heading": "^2.0.2",
     "react-native-device-info": "^14.1.1",
     "react-native-dotenv": "^3.4.11",
     "react-native-fs": "^2.20.0",
