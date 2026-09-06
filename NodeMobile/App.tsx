@@ -5,6 +5,7 @@ import AppNavigator from "./src/navigation/AppNavigator";
 import { RouteSelectionProvider } from "./src/context/RouteSelectionContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { DistanceUnitProvider } from "./src/context/DistanceUnitContext";
+import { LocationPreferenceProvider } from "./src/context/LocationPreferenceContext";
 import { OfflineBackendProvider } from "./src/context/OfflineContext";
 import { OfflineDbProvider } from "./src/offline/OfflineDbProvider";
 
@@ -122,7 +123,9 @@ const handler = (raw: any) => {
     <AuthProvider>
       <RouteSelectionProvider>
         <DistanceUnitProvider>
-          <AppNavigator />
+          <LocationPreferenceProvider>
+            <AppNavigator />
+          </LocationPreferenceProvider>
         </DistanceUnitProvider>
       </RouteSelectionProvider>
     </AuthProvider>

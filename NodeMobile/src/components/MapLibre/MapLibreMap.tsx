@@ -20,7 +20,7 @@ import {
   SymbolLayer,
 } from "@maplibre/maplibre-react-native";
 import { getDistanceMeters, boundsFromTracks } from "../../utils/geoUtils";
-import { colors } from "../../styles/theme";
+import { useThemeStyles } from "../../styles/theme";
 import { useOfflineBackend } from "../../context/OfflineContext";
 import { PMTILES_BASE } from "../../config/env";
 import {
@@ -208,6 +208,13 @@ interface Props {
   onCorrectedFix?: OnAnchor | null;
   // Compass bearing for the arrow — see useCompassHeading.
   compassHeadingDeg?: number | null;
+  // Master GPS on/off (Settings > Location). When false, the native
+  // <UserLocation> component isn't even mounted — it runs its own location
+  // subscription independent of useGeolocation, so simply not feeding it a
+  // userLocation prop wouldn't stop it — and the smoothed dot is force-
+  // disabled so it can't keep gliding from a stale fix. Default true so
+  // existing callers that don't pass this keep working unchanged.
+  locationTrackingEnabled?: boolean;
   onMapReady?: () => void;
   onMapLongPress?: (lat: number, lon: number) => void;
   waypoints?: Waypoint[];
@@ -382,6 +389,7 @@ const MapLibreMap: React.FC<Props> = ({
   userSpeed = null,
   onCorrectedFix = null,
   compassHeadingDeg = null,
+  locationTrackingEnabled = true,
   onMapReady,
   onMapLongPress,
   waypoints = [],
@@ -389,6 +397,8 @@ const MapLibreMap: React.FC<Props> = ({
   showTrackingButton = true,
   progressMap = {},
 }) => {
+  const { colors } = useThemeStyles();
+  const styles = createStyles(colors);
   const cameraRef = useRef<any>(null);
   const [tracking, setTracking] = useState<boolean>(true);
   const zoomRef = useRef<number>(zoom ?? DEFAULT_ZOOM);
@@ -875,22 +885,30 @@ const MapLibreMap: React.FC<Props> = ({
         {/* User location. When DOT_MODE is "dead-reckon" or "kalman", the native
             puck is HIDDEN but kept mounted so its onUpdate keeps feeding fixes to
             the smoother; the gliding dot below is drawn instead. Set DOT_MODE to
-            "native" to show the native puck again (the known-good fallback). */}
-        <UserLocation
-          visible={DOT_MODE === "native"}
-          renderMode="native"
-          androidRenderMode="compass"
-          showsUserHeadingIndicator={true}
-          onUpdate={onUserLocUpdate}
-        />
+            "native" to show the native puck again (the known-good fallback).
+            Not mounted at all when locationTrackingEnabled is false: this
+            component runs its own native location subscription independent of
+            useGeolocation, so merely hiding it wouldn't stop GPS usage. */}
+        {locationTrackingEnabled && (
+          <UserLocation
+            visible={DOT_MODE === "native"}
+            renderMode="native"
+            androidRenderMode="compass"
+            showsUserHeadingIndicator={true}
+            onUpdate={onUserLocUpdate}
+          />
+        )}
 
         {/* Smoothed (interpolated) location dot — display only.
             The coordinates are the smoothed REAL position: interpolated between
             consecutive raw fixes so the dot glides, never relocated onto a route.
             A dot pulled onto the line would hide from a lost user that they are
-            off it, so the only thing the loaded route changes here is `dotColor`. */}
+            off it, so the only thing the loaded route changes here is `dotColor`.
+            Force-disabled (not just fed a null userLocation) when GPS is off:
+            its internal glide keeps extrapolating from the last known fix
+            otherwise, which would drift instead of actually disappearing. */}
         <SmoothedUserDot
-          enabled={DOT_MODE !== "native"}
+          enabled={DOT_MODE !== "native" && locationTrackingEnabled}
           userLocation={userLocation}
           userAccuracy={userAccuracy}
           userHeading={userHeading}
@@ -927,19 +945,21 @@ const MapLibreMap: React.FC<Props> = ({
         <Text style={styles.zoomTxt}>◎</Text>
       </TouchableOpacity>
 
-      {/* Follow-me pill */}
+      {/* Follow-me pill. Forced to its grey/off look (and made a no-op) when
+          GPS itself is off — "Tracking" in green would be a lie with no
+          location to follow. */}
       {showTrackingButton && (
         <TouchableOpacity
           testID="map-tracking-pill"
-          onPress={tracking ? undefined : enableTracking}
+          onPress={!locationTrackingEnabled || tracking ? undefined : enableTracking}
           activeOpacity={0.85}
-          style={[styles.pill, tracking ? styles.pillOn : styles.pillOff]}
+          style={[styles.pill, tracking && locationTrackingEnabled ? styles.pillOn : styles.pillOff]}
         >
           <View
-            style={[styles.dot, tracking ? styles.dotOn : styles.dotOff]}
+            style={[styles.dot, tracking && locationTrackingEnabled ? styles.dotOn : styles.dotOff]}
           />
           <Text style={styles.pillText}>
-            {tracking ? "Tracking" : "Enable Tracking"}
+            {!locationTrackingEnabled ? "Location Off" : tracking ? "Tracking" : "Enable Tracking"}
           </Text>
         </TouchableOpacity>
       )}
@@ -947,63 +967,68 @@ const MapLibreMap: React.FC<Props> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1 },
 
-  pill: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  pillOn: { backgroundColor: "rgba(230,255,240,0.95)" },
-  pillOff: { backgroundColor: "rgba(255,255,255,0.95)" },
-  pillText: { fontSize: 13, fontWeight: "600" },
+    pill: {
+      position: "absolute",
+      top: 12,
+      left: 12,
+      backgroundColor: colors.backgroundAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 4,
+    },
+    pillOn: { backgroundColor: "rgba(40,167,69,0.16)" },
+    pillOff: { backgroundColor: colors.backgroundAlt },
+    pillText: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
 
-  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  dotOn: { backgroundColor: "#22c55e" },
-  dotOff: { backgroundColor: "#999" },
+    dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+    dotOn: { backgroundColor: colors.success },
+    dotOff: { backgroundColor: "#9CA3AF" },
 
-  zoomGroup: {
-    position: "absolute",
-    right: 12,
-    bottom: 575,
-    gap: 8,
-  },
-  zoomBtn: {
-    backgroundColor: "rgba(255,255,255,0.95)",
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  zoomTxt: { fontSize: 22, fontWeight: "700" },
+    zoomGroup: {
+      position: "absolute",
+      right: 12,
+      bottom: 575,
+      gap: 8,
+    },
+    zoomBtn: {
+      backgroundColor: colors.backgroundAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      width: 40,
+      height: 40,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    },
+    zoomTxt: { fontSize: 22, fontWeight: "700", color: colors.textPrimary },
 
-  centerBtn: {
-    position: "absolute",
-    right: 12,
-    bottom: 525,
-    zIndex: 10,
-    elevation: 4,
-  },
+    centerBtn: {
+      position: "absolute",
+      right: 12,
+      bottom: 525,
+      zIndex: 10,
+      elevation: 4,
+    },
 
-  centerTxt: { fontSize: 18, fontWeight: "700" },
-});
+    centerTxt: { fontSize: 18, fontWeight: "700" },
+  });
 
 export default MapLibreMap;

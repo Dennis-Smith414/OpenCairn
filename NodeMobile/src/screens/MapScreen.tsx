@@ -3,11 +3,12 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useRouteSelection } from "../context/RouteSelectionContext";
+import { useLocationPreference } from "../context/LocationPreferenceContext";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useCompassHeading } from "../hooks/useCompassHeading";
 import { fetchRouteGeo } from "../lib/api";
 import { featureCollectionToSegments } from "../utils/geoUtils";
-import { colors } from "../styles/theme";
+import { colors, useThemeStyles } from "../styles/theme";
 import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
@@ -45,6 +46,9 @@ const calculateDistance = (coord1: LatLng, coord2: LatLng): number => {
 const MapScreen: React.FC = () => {
   const { selectedRouteIds, selectedRoutes } = useRouteSelection();
   const navigation = useNavigation<any>();
+  const { locationEnabled, isLoaded: locationPrefLoaded } = useLocationPreference();
+  const { colors: themeColors } = useThemeStyles();
+  const styles = createStyles(themeColors);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [waypoints, setWaypoints] = useState<any[]>([]);
@@ -68,8 +72,6 @@ const MapScreen: React.FC = () => {
     stopWatching,
   } = useGeolocation({
     enableHighAccuracy: true,
-    // Tighter than before (was 5m / 3s) so the dot updates ~1/sec and the
-    // smoothed dot has fresh, frequent targets to glide toward on a walk.
     distanceFilter: 2,
     interval: 1000,
     showPermissionAlert: true,
@@ -154,7 +156,14 @@ const MapScreen: React.FC = () => {
   }, [JSON.stringify(selectedRouteIds)]);
 
   // ---- Init location tracking ----
+  // Gated on the user's Location setting: while it's off (or hasn't loaded
+  // yet), this never requests permission or starts a watch at all — a real
+  // off switch, not just a hidden dot. Toggling it in Settings while this
+  // screen is mounted starts/stops the watch immediately, since this effect
+  // re-runs whenever `locationEnabled` changes.
   useEffect(() => {
+    if (!locationPrefLoaded || !locationEnabled) return;
+
     let mounted = true;
     const initLocationTracking = async () => {
       const hasPermission = await requestPermission();
@@ -176,9 +185,10 @@ const MapScreen: React.FC = () => {
       mounted = false;
       if (watchIdRef.current !== null) {
         stopWatching(watchIdRef.current);
+        watchIdRef.current = null;
       }
     };
-  }, [requestPermission, startWatching, stopWatching, getCurrentLocation]);
+  }, [locationEnabled, locationPrefLoaded, requestPermission, startWatching, stopWatching, getCurrentLocation]);
 
   useEffect(() => {
     if (location && !initialLocationLoaded) setInitialLocationLoaded(true);
@@ -234,12 +244,12 @@ const MapScreen: React.FC = () => {
   
   //Fix the infite rendering error
   const userLocation = useMemo<LatLng | null>(
-    () => (location ? [location.lat, location.lng] : null),
-    [location?.lat, location?.lng]
+    () => (locationEnabled && location ? [location.lat, location.lng] : null),
+    [locationEnabled, location?.lat, location?.lng]
   );
   const mapCenter = userLocation || DEFAULT_CENTER;
-  const showLocationLoading = locationLoading && !initialLocationLoaded;
-  const showError = error || (locationError && !initialLocationLoaded);
+  const showLocationLoading = locationEnabled && locationLoading && !initialLocationLoaded;
+  const showError = error || (locationEnabled && locationError && !initialLocationLoaded);
 
   // How far along each loaded GPX route the user has walked. The actual
   // seeding/window/monotonic-forward state machine lives in
@@ -347,6 +357,7 @@ const MapScreen: React.FC = () => {
         userSpeed={location?.speed ?? null}
         onCorrectedFix={onCorrectedFix}
         compassHeadingDeg={compass?.heading ?? null}
+        locationTrackingEnabled={locationEnabled}
         autoFitOnTracks
         center={mapCenter}
         zoom={DEFAULT_ZOOM}
@@ -443,19 +454,21 @@ const MapScreen: React.FC = () => {
 };
 
 
-const styles = StyleSheet.create({
+const createStyles = (themeColors: any) => StyleSheet.create({
   container: { flex: 1 },
   trackerToggleButton: {
     position: 'absolute',
     bottom: 450,
     right: 6,
-    backgroundColor: '#fff', 
+    backgroundColor: themeColors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: themeColors.border,
     width: 52,
     height: 52,
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    
+
     // Shadow/Elevation
     elevation: 5,
     shadowColor: '#000',
@@ -467,13 +480,13 @@ const styles = StyleSheet.create({
 
   toggleButtonText: {
     fontSize: 26,
-    color: '#000', 
+    color: themeColors.textPrimary,
     textAlign: 'center',
   },
 
   toggleButtonIcon: {
     fontSize: 28,
-    color: '#000', 
+    color: themeColors.textPrimary,
   },
   overlay: {
     position: "absolute",

@@ -5,6 +5,7 @@ import { useThemeStyles, useThemeOverride, setThemeOverride } from "../styles/th
 import { createGlobalStyles } from '../styles/globalStyles';
 import { useDistanceUnit } from "../context/DistanceUnitContext";
 import { useAuth } from "../context/AuthContext";
+import { useLocationPreference } from "../context/LocationPreferenceContext";
 
 export default function SettingsScreen() {
   const { colors } = useThemeStyles();
@@ -16,6 +17,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation();
   const { logout } = useAuth();
   const toggleUnit = (value: boolean) => setUnit(value ? "km" : "mi");
+  const { locationEnabled, setLocationEnabled } = useLocationPreference();
 
   // Dark Mode switch: ON = force dark, OFF = follow system
   const darkSwitchValue = themeOverride === "dark";
@@ -69,6 +71,25 @@ export default function SettingsScreen() {
           {darkSwitchValue
             ? "Forced dark theme is ON."
             : `Following system theme (${isDark ? "dark" : "light"}).`}
+        </Text>
+      </View>
+
+      {/* Location / GPS */}
+      <View style={[globalStyles.section, { marginTop: 16 }]}>
+        <View style={globalStyles.row}>
+          <Text style={globalStyles.label}>Location</Text>
+          <Switch
+            testID="settings-location-toggle"
+            value={locationEnabled}
+            onValueChange={setLocationEnabled}
+            trackColor={{ false: "#ccc", true: colors.primary }}
+            thumbColor={locationEnabled ? colors.secondary : "#f4f3f4"}
+          />
+        </View>
+        <Text style={globalStyles.subLabel}>
+          {locationEnabled
+            ? "GPS is on. Location tracking will be used."
+            : "GPS is off. Open Cairn will no longer be using your location."}
         </Text>
       </View>
 
