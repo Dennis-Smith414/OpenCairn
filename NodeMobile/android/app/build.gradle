@@ -19,6 +19,21 @@ def versionMajor = Integer.parseInt(versionProperties['VERSION_MAJOR'])
 def versionMinor = Integer.parseInt(versionProperties['VERSION_MINOR']) 
 def versionPatch = Integer.parseInt(versionProperties['VERSION_PATCH'])
 
+if (project.hasProperty('ocVersionName')) {
+    def m = (project.ocVersionName =~ /^(\d+)\.(\d+)\.(\d+)$/)
+    if (!m.matches()) {
+        throw new GradleException(
+            "ocVersionName must be MAJOR.MINOR.PATCH, got '${project.ocVersionName}'")
+    }
+    versionMajor = Integer.parseInt(m.group(1))
+    versionMinor = Integer.parseInt(m.group(2))
+    versionPatch = Integer.parseInt(m.group(3))
+    if (versionMinor > 99 || versionPatch > 99) {
+        throw new GradleException(
+            "minor and patch must each stay under 100 — versionCode is major*10000 + minor*100 + patch")
+    }
+}
+
 project.ext.versionName = "${versionMajor}.${versionMinor}.${versionPatch}"
 project.ext.versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
 // === END VERSION CONFIGURATION ===
@@ -102,6 +117,21 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def releaseSigningReady = ['MYAPP_RELEASE_STORE_FILE',
+                           'MYAPP_RELEASE_STORE_PASSWORD',
+                           'MYAPP_RELEASE_KEY_ALIAS',
+                           'MYAPP_RELEASE_KEY_PASSWORD'].every { project.hasProperty(it) }
+
+gradle.taskGraph.whenReady { graph ->
+    def buildingRelease = graph.allTasks.any { it.name ==~ /(?i).*(assemble|bundle|install|package)Release.*/ }
+    if (buildingRelease && !releaseSigningReady) {
+        throw new GradleException(
+            "Refusing to build release: signing credentials are missing.\n" +
+            "Set ORG_GRADLE_PROJECT_MYAPP_RELEASE_STORE_FILE, _STORE_PASSWORD, _KEY_ALIAS " +
+            "and _KEY_PASSWORD.")
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion buildToolsVersion
@@ -130,7 +160,7 @@ android {
     }
     signingConfigs {
         release {
-            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
+            if (releaseSigningReady) {
                 storeFile file(MYAPP_RELEASE_STORE_FILE)
                 storePassword MYAPP_RELEASE_STORE_PASSWORD
                 keyAlias MYAPP_RELEASE_KEY_ALIAS
@@ -153,7 +183,7 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
