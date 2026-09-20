@@ -1,0 +1,102 @@
+name: Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, e.g. 0.0.14 (no leading v)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: e2e-self-hosted
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  ANDROID_HOME: /opt/android-sdk
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  KEYSTORE_PATH: /opt/opencairn/secrets/opencairn-release.keystore
+
+jobs:
+  release:
+    runs-on: [self-hosted, host-kvm]
+    timeout-minutes: 60
+
+    steps:
+      - name: Only Dennis-Smith414 may publish releases
+        if: github.actor != 'Dennis-Smith414'
+        run: |
+          echo "::error::${{ github.actor }} is not permitted to run this workflow."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Validate version
+        run: |
+          set -euo pipefail
+          if [[ ! "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${{ inputs.version }}' must be MAJOR.MINOR.PATCH with no leading v"
+            exit 1
+          fi
+
+     # Releases are always prod.
+      - name: Write env.ts
+        run: |
+          cat > NodeMobile/src/config/env.ts <<'EOF'
+          // GENERATED IN CI — do not commit
+          const TARGET = 'prod';
+          const SERVERS = {
+            prod: 'https://api.opencairn.xyz',
+          } as const;
+          export const API_BASE = SERVERS[TARGET];
+          export const OFFLINE_API_BASE = "http://10.0.2.2:5101";
+          export const PMTILES_BASE = "http://127.0.0.1:5200";
+          EOF
+
+      # npm install
+      - name: Install JS deps
+        run: cd NodeMobile && npm install --no-audit --no-fund
+
+      - name: Build signed APK
+        env:
+          ORG_GRADLE_PROJECT_MYAPP_RELEASE_STORE_FILE: ${{ env.KEYSTORE_PATH }}
+          ORG_GRADLE_PROJECT_MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd NodeMobile/android
+          ./gradlew --no-daemon :app:assembleRelease -PocVersionName="${{ inputs.version }}"
+
+      - name: Verify it is not the debug key
+        id: verify
+        run: |
+          set -euo pipefail
+          APK="NodeMobile/android/app/build/outputs/apk/release/OpenCairnV${{ inputs.version }}.apk"
+          [ -f "$APK" ] || { echo "::error::No APK at $APK"; exit 1; }
+          APKSIGNER=$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | tee certs.txt
+          if grep -qi 'CN=Android Debug' certs.txt; then
+            echo "::error::Signed with the Android debug key. Refusing to publish."
+            exit 1
+          fi
+          sha256sum "$APK" | cut -d' ' -f1 > "$APK.sha256"
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="${{ steps.verify.outputs.apk }}"
+          ARGS=(--title "OpenCairn ${{ inputs.version }}" --generate-notes --target "$GITHUB_SHA")
+          if [ "${{ inputs.prerelease }}" = "true" ]; then ARGS+=(--prerelease); fi
+          gh release create "v${{ inputs.version }}" "$APK" "$APK.sha256" "${ARGS[@]}"
