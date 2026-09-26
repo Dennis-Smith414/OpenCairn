@@ -26,3 +26,10 @@ jobs:
           CI: true
           API_BASE: ${{ secrets.API_BASE }}
 
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: NodeMobile/reports
+          if-no-files-found: ignore

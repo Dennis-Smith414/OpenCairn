@@ -5,15 +5,14 @@ name: E2E (self-hosted)
 #   hermetic docker backend (postgis + backend + seed on host :5102)
 #   + headless emulator (swiftshader) + detox build/test.
 #
-# Manual-trigger (workflow_dispatch) plus a TEMPORARY push trigger on the
-# ci/e2e-workflow branch so we can iterate to a first green run without
-# merging an unproven workflow into main. Remove the `push:` block before
-# merging. Later this becomes the RELEASE gate (see plan WS1b / WS3); fast
-# CRUD tests are the PR gate and run hosted, not here.
+# Runs on every push to main, manually, and as the gate called by release.yml
+# (workflow_call) so a release can't be built from a commit that fails E2E.
+# Fast unit/API tests are the PR gate and run hosted (test.yml), not here.
 on:
   workflow_dispatch:
+  workflow_call:
   push:
-    branches: [ci/e2e-workflow]   # TEMP — strip before merge to main
+    branches: [main]
 
 # One E2E run at a time — the box has a single emulator lane (16GB / one KVM).
 concurrency:
@@ -168,6 +167,14 @@ jobs:
       - name: Install JS deps
         run: cd NodeMobile && npm ci
 
+      # Jest API + pure-logic tests against the same hermetic backend the
+      # emulator uses, so they never touch a live server.
+      - name: Jest API + unit tests
+        env:
+          CI: 'true'
+          API_BASE: http://localhost:5102
+        run: cd NodeMobile && npx jest
+
       - name: Detox build
         run: cd NodeMobile && npx detox build -c "$DETOX_CONFIG"
 
@@ -234,13 +241,21 @@ jobs:
           pkill -f "react-native start" || true
           pkill -f qemu-system || true
 
-      - name: Upload artifacts (screens/logs on failure)
+      - name: Publish test summary
+        if: always()
+        run: |
+          cd NodeMobile
+          node scripts/junit-summary.js "Jest API + unit" reports/junit/unit-results.xml >> "$GITHUB_STEP_SUMMARY"
+          node scripts/junit-summary.js "Detox E2E" reports/junit/e2e-results.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-artifacts
           path: |
             NodeMobile/artifacts
+            NodeMobile/reports
             ${{ runner.temp }}/emulator.log
             ${{ runner.temp }}/metro.log
             ${{ runner.temp }}/diag

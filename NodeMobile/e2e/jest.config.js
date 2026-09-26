@@ -6,7 +6,10 @@ module.exports = {
   maxWorkers: 1,
   globalSetup: 'detox/runners/jest/globalSetup',
   globalTeardown: 'detox/runners/jest/globalTeardown',
-  reporters: ['detox/runners/jest/reporter'],
+  reporters: [
+    'detox/runners/jest/reporter',
+    ['jest-junit', { outputDirectory: 'reports/junit', outputName: 'e2e-results.xml' }],
+  ],
   testEnvironment: 'detox/runners/jest/testEnvironment',
   setupFiles: ['<rootDir>/e2e/setup-env.js'],
   setupFilesAfterEnv: ['<rootDir>/e2e/setup-after-env.js'],
