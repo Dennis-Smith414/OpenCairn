@@ -1,5 +1,9 @@
-const { execSync } = require('child_process');
 const path = require('path');
+const { adb } = require('./utils/adb');
+const { waitForAnchorNear } = require('./utils/waitForAnchor');
+
+// Metres. Emulator mock fixes carry noise plus the Kalman floor (3 m); tune from CI.
+const ANCHOR_TOLERANCE_M = 15;
 
 jest.setTimeout(300000);
 
@@ -12,9 +16,9 @@ describe('hiking flow', () => {
 		});
 		// delete:true wipes the app's scoped-storage dir; recreate it (needs `adb root`,
 		// done in CI emulator setup) so the push lands instead of silently no-op'ing.
-		execSync('adb shell mkdir -p /sdcard/Android/data/com.nodemobile/files');
+		await adb(['shell', 'mkdir', '-p', '/sdcard/Android/data/com.nodemobile/files'], { timeoutMs: 10000, label: 'mkdir' });
 		const gpxSrc = path.resolve(__dirname, '../__tests__/Downer_Woods.gpx');
-		execSync(`adb push "${gpxSrc}" /sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx`);
+		await adb(['push', gpxSrc, '/sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx'], { timeoutMs: 15000, label: 'push-gpx' });
 	});
 
 	it('Login, create route, simulate hiking, delete route, logout', async () => {
@@ -65,6 +69,7 @@ describe('hiking flow', () => {
 		await element(by.text('Add to Map')).tap();
 		await waitFor(element(by.text('Added to Map'))).toBeVisible().withTimeout(5000);
 		await element(by.text('OK')).tap();
+		await device.enableSynchronization();
 		await element(by.id('tab-map')).tap();
 
 		await waitFor(element(by.id('trip-tracker-start-pause-button'))).toBeVisible().withTimeout(15000);
@@ -122,8 +127,9 @@ describe('hiking flow', () => {
 
 		const checkpoints = [coords[0], coords[5], coords[10], coords[15], coords[20], coords[25], coords[30], coords[35], coords[40], coords[44]];
 		for (const [lat, lon] of checkpoints) {
-			execSync(`adb emu geo fix ${lon} ${lat}`);
-			await new Promise(resolve => setTimeout(resolve, 8000));
+			await adb(['emu', 'geo', 'fix', String(lon), String(lat)], { timeoutMs: 5000, label: 'geo-fix' });
+			const seen = await waitForAnchorNear(lat, lon, ANCHOR_TOLERANCE_M, 8000);
+			console.log(`[TEST] checkpoint (${lat}, ${lon}) anchor error ${seen.distM.toFixed(1)} m`);
 		}
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
@@ -139,7 +145,6 @@ describe('hiking flow', () => {
 		await element(by.id('account-settings-button')).tap();
 		await waitFor(element(by.id('settings-logout-button'))).toBeVisible().withTimeout(10000);
 		await element(by.id('settings-logout-button')).tap();
-		await device.enableSynchronization();
 		await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(10000);
 		console.log('[TEST] PASS');
 	});

@@ -23,6 +23,7 @@ import {
   Velocity,
 } from "../utils/locationSmoothing";
 import { LocationEstimator } from "../utils/kalmanLocation";
+import { isE2E } from "../utils/isE2E";
 
 export interface SmoothedLocation {
   lat: number;
@@ -47,8 +48,12 @@ interface Reconcile {
 
 // Full speed for HOLD, then ramp down to a standstill over EASE. A hard cutoff
 // stops the dot dead mid-stride, which reads as a freeze.
-const EXTRAPOLATION_HOLD_MS = 5500;
-const EXTRAPOLATION_EASE_MS = 4000;
+//
+// Under Detox the coast window collapses so the frame loop idles right after each
+// fix; otherwise fixes arriving faster than 9.5s keep it busy forever and Detox
+// synchronization never settles. EASE stays >= 1 to keep the ramp division finite.
+const EXTRAPOLATION_HOLD_MS = isE2E ? 0 : 5500;
+const EXTRAPOLATION_EASE_MS = isE2E ? 1 : 4000;
 
 /** Integral of the velocity ramp above. Saturates at HOLD + EASE/2. */
 export function effectiveElapsedMs(ms: number): number {
@@ -84,7 +89,7 @@ export function reconcileDurationMs(errM: number): number {
 const RECONCILE_SNAP_THRESHOLD_M = 50;
 
 // ~63% of a turn covered in this long, so a 90-degree bend takes about a second.
-const HEADING_SMOOTH_TAU_MS = 400;
+const HEADING_SMOOTH_TAU_MS = isE2E ? 20 : 400;
 
 // ~30fps. Not a frame budget — the animation loop still runs at display rate.
 // Limits only how often state crosses into React and the native bridge, which at

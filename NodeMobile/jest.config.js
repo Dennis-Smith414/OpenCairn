@@ -14,7 +14,12 @@ module.exports = {
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/__tests__/setup.js',
+    '<rootDir>/e2e/',                      // Detox specs run only via `npx detox test`
   ],
+
+  reporters: process.env.CI
+    ? ['default', ['jest-junit', { outputDirectory: 'reports/junit', outputName: 'unit-results.xml' }]]
+    : ['default'],
 
   // Stable defaults for RN + Jest
   transformIgnorePatterns: [

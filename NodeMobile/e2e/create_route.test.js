@@ -1,5 +1,5 @@
-const { execSync } = require('child_process');
 const path = require('path');
+const { adb } = require('./utils/adb');
 
 describe('create_route flow', () => {
 	beforeAll(async () => {
@@ -10,9 +10,9 @@ describe('create_route flow', () => {
 		});
 		// delete:true wipes the app's scoped-storage dir; recreate it (needs `adb root`,
 		// done in CI emulator setup) so the push lands instead of silently no-op'ing.
-		execSync('adb shell mkdir -p /sdcard/Android/data/com.nodemobile/files');
+		await adb(['shell', 'mkdir', '-p', '/sdcard/Android/data/com.nodemobile/files'], { timeoutMs: 10000, label: 'mkdir' });
 		const gpxSrc = path.resolve(__dirname, '../__tests__/Downer_Woods.gpx');
-		execSync(`adb push "${gpxSrc}" /sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx`);
+		await adb(['push', gpxSrc, '/sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx'], { timeoutMs: 15000, label: 'push-gpx' });
 	});
 
 	it('Login, create_route, delete route, log out', async () => {
