@@ -5,14 +5,8 @@ const { waitForAnchorNear } = require('./utils/waitForAnchor');
 // Metres. Emulator mock fixes carry noise plus the Kalman floor (3 m); tune from CI.
 const ANCHOR_TOLERANCE_M = 15;
 
-// Unique per run so a route orphaned by this test dying mid-way (e.g. the map
-// screen hanging) can never collide with another spec's "Test Route" and make
-// by.id/by.text matchers ambiguous.
 const ROUTE_NAME = `Test Route ${Date.now()}`;
 
-// Module scope (not inside the test) so beforeAll can seed coords[0] before
-// the app ever launches — see the geo-fix call there for why that ordering
-// matters.
 const coords = [
 	[43.07965296605701, -87.88083743465967],
 	[43.079833164515634, -87.8807891508093],
@@ -65,16 +59,6 @@ jest.setTimeout(300000);
 
 describe('hiking flow', () => {
 	beforeAll(async () => {
-		// Seed the emulator's mock GPS BEFORE the app ever launches. The Kalman
-		// estimator (MapLibreMap.tsx) locks its local-meter reference frame to
-		// the very FIRST fix it ever receives — which arrives as soon as the map
-		// screen mounts, well before this test's own geo-fix loop runs. The
-		// emulator's mock location otherwise persists across app
-		// installs/launches (it's emulator-global state, not app state), so
-		// without this, the filter's reference point is whatever was last set
-		// by an unrelated prior run — and it never fully recovers from that
-		// within just 10 checkpoints (that's what the Kalman gain does: each
-		// fix only closes PART of the gap, not all of it).
 		await adb(['emu', 'geo', 'fix', String(coords[0][1]), String(coords[0][0])], { timeoutMs: 5000, label: 'geo-fix-seed' });
 
 		await device.launchApp({
@@ -139,12 +123,6 @@ describe('hiking flow', () => {
 		await element(by.text('OK')).tap();
 		await device.enableSynchronization();
 
-		// isE2E has been permanently false (see isE2E.ts fix), so the location
-		// extrapolation coast window never collapsed to its E2E-tuned value and
-		// kept scheduling animation frames well past each GPS fix — Espresso's
-		// idle-sync check never settled once we hit this screen, so it waited
-		// forever instead of timing out. Belt-and-suspenders even after that fix:
-		// stay desynced through the nav + initial render.
 		await device.disableSynchronization();
 		await element(by.id('tab-map')).tap();
 		await waitFor(element(by.id('trip-tracker-start-pause-button'))).toBeVisible().withTimeout(15000);
@@ -162,14 +140,6 @@ describe('hiking flow', () => {
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
 
-		// Same idle-sync issue as the tab-map nav above, and it doesn't end at
-		// tab-account: React Navigation's bottom tab navigator keeps MapScreen
-		// MOUNTED in the background when you switch tabs (it doesn't unmount),
-		// so its busy loop (recurring timers — compass/location watch, not a
-		// bug) keeps running no matter which screen is visible, for the rest of
-		// this test. Re-enabling sync on tab-account only moved the hang to the
-		// very next action (My Routes). Stay desynced through the whole rest of
-		// the flow instead of chasing each individual tap.
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
 		await element(by.text('My Routes')).tap();
@@ -182,8 +152,6 @@ describe('hiking flow', () => {
 		await waitFor(element(by.id('settings-logout-button'))).toBeVisible().withTimeout(10000);
 		await element(by.id('settings-logout-button')).tap();
 		await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(10000);
-		// Logged out: the tab navigator (and MapScreen with it) is torn down,
-		// so it's safe to leave synchronization on for whatever runs next.
 		await device.enableSynchronization();
 		console.log('[TEST] PASS');
 	});

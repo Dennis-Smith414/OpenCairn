@@ -1,9 +1,6 @@
 const path = require('path');
 const { adb } = require('./utils/adb');
 
-// Unique per run so a route orphaned by another spec dying mid-test (e.g. a
-// hung hiking.test.js leaving its own "Test Route" behind) can never collide
-// with this test's route name and make by.id/by.text matchers ambiguous.
 const ROUTE_NAME = `Test Route ${Date.now()}`;
 
 describe('create_route flow', () => {

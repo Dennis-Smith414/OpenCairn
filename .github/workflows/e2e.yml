@@ -33,10 +33,6 @@ jobs:
     # the default self-hosted/linux/x64 labels.
     runs-on: [self-hosted, host-kvm]
     timeout-minutes: 60
-    # Test identity lives in repo secrets now — rotate here + in the backend
-    # repo's docker-compose.yml seed service (same two values, kept in sync
-    # by hand). If these two ever drift apart, Detox login 400s with
-    # "Invalid email or password".
     env:
       TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
       TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
@@ -85,10 +81,6 @@ jobs:
           export const OFFLINE_API_BASE = "http://10.0.2.2:5101";
           export const PMTILES_BASE = "http://127.0.0.1:5200";
           EOF
-          # E2E=true is read by src/utils/isE2E.ts via react-native-dotenv,
-          # baked into the JS bundle at Metro/babel transform time — it's how
-          # the app knows it's under Detox (there's no native-module signal
-          # to check at runtime; see isE2E.ts for why).
           printf 'TEST_EMAIL=%s\nTEST_PASSWORD=%s\nE2E=true\n' "$TEST_EMAIL" "$TEST_PASSWORD" > NodeMobile/.env
 
       # Fresh clone of the backend stack each run (hermetic). Uses the runner's
@@ -175,11 +167,7 @@ jobs:
         run: cd NodeMobile && npm ci
 
       # Jest API + pure-logic tests against the same hermetic backend the
-      # emulator uses, so they never touch a live server. report.test.js is
-      # skipped (via jest.config.js, not a CLI flag — `--testPathIgnorePatterns`
-      # on the CLI REPLACES the config array instead of merging, which un-ignores
-      # e2e/ and __tests__/setup.js and breaks this step): it needs the backend's
-      # OpenAI moderation call, which the hermetic stack has no key or network path for.
+      # emulator uses, so they never touch a live server.
       - name: Jest API + unit tests
         env:
           CI: 'true'

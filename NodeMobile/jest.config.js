@@ -15,7 +15,7 @@ module.exports = {
     '<rootDir>/node_modules/',
     '<rootDir>/__tests__/setup.js',
     '<rootDir>/e2e/',                      // Detox specs run only via `npx detox test`
-    '<rootDir>/__tests__/report.test.js',  // needs the backend's OpenAI moderation call, which the hermetic stack has no key/network path for
+    '<rootDir>/__tests__/report.test.js',
   ],
 
   reporters: process.env.CI
