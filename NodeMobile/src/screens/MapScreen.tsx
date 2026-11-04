@@ -12,6 +12,7 @@ import { fetchWaypoints, fetchWaypoint } from "../lib/waypoints";
 import { WaypointPopup } from "../components/MapLibre/WaypointPopup";
 import { WaypointDetail } from "../components/MapLibre/WaypointDetail";
 import TripTracker from '../components/TripTracker/TripTracker';
+import { isE2E } from "../utils/isE2E";
 // NEW: MapLibre map component (Leaflet-compatible props)
 import MapLibreMap, { LatLng, Track, ProgressPoint } from "../components/MapLibre/MapLibreMap";
 import {
@@ -388,6 +389,15 @@ const MapScreen: React.FC = () => {
         visible={showTripTracker && !showWaypointDetail}
       />
     )}
+
+      {isE2E && (
+        <Text
+          testID="e2e-anchor-debug"
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+        >
+          {correctedFix ? JSON.stringify(correctedFix) : ""}
+        </Text>
+      )}
 
       {(loading || showLocationLoading) && (
         <View style={styles.overlay}>

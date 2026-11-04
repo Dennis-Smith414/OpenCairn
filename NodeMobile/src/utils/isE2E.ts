@@ -1,6 +1,5 @@
-import { NativeModules } from 'react-native';
+import { E2E } from '@env';
 
-console.log('[isE2E] NativeModules keys:', Object.keys(NativeModules).join(', '));
-console.log('[isE2E] DetoxSync:', NativeModules.DetoxSync);
+console.log('[isE2E] @env E2E =', E2E);
 
-export const isE2E: boolean = NativeModules.DetoxSync != null;
+export const isE2E: boolean = E2E === 'true';

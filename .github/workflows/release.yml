@@ -13,10 +13,6 @@ on:
         type: boolean
         default: false
 
-concurrency:
-  group: e2e-self-hosted
-  cancel-in-progress: false
-
 permissions:
   contents: write
 
@@ -26,7 +22,18 @@ env:
   KEYSTORE_PATH: /opt/opencairn/secrets/opencairn-release.keystore
 
 jobs:
+  # The release is only built if the full suite passes on this commit.
+  e2e:
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+
   release:
+    needs: e2e
+    # Job-level (not workflow-level): the called e2e workflow holds this same
+    # group, and a shared workflow-level group would deadlock the two.
+    concurrency:
+      group: e2e-self-hosted
+      cancel-in-progress: false
     runs-on: [self-hosted, host-kvm]
     timeout-minutes: 60
 

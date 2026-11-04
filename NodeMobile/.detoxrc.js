@@ -9,6 +9,14 @@ module.exports = {
       setupTimeout: 120000,
     },
   },
+  artifacts: {
+    rootDir: './artifacts',
+    plugins: {
+      log: { enabled: true },
+      screenshot: { enabled: true, shouldTakeAutomaticSnapshots: true, keepOnlyFailedTestsArtifacts: true, takeWhen: { testStart: false, testDone: true, appNotReady: true } },
+      video: { enabled: true, keepOnlyFailedTestsArtifacts: true },
+    },
+  },
   apps: {
     'android.debug': {
       type: 'android.apk',

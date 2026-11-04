@@ -1,5 +1,7 @@
-const { execSync } = require('child_process');
 const path = require('path');
+const { adb } = require('./utils/adb');
+
+const ROUTE_NAME = `Test Route ${Date.now()}`;
 
 describe('create_route flow', () => {
 	beforeAll(async () => {
@@ -10,9 +12,9 @@ describe('create_route flow', () => {
 		});
 		// delete:true wipes the app's scoped-storage dir; recreate it (needs `adb root`,
 		// done in CI emulator setup) so the push lands instead of silently no-op'ing.
-		execSync('adb shell mkdir -p /sdcard/Android/data/com.nodemobile/files');
+		await adb(['shell', 'mkdir', '-p', '/sdcard/Android/data/com.nodemobile/files'], { timeoutMs: 10000, label: 'mkdir' });
 		const gpxSrc = path.resolve(__dirname, '../__tests__/Downer_Woods.gpx');
-		execSync(`adb push "${gpxSrc}" /sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx`);
+		await adb(['push', gpxSrc, '/sdcard/Android/data/com.nodemobile/files/Downer_Woods.gpx'], { timeoutMs: 15000, label: 'push-gpx' });
 	});
 
 	it('Login, create_route, delete route, log out', async () => {
@@ -24,9 +26,9 @@ describe('create_route flow', () => {
 		console.log('[TEST] Waiting for email input...');
 		await waitFor(element(by.id('login-email-input'))).toBeVisible().withTimeout(10000);
 		console.log('[TEST] Typing email...');
-		await element(by.id('login-email-input')).typeText(process.env.TEST_EMAIL);
+		await element(by.id('login-email-input')).replaceText(process.env.TEST_EMAIL);
 		console.log('[TEST] Typing password...');
-		await element(by.id('login-password-input')).typeText(process.env.TEST_PASSWORD);
+		await element(by.id('login-password-input')).replaceText(process.env.TEST_PASSWORD);
 		console.log('[TEST] Submitting via return key...');
 		await element(by.id('login-password-input')).tapReturnKey();
 
@@ -42,7 +44,7 @@ describe('create_route flow', () => {
 		await waitFor(element(by.text('Create New Route'))).toBeVisible().withTimeout(15000);
 
 		console.log('[TEST] Entering route name...');
-		await element(by.id('route-name-input')).typeText('Test Route');
+		await element(by.id('route-name-input')).replaceText(ROUTE_NAME);
 		await element(by.id('route-name-input')).tapReturnKey();
 
 		console.log('[TEST] Picking GPX file...');
@@ -59,7 +61,8 @@ describe('create_route flow', () => {
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
 		await element(by.text('My Routes')).tap();
-		await element(by.id('user-item-delete-Test Route')).tap();
+		await waitFor(element(by.id(`user-item-delete-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
+		await element(by.id(`user-item-delete-${ROUTE_NAME}`)).tap();
 		await waitFor(element(by.text('Are you sure you want to delete this route?'))).toBeVisible().withTimeout(8000);
 		await element(by.text('Delete')).tap();
 
