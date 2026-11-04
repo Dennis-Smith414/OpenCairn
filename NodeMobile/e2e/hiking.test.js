@@ -162,14 +162,16 @@ describe('hiking flow', () => {
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
 
-		// Same idle-sync issue as the tab-map nav above: the map screen still
-		// has its own busy loop running (recurring timers — compass/location
-		// watch, not a bug) even after stopping the tracker, so re-enabling
-		// synchronization before LEAVING the screen hangs on tab-account the
-		// same way it hung on tab-map. Stay desynced through that nav too.
+		// Same idle-sync issue as the tab-map nav above, and it doesn't end at
+		// tab-account: React Navigation's bottom tab navigator keeps MapScreen
+		// MOUNTED in the background when you switch tabs (it doesn't unmount),
+		// so its busy loop (recurring timers — compass/location watch, not a
+		// bug) keeps running no matter which screen is visible, for the rest of
+		// this test. Re-enabling sync on tab-account only moved the hang to the
+		// very next action (My Routes). Stay desynced through the whole rest of
+		// the flow instead of chasing each individual tap.
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
-		await device.enableSynchronization();
 		await element(by.text('My Routes')).tap();
 		await waitFor(element(by.id(`user-item-delete-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
 		await element(by.id(`user-item-delete-${ROUTE_NAME}`)).tap();
@@ -180,6 +182,9 @@ describe('hiking flow', () => {
 		await waitFor(element(by.id('settings-logout-button'))).toBeVisible().withTimeout(10000);
 		await element(by.id('settings-logout-button')).tap();
 		await waitFor(element(by.id('landing-login-button'))).toBeVisible().withTimeout(10000);
+		// Logged out: the tab navigator (and MapScreen with it) is torn down,
+		// so it's safe to leave synchronization on for whatever runs next.
+		await device.enableSynchronization();
 		console.log('[TEST] PASS');
 	});
 });
