@@ -171,6 +171,15 @@ jobs:
           adb shell settings put global animator_duration_scale 0
           # fresh AVD can boot to a locked screen that hides the app
           adb shell wm dismiss-keyguard || true
+          echo "Waiting for window manager to grant focus to something ..."
+          for i in $(seq 1 30); do
+            FOCUS="$(adb shell dumpsys window 2>/dev/null | grep -m1 'mCurrentFocus=')"
+            if [ -n "$FOCUS" ] && ! echo "$FOCUS" | grep -q 'mCurrentFocus=null'; then
+              echo "window focus: $FOCUS"; break
+            fi
+            sleep 2
+            [ "$i" = "30" ] && { echo "window manager never granted focus to anything"; adb shell dumpsys window | tail -40; exit 1; }
+          done
           # bigger logcat buffer so a startup crash isn't lost to buffer roll
           adb logcat -G 16M || true
 
