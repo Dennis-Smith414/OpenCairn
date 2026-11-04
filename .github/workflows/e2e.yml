@@ -24,10 +24,6 @@ env:
   ANDROID_SDK_ROOT: /opt/android-sdk
   AVD_NAME: Medium_Phone_API_36.1
   DETOX_CONFIG: android.emu.debug
-  # Seed creds are throwaway values baked into the hermetic test DB — NOT real
-  # secrets. They must match seed.js (SEED_EMAIL / SEED_PASSWORD) in the stack.
-  TEST_EMAIL: test@opencairn.xyz
-  TEST_PASSWORD: TestPass1!
 
 jobs:
   e2e:
@@ -37,6 +33,13 @@ jobs:
     # the default self-hosted/linux/x64 labels.
     runs-on: [self-hosted, host-kvm]
     timeout-minutes: 60
+    # Test identity lives in repo secrets now — rotate here + in the backend
+    # repo's docker-compose.yml seed service (same two values, kept in sync
+    # by hand). If these two ever drift apart, Detox login 400s with
+    # "Invalid email or password".
+    env:
+      TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
     steps:
       - name: Checkout app repo
         uses: actions/checkout@v4
@@ -168,7 +171,11 @@ jobs:
         run: cd NodeMobile && npm ci
 
       # Jest API + pure-logic tests against the same hermetic backend the
-      # emulator uses, so they never touch a live server.
+      # emulator uses, so they never touch a live server. report.test.js is
+      # skipped (via jest.config.js, not a CLI flag — `--testPathIgnorePatterns`
+      # on the CLI REPLACES the config array instead of merging, which un-ignores
+      # e2e/ and __tests__/setup.js and breaks this step): it needs the backend's
+      # OpenAI moderation call, which the hermetic stack has no key or network path for.
       - name: Jest API + unit tests
         env:
           CI: 'true'
