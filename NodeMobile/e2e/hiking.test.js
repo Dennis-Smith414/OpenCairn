@@ -75,8 +75,15 @@ describe('hiking flow', () => {
 		await waitFor(element(by.text('Added to Map'))).toBeVisible().withTimeout(5000);
 		await element(by.text('OK')).tap();
 		await device.enableSynchronization();
-		await element(by.id('tab-map')).tap();
 
+		// isE2E has been permanently false (see isE2E.ts fix), so the location
+		// extrapolation coast window never collapsed to its E2E-tuned value and
+		// kept scheduling animation frames well past each GPS fix — Espresso's
+		// idle-sync check never settled once we hit this screen, so it waited
+		// forever instead of timing out. Belt-and-suspenders even after that fix:
+		// stay desynced through the nav + initial render.
+		await device.disableSynchronization();
+		await element(by.id('tab-map')).tap();
 		await waitFor(element(by.id('trip-tracker-start-pause-button'))).toBeVisible().withTimeout(15000);
 
 		const coords = [
@@ -128,6 +135,7 @@ describe('hiking flow', () => {
 		];
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
+		await waitFor(element(by.id('e2e-anchor-debug'))).toExist().withTimeout(10000);
 		await new Promise(resolve => setTimeout(resolve, 3000));
 
 		const checkpoints = [coords[0], coords[5], coords[10], coords[15], coords[20], coords[25], coords[30], coords[35], coords[40], coords[44]];
@@ -138,6 +146,7 @@ describe('hiking flow', () => {
 		}
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
+		await device.enableSynchronization();
 
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
