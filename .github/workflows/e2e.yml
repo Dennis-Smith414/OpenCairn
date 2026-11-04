@@ -116,6 +116,15 @@ jobs:
           # `up`. Idempotent (201 created / 409 already-exists both OK).
           docker compose run --rm seed
 
+      - name: Install JS deps
+        run: cd NodeMobile && npm ci
+
+      - name: Jest API + unit tests
+        env:
+          CI: 'true'
+          API_BASE: http://localhost:5102
+        run: cd NodeMobile && npx jest
+
       # The AVD MUST use the `medium_phone` profile (1080x2400). The `pixel`
       # profile (1080x1920) clips the delete button so Detox's 75%-visible tap
       # constraint fails. --force recreates it correctly no matter what's already
@@ -164,17 +173,6 @@ jobs:
           adb shell wm dismiss-keyguard || true
           # bigger logcat buffer so a startup crash isn't lost to buffer roll
           adb logcat -G 16M || true
-
-      - name: Install JS deps
-        run: cd NodeMobile && npm ci
-
-      # Jest API + pure-logic tests against the same hermetic backend the
-      # emulator uses, so they never touch a live server.
-      - name: Jest API + unit tests
-        env:
-          CI: 'true'
-          API_BASE: http://localhost:5102
-        run: cd NodeMobile && npx jest
 
       - name: Detox build
         run: cd NodeMobile && npx detox build -c "$DETOX_CONFIG"
