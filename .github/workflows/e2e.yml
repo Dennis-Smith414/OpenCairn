@@ -89,6 +89,8 @@ jobs:
       - name: Bring up hermetic backend (postgis + backend + seed)
         env:
           BACKEND_SSH_KEY: ${{ secrets.BACKEND_SSH_KEY }}
+          SEED_EMAIL: ${{ secrets.TEST_EMAIL }}
+          SEED_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
           rm -rf backend-stack
           # Write the deploy key from Actions secrets to a temp file — HOME/user
