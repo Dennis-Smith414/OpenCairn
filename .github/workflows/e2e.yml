@@ -85,7 +85,11 @@ jobs:
           export const OFFLINE_API_BASE = "http://10.0.2.2:5101";
           export const PMTILES_BASE = "http://127.0.0.1:5200";
           EOF
-          printf 'TEST_EMAIL=%s\nTEST_PASSWORD=%s\n' "$TEST_EMAIL" "$TEST_PASSWORD" > NodeMobile/.env
+          # E2E=true is read by src/utils/isE2E.ts via react-native-dotenv,
+          # baked into the JS bundle at Metro/babel transform time — it's how
+          # the app knows it's under Detox (there's no native-module signal
+          # to check at runtime; see isE2E.ts for why).
+          printf 'TEST_EMAIL=%s\nTEST_PASSWORD=%s\nE2E=true\n' "$TEST_EMAIL" "$TEST_PASSWORD" > NodeMobile/.env
 
       # Fresh clone of the backend stack each run (hermetic). Uses the runner's
       # on-disk SSH key (cairn_admin owns it, it's registered on GitHub) — no
