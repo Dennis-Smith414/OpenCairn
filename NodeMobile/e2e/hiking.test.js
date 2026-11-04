@@ -161,10 +161,15 @@ describe('hiking flow', () => {
 		}
 
 		await element(by.id('trip-tracker-start-pause-button')).tap();
-		await device.enableSynchronization();
 
+		// Same idle-sync issue as the tab-map nav above: the map screen still
+		// has its own busy loop running (recurring timers — compass/location
+		// watch, not a bug) even after stopping the tracker, so re-enabling
+		// synchronization before LEAVING the screen hangs on tab-account the
+		// same way it hung on tab-map. Stay desynced through that nav too.
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
+		await device.enableSynchronization();
 		await element(by.text('My Routes')).tap();
 		await waitFor(element(by.id(`user-item-delete-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
 		await element(by.id(`user-item-delete-${ROUTE_NAME}`)).tap();
