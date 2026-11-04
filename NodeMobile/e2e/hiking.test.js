@@ -5,6 +5,11 @@ const { waitForAnchorNear } = require('./utils/waitForAnchor');
 // Metres. Emulator mock fixes carry noise plus the Kalman floor (3 m); tune from CI.
 const ANCHOR_TOLERANCE_M = 15;
 
+// Unique per run so a route orphaned by this test dying mid-way (e.g. the map
+// screen hanging) can never collide with another spec's "Test Route" and make
+// by.id/by.text matchers ambiguous.
+const ROUTE_NAME = `Test Route ${Date.now()}`;
+
 jest.setTimeout(300000);
 
 describe('hiking flow', () => {
@@ -30,9 +35,9 @@ describe('hiking flow', () => {
 		console.log('[TEST] Waiting for email input...');
 		await waitFor(element(by.id('login-email-input'))).toBeVisible().withTimeout(10000);
 		console.log('[TEST] Typing email...');
-		await element(by.id('login-email-input')).typeText(process.env.TEST_EMAIL);
+		await element(by.id('login-email-input')).replaceText(process.env.TEST_EMAIL);
 		console.log('[TEST] Typing password...');
-		await element(by.id('login-password-input')).typeText(process.env.TEST_PASSWORD);
+		await element(by.id('login-password-input')).replaceText(process.env.TEST_PASSWORD);
 		console.log('[TEST] Submitting via return key...');
 		await element(by.id('login-password-input')).tapReturnKey();
 
@@ -48,7 +53,7 @@ describe('hiking flow', () => {
 		await waitFor(element(by.text('Create New Route'))).toBeVisible().withTimeout(15000);
 
 		console.log('[TEST] Entering route name...');
-		await element(by.id('route-name-input')).typeText('Test Route');
+		await element(by.id('route-name-input')).replaceText(ROUTE_NAME);
 		await element(by.id('route-name-input')).tapReturnKey();
 
 		console.log('[TEST] Picking GPX file...');
@@ -62,8 +67,8 @@ describe('hiking flow', () => {
 		await element(by.text('OK')).tap();
 		await device.enableSynchronization();
 
-		await waitFor(element(by.id('route-card-Test Route'))).toBeVisible().withTimeout(10000);
-		await element(by.id('route-card-Test Route')).tap();
+		await waitFor(element(by.id(`route-card-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
+		await element(by.id(`route-card-${ROUTE_NAME}`)).tap();
 		await waitFor(element(by.text('Add to Map'))).toBeVisible().withTimeout(10000);
 		await device.disableSynchronization();
 		await element(by.text('Add to Map')).tap();
@@ -137,8 +142,8 @@ describe('hiking flow', () => {
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
 		await element(by.text('My Routes')).tap();
-		await waitFor(element(by.id('user-item-delete-Test Route'))).toBeVisible().withTimeout(10000);
-		await element(by.id('user-item-delete-Test Route')).tap();
+		await waitFor(element(by.id(`user-item-delete-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
+		await element(by.id(`user-item-delete-${ROUTE_NAME}`)).tap();
 		await waitFor(element(by.text('Are you sure you want to delete this route?'))).toBeVisible().withTimeout(5000);
 		await element(by.text('Delete')).tap();
 

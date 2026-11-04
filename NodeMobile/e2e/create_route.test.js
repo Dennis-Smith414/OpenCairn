@@ -1,6 +1,11 @@
 const path = require('path');
 const { adb } = require('./utils/adb');
 
+// Unique per run so a route orphaned by another spec dying mid-test (e.g. a
+// hung hiking.test.js leaving its own "Test Route" behind) can never collide
+// with this test's route name and make by.id/by.text matchers ambiguous.
+const ROUTE_NAME = `Test Route ${Date.now()}`;
+
 describe('create_route flow', () => {
 	beforeAll(async () => {
 		await device.launchApp({
@@ -24,9 +29,9 @@ describe('create_route flow', () => {
 		console.log('[TEST] Waiting for email input...');
 		await waitFor(element(by.id('login-email-input'))).toBeVisible().withTimeout(10000);
 		console.log('[TEST] Typing email...');
-		await element(by.id('login-email-input')).typeText(process.env.TEST_EMAIL);
+		await element(by.id('login-email-input')).replaceText(process.env.TEST_EMAIL);
 		console.log('[TEST] Typing password...');
-		await element(by.id('login-password-input')).typeText(process.env.TEST_PASSWORD);
+		await element(by.id('login-password-input')).replaceText(process.env.TEST_PASSWORD);
 		console.log('[TEST] Submitting via return key...');
 		await element(by.id('login-password-input')).tapReturnKey();
 
@@ -42,7 +47,7 @@ describe('create_route flow', () => {
 		await waitFor(element(by.text('Create New Route'))).toBeVisible().withTimeout(15000);
 
 		console.log('[TEST] Entering route name...');
-		await element(by.id('route-name-input')).typeText('Test Route');
+		await element(by.id('route-name-input')).replaceText(ROUTE_NAME);
 		await element(by.id('route-name-input')).tapReturnKey();
 
 		console.log('[TEST] Picking GPX file...');
@@ -59,7 +64,8 @@ describe('create_route flow', () => {
 		await element(by.id('tab-account')).tap();
 		await waitFor(element(by.text('My Account'))).toExist().withTimeout(8000);
 		await element(by.text('My Routes')).tap();
-		await element(by.id('user-item-delete-Test Route')).tap();
+		await waitFor(element(by.id(`user-item-delete-${ROUTE_NAME}`))).toBeVisible().withTimeout(10000);
+		await element(by.id(`user-item-delete-${ROUTE_NAME}`)).tap();
 		await waitFor(element(by.text('Are you sure you want to delete this route?'))).toBeVisible().withTimeout(8000);
 		await element(by.text('Delete')).tap();
 
